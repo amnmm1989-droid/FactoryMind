@@ -7,6 +7,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from config import SEASONAL_PERIODS, CONFIDENCE_LEVEL
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 def forecast_ets(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
     """
@@ -62,12 +65,13 @@ def forecast_ets(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
                 rmse = np.sqrt(np.mean((test - pred_train)**2))
                 mape = np.mean(np.abs((test - pred_train) / test)) * 100
                 metrics = {'MAE': mae, 'RMSE': rmse, 'MAPE': mape}
-            except:
-                pass
+            except Exception:
+                logger.warning("ETS accuracy metrics computation failed | series_len=%d", len(series))
 
         return forecast_values, lower, upper, metrics, None
 
     except Exception as e:
+        logger.exception("ETS forecast failed | series_len=%d | steps=%d", len(series), steps)
         # إرجاع رسالة الخطأ بدلاً من استدعاء st.warning
         if len(series) == 0:
             forecast = np.zeros(steps)
@@ -95,4 +99,5 @@ def forecast_sarima(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
         forecast = fitted.forecast(steps).values
         return forecast, None
     except Exception as e:
+        logger.exception("SARIMA forecast failed | series_len=%d | steps=%d", len(series), steps)
         return None, str(e)
