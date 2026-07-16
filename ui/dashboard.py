@@ -1,9 +1,10 @@
 # ui/dashboard.py
 import streamlit as st
 import numpy as np
-from services.analytics import compute_basic_stats, prepare_forecast_months, prepare_seasonal_data
-from models.forecasting import forecast_ets, forecast_sarima
-from models.statistics import trend_analysis, detect_outliers_iqr
+from core.exceptions import InsufficientDataError
+from core.logging_config import get_logger
+from services.analytics import prepare_seasonal_data
+from services.product_analysis_service import analyze_product
 from ui.charts import (
     create_main_chart,
     create_comparison_chart,
@@ -14,10 +15,16 @@ from ui.charts import (
 from ui.tables import render_details_table
 from ui.export import render_export_buttons
 
+logger = get_logger(__name__)
+
 def render_dashboard(months, products, options):
     """
     عرض لوحة التحكم الكاملة
     options: dict يحتوي على الخيارات المختارة من الشريط الجانبي
+
+    ملاحظة (Phase 1): منطق الحساب (إحصائيات، تنبؤ، اتجاه، قيم شاذة)
+    انتقل بالكامل إلى services.product_analysis_service.analyze_product.
+    هذا الملف أصبح مسؤولاً عن العرض (rendering) فقط، ولا يحسب شيئاً بنفسه.
     """
     selected_products = options['selected_products']
     from_idx = options['from_idx']
@@ -40,35 +47,49 @@ def render_dashboard(months, products, options):
     for p in selected_products:
         all_products_data[p] = products[p][from_idx:to_idx+1]
 
-    # ========== التنبؤ ==========
-    forecast_vals, lower_vals, upper_vals, metrics, ets_error = forecast_ets(selected_data_main, steps=forecast_steps)
-    if ets_error:
-        st.warning(f"⚠️ تحذير ETS: {ets_error}")
+    # ========== التحليل الكامل عبر Service Layer ==========
+    try:
+        analysis = analyze_product(
+            product_name=main_product,
+            full_months=months,
+            selected_months=selected_months,
+            series=selected_data_main,
+            to_idx=to_idx,
+            forecast_steps=forecast_steps,
+            include_sarima=(forecast_model == "SARIMA (إذا توفر)"),
+            include_trend=show_trend,
+            include_outliers=show_outliers,
+        )
+    except InsufficientDataError as e:
+        logger.warning("Dashboard render aborted: %s", e)
+        st.error(f"⚠️ {e.message}")
+        st.stop()
 
-    sarima_forecast = None
-    if forecast_model == "SARIMA (إذا توفر)":
-        sarima_forecast, sarima_error = forecast_sarima(selected_data_main, steps=forecast_steps)
-        if sarima_error:
-            st.warning(f"⚠️ تحذير SARIMA: {sarima_error}")
-
-    forecast_months = prepare_forecast_months(to_idx, months, forecast_steps)
+    forecast_vals = analysis.ets.forecast_values
+    lower_vals = analysis.ets.lower_bound
+    upper_vals = analysis.ets.upper_bound
+    metrics = None
+    if analysis.ets.mae is not None:
+        metrics = {'MAE': analysis.ets.mae, 'RMSE': analysis.ets.rmse, 'MAPE': analysis.ets.mape}
+    sarima_forecast = analysis.sarima_values
+    forecast_months = analysis.forecast_months
 
     # ========== الإحصائيات الأساسية ==========
-    stats = compute_basic_stats(selected_data_main)
+    stats = analysis.stats
     st.subheader(f"📊 تحليل المنتج: {main_product}")
 
     col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("📦 الإجمالي", f"{stats['total']:,.0f}")
-    col2.metric("📈 المتوسط", f"{stats['avg']:,.1f}")
-    col3.metric("⬆ الأعلى", f"{stats['max']:,.0f}")
-    col4.metric("⬇ الأدنى (غير صفري)", f"{stats['min']:,.0f}")
-    col5.metric("📊 الانحراف المعياري", f"{stats['std']:,.1f}")
-    col6.metric("📌 الوسيط", f"{stats['median']:,.0f}")
+    col1.metric("📦 الإجمالي", f"{stats.total:,.0f}")
+    col2.metric("📈 المتوسط", f"{stats.avg:,.1f}")
+    col3.metric("⬆ الأعلى", f"{stats.max:,.0f}")
+    col4.metric("⬇ الأدنى (غير صفري)", f"{stats.min:,.0f}")
+    col5.metric("📊 الانحراف المعياري", f"{stats.std:,.1f}")
+    col6.metric("📌 الوسيط", f"{stats.median:,.0f}")
 
     col7, col8, col9, col10 = st.columns(4)
-    col7.metric("📅 أشهر (>0)", f"{stats['non_zero_count']}")
-    col8.metric("📉 معامل الاختلاف", f"{stats['cv']:.2%}")
-    col9.metric("🔮 آخر قيمة", f"{stats['last_val']:,.0f}")
+    col7.metric("📅 أشهر (>0)", f"{stats.non_zero_count}")
+    col8.metric("📉 معامل الاختلاف", f"{stats.cv:.2%}")
+    col9.metric("🔮 آخر قيمة", f"{stats.last_val:,.0f}")
     col10.metric("📈 قيمة التنبؤ (أول شهر)", f"{forecast_vals[0]:,.0f}")
 
     if metrics:
@@ -79,21 +100,21 @@ def render_dashboard(months, products, options):
             col_m3.metric("MAPE", f"{metrics['MAPE']:.2f}%")
 
     # ========== تحليل الاتجاه ==========
-    if show_trend:
-        trend = trend_analysis(selected_data_main)
+    if show_trend and analysis.trend:
+        trend = analysis.trend
         st.subheader("📈 تحليل الاتجاه")
         col_t1, col_t2, col_t3, col_t4 = st.columns(4)
-        col_t1.metric("الاتجاه", trend['direction'])
-        col_t2.metric("الميل (لكل شهر)", f"{trend['slope']:.2f}")
-        col_t3.metric("R² (قوة النموذج)", f"{trend['r_squared']:.3f}")
-        col_t4.metric("قيمة p (الدلالة)", f"{trend['p_value']:.4f}")
+        col_t1.metric("الاتجاه", trend.direction)
+        col_t2.metric("الميل (لكل شهر)", f"{trend.slope:.2f}")
+        col_t3.metric("R² (قوة النموذج)", f"{trend.r_squared:.3f}")
+        col_t4.metric("قيمة p (الدلالة)", f"{trend.p_value:.4f}")
 
     # ========== كشف النقاط الشاذة ==========
-    outliers = []
-    if show_outliers:
-        outliers, lower_bound, upper_bound = detect_outliers_iqr(selected_data_main)
-        if outliers:
-            st.warning(f"⚠️ تم اكتشاف {len(outliers)} نقطة شاذة (أشهر: {', '.join([selected_months[i] for i in outliers])})")
+    outlier_indices = []
+    if show_outliers and analysis.outliers:
+        outlier_indices = analysis.outliers.outlier_indices
+        if outlier_indices:
+            st.warning(f"⚠️ تم اكتشاف {len(outlier_indices)} نقطة شاذة (أشهر: {', '.join([selected_months[i] for i in outlier_indices])})")
         else:
             st.success("✅ لم يتم اكتشاف نقاط شاذة")
 
@@ -102,7 +123,7 @@ def render_dashboard(months, products, options):
     fig = create_main_chart(
         selected_months, selected_data_main,
         forecast_months, forecast_vals, lower_vals, upper_vals,
-        sarima_forecast, outliers, main_product, show_confidence
+        sarima_forecast, outlier_indices, main_product, show_confidence
     )
     st.plotly_chart(fig, use_container_width=True)
 

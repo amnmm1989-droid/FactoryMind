@@ -92,6 +92,58 @@ class ProductionRecommendation:
 
 
 @dataclass(frozen=True)
+class ProductStats:
+    """إحصائيات أساسية لمنتج — تقابل تماماً مخرجات services.analytics.compute_basic_stats
+    لكن ككائن مكتوب بدل قاموس خام، لتفادي أخطاء المفاتيح الإملائية."""
+    product_name: str
+    total: float
+    avg: float
+    max: float
+    min: float
+    std: float
+    median: float
+    cv: float
+    non_zero_count: int
+    last_val: float
+
+
+@dataclass(frozen=True)
+class TrendAnalysis:
+    """تقابل مخرجات models.statistics.trend_analysis."""
+    product_name: str
+    slope: float
+    intercept: float
+    r_squared: float
+    p_value: float
+    direction: str
+
+    @property
+    def direction_enum(self) -> TrendDirection:
+        if self.slope > 0:
+            return TrendDirection.UP
+        if self.slope < 0:
+            return TrendDirection.DOWN
+        return TrendDirection.STABLE
+
+
+@dataclass(frozen=True)
+class OutlierReport:
+    """تقابل مخرجات models.statistics.detect_outliers_iqr."""
+    product_name: str
+    outlier_indices: list[int]
+    lower_bound: float
+    upper_bound: float
+
+    @property
+    def has_outliers(self) -> bool:
+        return len(self.outlier_indices) > 0
+
+    @property
+    def count(self) -> int:
+        return len(self.outlier_indices)
+
+
+@dataclass(frozen=True)
 class InventoryStatus:
     """حالة مخزون منتج (تُستخدم بالكامل في Phase 5)."""
     product_name: str
