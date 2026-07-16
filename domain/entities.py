@@ -58,18 +58,61 @@ class ForecastResult:
 
 @dataclass(frozen=True)
 class RiskScore:
-    """درجة الخطورة لمنتج معيّن (0-100) مع تفصيل العوامل المُساهمة."""
+    """درجة الخطورة لمنتج معيّن (0-100) مع تفصيل العوامل المُساهمة.
+
+    كل عامل مساهمة خطورة على مقياس 0-100 (لا قيمة خام): 0 = لا خطورة،
+    100 = أقصاها. التوحيد ضروري ليكون الجمع الموزون ذا معنى.
+
+    None يعني "غير معروف" لا "صفر" — والفرق حاسم:
+      - stock_depletion_risk = 0   -> المخزون وفير، لا خطر نفاد
+      - stock_depletion_risk = None -> لا نعرف المخزون أصلاً
+    خلطهما يجعل منتجاً مجهول المخزون يبدو آمناً. العوامل المجهولة
+    تُستبعد من الحساب وتُعاد موازنة الباقي (services/risk_service).
+    """
     product_name: str
     score: float  # 0-100
-    demand_volatility: float
-    stock_depletion_risk: float
-    forecast_accuracy_penalty: float
-    seasonality_factor: float
-    growth_rate: float
+    demand_volatility: float | None
+    stock_depletion_risk: float | None
+    forecast_accuracy_penalty: float | None
+    seasonality_factor: float | None
+    growth_rate: float | None
 
     @property
     def level(self) -> RiskLevel:
         return RiskLevel.from_score(self.score)
+
+    @property
+    def known_factors(self) -> dict[str, float]:
+        """العوامل المحسوبة فعلاً — ما دخل في score."""
+        candidates = {
+            "demand_volatility": self.demand_volatility,
+            "stock_depletion_risk": self.stock_depletion_risk,
+            "forecast_accuracy_penalty": self.forecast_accuracy_penalty,
+            "seasonality_factor": self.seasonality_factor,
+            "growth_rate": self.growth_rate,
+        }
+        return {name: value for name, value in candidates.items() if value is not None}
+
+    @property
+    def missing_factors(self) -> list[str]:
+        """العوامل التي تعذّر حسابها — يجب أن تُعرض مع الدرجة لا أن تُخفى.
+
+        درجة محسوبة من عاملين ليست كدرجة محسوبة من خمسة، ومن يقرأ الرقم
+        يستحق أن يعرف على أي أساس بُني.
+        """
+        all_names = {
+            "demand_volatility",
+            "stock_depletion_risk",
+            "forecast_accuracy_penalty",
+            "seasonality_factor",
+            "growth_rate",
+        }
+        return sorted(all_names - set(self.known_factors))
+
+    @property
+    def confidence(self) -> float:
+        """نسبة العوامل المعروفة (0-1) — مقياس صريح لصلابة الدرجة."""
+        return len(self.known_factors) / 5.0
 
 
 @dataclass(frozen=True)
@@ -82,10 +125,27 @@ class ProductionRecommendation:
     risk: RiskScore | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # تحت هذه النسبة يُعتبر الطلب مستقراً لا متغيّراً
+    STABLE_THRESHOLD_PCT = 0.05
+
     def as_message(self) -> str:
-        direction = "ارتفاع" if self.expected_demand_change_pct >= 0 else "انخفاض"
+        """رسالة التوصية الجاهزة للعرض.
+
+        حالة الاستقرار ليست تفصيلاً تجميلياً: النموذج الفائز على معظم
+        منتجات هذا المشروع متوسط متحرك، وهو يتنبأ بحكم تعريفه بأن الشهر
+        القادم كالأشهر الماضية — أي تغيّر ~0%. الصياغة القديمة كانت تقرأ
+        الصفر كـ"ارتفاع" وتُخرج "بسبب ارتفاع الطلب المتوقع بنسبة 0.0%".
+        """
+        quantity = f"{self.recommended_quantity:,.0f}"
+        if abs(self.expected_demand_change_pct) < self.STABLE_THRESHOLD_PCT:
+            return (
+                f"يوصى بإنتاج {quantity} وحدة من المنتج {self.product_name} "
+                f"في الشهر القادم — الطلب المتوقع مستقر"
+            )
+
+        direction = "ارتفاع" if self.expected_demand_change_pct > 0 else "انخفاض"
         return (
-            f"يوصى بإنتاج {self.recommended_quantity:,.0f} وحدة من المنتج "
+            f"يوصى بإنتاج {quantity} وحدة من المنتج "
             f"{self.product_name} في الشهر القادم بسبب {direction} الطلب "
             f"المتوقع بنسبة {abs(self.expected_demand_change_pct):.1f}%"
         )

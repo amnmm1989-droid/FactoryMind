@@ -42,9 +42,12 @@ app.py
  │   │                       SARIMA/Prophet/XGBoost/RF + اختيار بالأدلة.
  │   │                       المحرك لا يعرف نموذجاً بالاسم — registry.py فقط.
  │   │                       ⚠️ غير موصول بـ ui/ بعد (الوصل في Phase 6)
- │   ├─ decision_engine/     (Phase 4) توصيات الإنتاج
+ │   ├─ decision_engine/     ✅ (Phase 4) ForecastResult -> ProductionRecommendation
+ │   │                       الكمية = الطلب المتوقع ناقص المخزون المتاح
  │   ├─ inventory_service/   (Phase 5) Reorder Point, Safety Stock
- │   └─ risk_service/        (Phase 4) Risk Score
+ │   └─ risk_service/        ✅ (Phase 4) RiskScore من 5 عوامل.
+ │                           عامل بلا بيانات = None لا صفر، ويُستبعد
+ │                           من الحساب مع إعادة موازنة الباقي.
  └─ ui/
      ├─ pages/executive.py         (Phase 6)
      ├─ pages/forecasting.py       (Phase 6)
