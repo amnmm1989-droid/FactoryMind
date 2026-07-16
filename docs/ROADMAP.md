@@ -55,12 +55,66 @@
 
 ---
 
-## Phase 3 — Forecast Engine (التالية)
-`services/forecast_engine/`: واجهة موحّدة تدرب ETS/SARIMA/Prophet/
-XGBoost/RandomForest، تقيّم كل واحد (MAE/RMSE/MAPE)، تختار الأفضل،
-تخزّن النموذج في `cache/models/` (joblib) مع مفتاح = hash(product+data).
+## Phase 3 — Forecast Engine ✅
+**الهدف:** واجهة موحّدة تدرّب عدة نماذج، تقيّمها، وتختار الأفضل بالأدلة.
 
-## Phase 4 — Decision Engine + Risk Scoring
+- [x] `services/forecast_engine/base.py` — عقد `Forecaster` + `ForecastOutput`
+- [x] `naive.py` — **Naive + MovingAverage** (إضافة على الخطة، انظر أدناه)
+- [x] `statistical.py` — ETS + SARIMA (تنفيذ صريح، يفشل بصوت مسموع)
+- [x] `prophet_model.py` — Prophet (استيراد كسول)
+- [x] `tree.py` — XGBoost + RandomForest عبر lag features
+- [x] `evaluation.py` — backtesting + MAE/RMSE/MAPE
+- [x] `cache.py` — تخزين مؤقت بمفتاح hash(product+data+model+horizon)
+- [x] `registry.py` + `engine.py` — الاختيار الآلي
+- [x] `repositories/forecast_repository.py` — الحفظ في جداول Phase 2
+- [x] `migrations/008` — ربط model_performance بجولة التقييم
+- [x] 69 اختباراً (`test_forecast_engine.py` + `test_forecast_repository.py`)
+
+**معيار القبول:** `pytest` أخضر بالكامل (117 اختباراً). ✅ تحقق.
+
+### إضافتان على الخطة الأصلية — ولماذا
+
+**1. نموذجا أساس (Naive + MovingAverage).** الخطة طلبت 5 نماذج تحتاج
+كلها ≥24 نقطة. لكن وسيط منتجات هذا المشروع **9 أشهر غير صفرية من 44**،
+و72 من 185 منتجاً لها 1-5 أشهر فقط. بلا أساس، المحرك يفشل على 39% من
+الكتالوج — ولا يوجد مرجع يُقاس عليه هل تستحق النماذج المعقّدة تعقيدها.
+
+**2. قياس على النقاط غير الصفرية لا طول السلسلة.** كل منتج له 44 نقطة
+بالضبط، فمعيار الطول وحده يقول إن كل المنتجات صالحة لـ SARIMA. ليست كذلك.
+
+### النتيجة القياسية (43 منتجاً لها ≥24 شهراً غير صفري)
+
+| النموذج | مرات الفوز | متوسط الترتيب |
+|---|---|---|
+| MovingAverage | 10 | **2.47** |
+| Naive | **16** | 3.05 |
+| RandomForest | 6 | 3.65 |
+| XGBoost | 8 | 4.16 |
+| ETS | 1 | 4.63 |
+| Prophet | **0** | 4.81 |
+| SARIMA | 2 | 5.23 |
+
+**النماذج الساذجة تفوز في 60% من الحالات على أغنى البيانات المتاحة.**
+Prophet لم يفز ولا مرة. هذا ليس عيباً في التنفيذ — إنه ما تقوله البيانات:
+44 نقطة شهرية لا تكفي لتعلّم أنماط معقّدة. القيمة الحقيقية لهذه المرحلة
+هي أن النظام صار **يعرف ذلك ويقيسه**، بدل افتراض أن الأعقد أفضل.
+
+### انحرافات موثّقة
+
+- **الـ cache يخزّن النتيجة لا النموذج.** الخطة طلبت تخليل النموذج
+  (joblib). كائنات Prophet/statsmodels المخلَّلة مرتبطة بإصدار المكتبة —
+  ترقية واحدة تجعل كل ملف قنبلة موقوتة تُحمَّل وتتصرف بصمت بشكل مختلف.
+  تخزين النتيجة يتجنّب التدريب *والتنبؤ*، ويزن كيلوبايتات بدل ميغابايتات.
+
+### غير منجَز بعد (خارج نطاق هذه المرحلة)
+
+- **المحرك غير موصول بـ `ui/dashboard.py`** — الواجهة ما زالت تستدعي
+  `services/product_analysis_service.py` (مسار Phase 1). الوصل في Phase 6.
+- `models/forecasting.py` لم يُمسّ — يبقى لأن الواجهة والاختبارات عليه.
+
+---
+
+## Phase 4 — Decision Engine + Risk Scoring (التالية)
 `services/decision_engine/`: يحوّل `ForecastResult` إلى
 `ProductionRecommendation` (الصيغة المطلوبة: "يوصى بإنتاج X وحدة...").
 `services/risk_service/`: يحسب `RiskScore` من (تقلب الطلب، نفاد
