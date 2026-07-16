@@ -33,7 +33,10 @@ app.py
  ├─ domain/                 ✅ (Phase 0 — الهيكل فقط، المنطق لاحقاً)
  │   └─ entities.py          ForecastResult, RiskScore,
  │                           ProductionRecommendation, InventoryStatus
- ├─ repositories/            (بدون تغيير جوهري + إضافة جداول جديدة Phase 2)
+ ├─ migrations/             ✅ (Phase 2 — مُنفَّذ)
+ │   └─ NNN_*.sql            المالك الوحيد لبنية القاعدة، يطبّقها migrate.py
+ ├─ repositories/            (Repository Pattern كما هو — لكنه لم يعد
+ │                           يملك الـ schema، يتحقق منها فقط)
  ├─ services/
  │   ├─ forecast_engine/     (Phase 3) ETS/SARIMA/Prophet/XGBoost/RF + اختيار تلقائي
  │   ├─ decision_engine/     (Phase 4) توصيات الإنتاج

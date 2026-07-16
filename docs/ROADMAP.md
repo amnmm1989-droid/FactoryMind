@@ -16,7 +16,7 @@
 
 ---
 
-## Phase 1 — Domain + Service Layer Refactor (التالية)
+## Phase 1 — Domain + Service Layer Refactor ✅
 - استخراج منطق `ui/dashboard.py` (compute stats, forecast orchestration)
   إلى `services/product_analysis_service.py` يُرجع `domain.entities` بدل
   قواميس خام.
@@ -25,14 +25,37 @@
 - ربط `core.logging_config` بكل نقاط الفشل الحالية (`except Exception as e`).
 - **لا تغيير على واجهة Streamlit المرئية.**
 
-## Phase 2 — DB Schema Extension
-جداول جديدة في SQLite (migrations صريحة، لا تلقائية داخل `__init__`):
-`products_meta`, `inventory`, `forecasts`, `production_plans`,
-`recommendations`, `model_performance`.
-كل migration في ملف SQL منفصل + سكربت `migrate.py` يعمل بشكل idempotent
-(قابل للتشغيل أكثر من مرة بأمان).
+---
 
-## Phase 3 — Forecast Engine
+## Phase 2 — DB Schema Extension ✅
+**الهدف:** نقل ملكية بنية القاعدة من كود بايثون إلى migrations صريحة،
+وتجهيز الجداول التي ستحتاجها المراحل 3-5.
+
+- [x] `migrations/001_baseline.sql` — الجداول الثلاثة القائمة
+      (months, products, sales)، منقولة حرفياً من `_init_db()`
+- [x] `migrations/002_products_meta.sql` — بيانات المنتجات الوصفية
+- [x] `migrations/003_inventory.sql` — يقابل `InventoryStatus`
+- [x] `migrations/004_forecasts.sql` — يقابل `ForecastResult`
+- [x] `migrations/005_model_performance.sql` — تقييم النماذج (Phase 3)
+- [x] `migrations/006_recommendations.sql` — يقابل `ProductionRecommendation`
+      مع `RiskScore` مدمجاً (Phase 4)
+- [x] `migrations/007_production_plans.sql` — قرارات الإنتاج الفعلية
+- [x] `migrate.py` — مشغّل idempotent وذرّي، مع كشف تعديل الـ migrations
+      المطبَّقة (checksum) وأمر `--status`
+- [x] `SQLiteRepository._init_db()` **أُزيل** — استُبدل بـ `_verify_schema()`
+      يرفع `MigrationError` مع تعليمات واضحة بدل إنشاء الجداول ضمناً
+- [x] `tests/conftest.py` — الاختبارات على قاعدة مؤقتة، لا على `data/app.db`
+- [x] 19 اختبار (`tests/test_migrations.py`) — **جميعها ناجحة**
+
+**معيار القبول:** `pytest` أخضر بالكامل (48 اختباراً)، و`python migrate.py`
+يعمل مراراً بلا أثر جانبي، ويرقّي قاعدة بيانات قائمة دون فقدان صف. ✅ تحقق.
+
+**تغيير سلوكي:** التطبيق لم يعد ينشئ الجداول تلقائياً — `python migrate.py`
+مطلوب مرة واحدة قبل أول تشغيل. راجع `docs/MIGRATION_GUIDE_PHASE2.md`.
+
+---
+
+## Phase 3 — Forecast Engine (التالية)
 `services/forecast_engine/`: واجهة موحّدة تدرب ETS/SARIMA/Prophet/
 XGBoost/RandomForest، تقيّم كل واحد (MAE/RMSE/MAPE)، تختار الأفضل،
 تخزّن النموذج في `cache/models/` (joblib) مع مفتاح = hash(product+data).

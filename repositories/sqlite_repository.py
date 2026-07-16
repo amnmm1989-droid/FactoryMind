@@ -4,66 +4,43 @@ import json
 from typing import Tuple, List, Dict, Any
 from repositories.base import DataRepository
 from config import DATABASE_PATH, DATA_FILE
+from core.exceptions import MigrationError
+from migrate import missing_tables
 
 class SQLiteRepository(DataRepository):
     """تطبيق DataRepository باستخدام SQLite مع هيكل Normalized"""
-    
+
     def __init__(self, db_path: str = DATABASE_PATH):
         self.db_path = db_path
-        self._init_db()
+        self._verify_schema()
         # التحقق مما إذا كانت قاعدة البيانات فارغة (لا توجد بيانات)
         if not self._has_data():
             # إذا كانت فارغة، نقوم بالترحيل من JSON تلقائياً (لأول مرة)
             self.migrate_from_json()
-    
+
     def _get_connection(self):
         """إنشاء اتصال بقاعدة البيانات مع تفعيل Foreign Keys"""
         conn = sqlite3.connect(self.db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.row_factory = sqlite3.Row  # للوصول بالأسماء
         return conn
-    
-    def _init_db(self):
-        """إنشاء الجداول إذا لم تكن موجودة"""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # جدول الأشهر
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS months (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    sort_order INTEGER NOT NULL
-                )
-            """)
-            
-            # جدول المنتجات
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS products (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE
-                )
-            """)
-            
-            # جدول المبيعات
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS sales (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    product_id INTEGER NOT NULL,
-                    month_id INTEGER NOT NULL,
-                    quantity REAL NOT NULL,
-                    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-                    FOREIGN KEY (month_id) REFERENCES months(id) ON DELETE CASCADE,
-                    UNIQUE(product_id, month_id)
-                )
-            """)
-            
-            # فهارس لتحسين الأداء
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sales_product ON sales(product_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sales_month ON sales(month_id)")
-            
-            conn.commit()
-    
+
+    def _verify_schema(self):
+        """التأكد من أن الـ migrations طُبِّقت — دون إنشاء أي شيء.
+
+        المستودع لم يعد يملك بنية القاعدة (كان _init_db ينشئها هنا قبل
+        Phase 2). ملفات migrations/ هي المالك الوحيد الآن، وهذه الدالة
+        تتحقق فقط. الفشل هنا صريح ومع تعليمات، بدل انهيار لاحق برسالة
+        "no such table" غامضة عند أول استعلام.
+        """
+        missing = missing_tables(self.db_path)
+        if missing:
+            raise MigrationError(
+                f"قاعدة البيانات ناقصة {len(missing)} جدول. "
+                f"شغّل: python migrate.py",
+                context={"db_path": self.db_path, "missing_tables": missing},
+            )
+
     def _has_data(self) -> bool:
         """التحقق مما إذا كانت قاعدة البيانات تحتوي على بيانات (جدول sales ليس فارغاً)"""
         with self._get_connection() as conn:
