@@ -17,6 +17,7 @@ RandomForest، تقيّم كلاً منها على بيانات لم يرَها�
 from .base import Forecaster, ForecastOutput
 from .engine import EngineResult, ModelEvaluation, forecast_product
 from .evaluation import ModelMetrics, backtest, compute_metrics
+from .intermittent import DemandClass, DemandProfile, classify_demand
 from .registry import applicable_models, default_models
 
 __all__ = [
@@ -26,6 +27,9 @@ __all__ = [
     "EngineResult",
     "ModelEvaluation",
     "ModelMetrics",
+    "DemandClass",
+    "DemandProfile",
+    "classify_demand",
     "forecast_product",
     "backtest",
     "compute_metrics",

@@ -38,9 +38,12 @@ app.py
  ├─ repositories/            (Repository Pattern كما هو — لكنه لم يعد
  │                           يملك الـ schema، يتحقق منها فقط)
  ├─ services/
- │   ├─ forecast_engine/     ✅ (Phase 3 — مُنفَّذ) Naive/MovingAverage/ETS/
- │   │                       SARIMA/Prophet/XGBoost/RF + اختيار بالأدلة.
- │   │                       المحرك لا يعرف نموذجاً بالاسم — registry.py فقط.
+ │   ├─ forecast_engine/     ✅ (Phase 3 — مُنفَّذ) 9 نماذج + اختيار بالأدلة:
+ │   │                       Naive/MovingAverage/Croston/TSB/ETS/SARIMA/
+ │   │                       Prophet/XGBoost/RF. المحرك لا يعرف نموذجاً
+ │   │                       بالاسم — registry.py فقط.
+ │   │                       intermittent.py يصنّف السلسلة (ADI/CV²)
+ │   │                       ويحدد مقياس الاختيار: 84% من الكتالوج متقطّع.
  │   │                       ⚠️ غير موصول بـ ui/ بعد (الوصل في Phase 6)
  │   ├─ decision_engine/     ✅ (Phase 4) ForecastResult -> ProductionRecommendation
  │   │                       الكمية = الطلب المتوقع ناقص المخزون المتاح

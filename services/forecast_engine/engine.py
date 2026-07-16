@@ -18,9 +18,23 @@ from domain.entities import ForecastResult
 from . import cache as forecast_cache
 from .base import Forecaster, ForecastOutput
 from .evaluation import ModelMetrics, backtest
+from .intermittent import DemandProfile, classify_demand
 from .registry import default_models
 
 logger = get_logger(__name__)
+
+
+def _metric_getter(metric_name: str):
+    """دالة استخراج المقياس المستخدم للترتيب.
+
+    مقياسان لا واحد، لأن السؤال يختلف:
+      - rmse: "كم يخطئ في كل شهر؟" — صحيح للطلب المنتظم.
+      - cumulative_error: "كم يخطئ في *إجمالي* الأفق؟" — الصحيح للمتقطّع،
+        حيث الإصابة شهراً بشهر سؤال بلا جواب، وRMSE يكافئ التنبؤ بالصفر.
+    """
+    if metric_name == "cumulative_error":
+        return lambda metrics: metrics.cumulative_error
+    return lambda metrics: metrics.rmse
 
 
 @dataclass(frozen=True)
@@ -50,15 +64,24 @@ class EngineResult:
     best_model_name: str
     evaluations: list[ModelEvaluation]
     data_hash: str
+    profile: DemandProfile | None = None
 
     @property
     def evaluated_count(self) -> int:
         return sum(1 for e in self.evaluations if e.metrics is not None)
 
+    @property
+    def selection_metric(self) -> str:
+        """المقياس الذي اختير به الفائز — يجب أن يُعرَض لا أن يُفترض."""
+        if self.profile is not None and self.profile.is_intermittent:
+            return "cumulative_error"
+        return "rmse"
+
     def ranking(self) -> list[ModelEvaluation]:
-        """المقيَّمة فقط، الأفضل أولاً (RMSE تصاعدياً)."""
+        """المقيَّمة فقط، الأفضل أولاً — بالمقياس المناسب لهذه السلسلة."""
         scored = [e for e in self.evaluations if e.metrics is not None]
-        return sorted(scored, key=lambda e: e.metrics.rmse)
+        key = _metric_getter(self.selection_metric)
+        return sorted(scored, key=lambda e: key(e.metrics))
 
 
 def _run_model(
@@ -112,10 +135,12 @@ def _run_model(
     )
 
 
-def _select_best(evaluations: list[ModelEvaluation]) -> ModelEvaluation:
+def _select_best(
+    evaluations: list[ModelEvaluation], metric_name: str = "rmse"
+) -> ModelEvaluation:
     """اختيار الفائز.
 
-    القاعدة الأولى: أقل RMSE بين المقيَّمة.
+    القاعدة الأولى: أقل قيمة للمقياس المناسب لهذه السلسلة بين المقيَّمة.
     القاعدة الثانية (حين لا يُقيَّم أي نموذج): الأول الناجح بترتيب السجل —
     أي الأبسط. مبدأ صريح: بلا دليل يثبت أن التعقيد يفيد، لا نشتريه.
     هذا ليس تنازلاً؛ على سلسلة من 5 نقاط، "آخر قيمة مكرّرة" إجابة أصدق
@@ -130,7 +155,8 @@ def _select_best(evaluations: list[ModelEvaluation]) -> ModelEvaluation:
 
     scored = [e for e in successful if e.metrics is not None]
     if scored:
-        return min(scored, key=lambda e: e.metrics.rmse)
+        key = _metric_getter(metric_name)
+        return min(scored, key=lambda e: key(e.metrics))
 
     return successful[0]
 
@@ -167,12 +193,17 @@ def forecast_product(
             context={"product": product_name, "points": len(series)},
         )
 
+    # تصنيف السلسلة يحدد المقياس الذي يُختار به الفائز. 84% من كتالوج هذا
+    # المشروع متقطّع، وRMSE عليه يكافئ التنبؤ بالصفر — انظر evaluation.py.
+    profile = classify_demand(series)
+    metric_name = "cumulative_error" if profile.is_intermittent else "rmse"
+
     evaluations = [
         _run_model(model, product_name, series, steps, use_cache=use_cache)
         for model in applicable
     ]
 
-    best = _select_best(evaluations)
+    best = _select_best(evaluations, metric_name)
     metrics = best.metrics
 
     result = ForecastResult(
@@ -187,12 +218,13 @@ def forecast_product(
     )
 
     logger.info(
-        "Forecast selected | product=%s | winner=%s | evaluated=%d/%d | rmse=%s",
+        "Forecast selected | product=%s | winner=%s | class=%s | metric=%s | evaluated=%d/%d",
         product_name,
         best.model_name,
+        profile.demand_class.value,
+        metric_name,
         sum(1 for e in evaluations if e.metrics is not None),
         len(evaluations),
-        f"{metrics.rmse:.2f}" if metrics else "n/a",
     )
 
     return EngineResult(
@@ -201,4 +233,5 @@ def forecast_product(
         best_model_name=best.model_name,
         evaluations=evaluations,
         data_hash=forecast_cache.data_hash(product_name, series),
+        profile=profile,
     )

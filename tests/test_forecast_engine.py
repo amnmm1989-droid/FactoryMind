@@ -271,11 +271,20 @@ def test_registry_covers_every_model_the_roadmap_asks_for():
 
 
 def test_applicable_models_shrink_as_data_thins():
+    """العائلة الموسمية والشجرية تنسحب أمام السلسلة الشحيحة.
+
+    تحديث: كانت السلسلة الشحيحة تحصل على الأساس وحده. أضافت مرحلة الطلب
+    المتقطّع نموذجَي Croston و TSB — وهما مبنيان لهذه الحالة تحديداً،
+    فوجودهما هنا هو الغرض لا استثناء منه.
+    """
     rich = applicable_models(SEASONAL)
     poor = applicable_models(SPARSE)
 
     assert len(poor) < len(rich)
-    assert {m.name for m in poor} == {"Naive", "MovingAverage"}
+    assert {m.name for m in poor} == {"Naive", "MovingAverage", "Croston", "TSB"}
+    assert not {"ETS", "SARIMA", "Prophet", "XGBoost", "RandomForest"} & {
+        m.name for m in poor
+    }
 
 
 # ---------------------------------------------------------------------------
