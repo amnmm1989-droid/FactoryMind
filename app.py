@@ -3,11 +3,12 @@
 نقطة الدخول — قشرة تنقّل لا لوحة.
 
 قبل Phase 6 كان هذا الملف يبني اللوحة الوحيدة مباشرةً. الآن يوزّع على
-خمس صفحات ولا يحسب شيئاً بنفسه.
+ست صفحات ولا يحسب شيئاً بنفسه.
 
 الترتيب مقصود: التنفيذية أولاً (ما الذي يحتاج انتباهي؟)، ثم التنبؤ
-(المحرك الكامل)، ثم التخطيط، ثم ذكاء المنتج، والتحليل المتقدّم أخيراً —
-الصفحة الأصلية، للمحلل لا لمدير الإنتاج.
+(المحرك الكامل)، ثم التخطيط، ثم ذكاء المنتج، والتحليل المتقدّم — الصفحة
+الأصلية، للمحلل لا لمدير الإنتاج — وأخيراً ذكاء العميل: البُعد الثالث
+(Roadmap بند 5)، لمدير المبيعات لا الإنتاج.
 """
 import streamlit as st
 
@@ -114,5 +115,7 @@ navigation = st.navigation([
             url_path="product-intelligence"),
     st.Page(_page("advanced_analytics"), title=t("nav.advanced"), icon="📈",
             url_path="advanced-analytics"),
+    st.Page(_page("customer_intelligence"), title=t("nav.customers"), icon="🤝",
+            url_path="customer-intelligence"),
 ])
 navigation.run()

@@ -288,6 +288,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "nav.planning": {"ar": "تخطيط الإنتاج", "en": "Production Planning"},
     "nav.intelligence": {"ar": "ذكاء المنتج", "en": "Product Intelligence"},
     "nav.advanced": {"ar": "التحليل المتقدّم", "en": "Advanced Analytics"},
+    "nav.customers": {"ar": "ذكاء العميل", "en": "Customer Intelligence"},
 
     # ---- البيانات والرفع ----
     "data.header": {"ar": "📁 البيانات", "en": "📁 Data"},
@@ -412,6 +413,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "لم يُفهَم عمود المنتج أو الشهر أو الكمية في هذا الملف.",
         "en": "Could not recognise the product, month, or quantity column "
               "in this file.",
+    },
+    "error.no_customer_columns": {
+        "ar": "لم يُفهَم عمود المنتج أو العميل أو الشهر أو الكمية في هذا الملف.",
+        "en": "Could not recognise the product, customer, month, or "
+              "quantity column in this file.",
+    },
+    "error.no_customers": {
+        "ar": "لا عملاء صالحون في الملف.",
+        "en": "No valid customers in the file.",
     },
     "error.too_few_months": {
         "ar": "{months} شهراً فقط — الحد الأدنى {minimum}.",
@@ -1089,6 +1099,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{count} duplicate rows for the same product — their stock was "
               "summed (likely multiple warehouses).",
     },
+    "warn.customer_duplicate_rows": {
+        "ar": "{count} صفاً مكرّراً (منتج+عميل+شهر) — جُمعت كمياتها.",
+        "en": "{count} duplicate rows (product+customer+month) — their "
+              "quantities were summed.",
+    },
     "warn.dropped_columns": {
         "ar": "{count} عموداً لم يُفهَم كشهر فأُهمل: {names}",
         "en": "{count} columns were not understood as months and were ignored: {names}",
@@ -1116,5 +1131,92 @@ STRINGS: dict[str, dict[str, str]] = {
               "وستُرفض صراحةً.",
         "en": "{count} products with no sales at all — no model applies to them, "
               "and they will be rejected explicitly.",
+    },
+
+    # ---- ذكاء العميل — البُعد الثالث (Roadmap بند 5) ----
+    "cust.title": {"ar": "🤝 ذكاء العميل", "en": "🤝 Customer Intelligence"},
+    "cust.subtitle": {
+        "ar": "تحليل فقط — لا إنشاء طلبات. مدير المبيعات يستقبل الطلبات، "
+              "لا يُصدرها.",
+        "en": "Analysis only — no order creation. The sales manager "
+              "receives orders; they don't place them.",
+    },
+    "cust.header": {"ar": "🤝 مبيعات حسب العميل", "en": "🤝 Sales by customer"},
+    "cust.none_active": {
+        "ar": "لا ملف مبيعات حسب العميل مرفوع بعد.",
+        "en": "No sales-by-customer file uploaded yet.",
+    },
+    "cust.uploader": {"ar": "CSV أو Excel", "en": "CSV or Excel"},
+    "cust.uploader_help": {
+        "ar": "أربعة أعمدة: المنتج، العميل، الشهر، الكمية.",
+        "en": "Four columns: product, customer, month, quantity.",
+    },
+    "cust.template": {"ar": "⬇ نموذج CSV", "en": "⬇ CSV template"},
+    "cust.privacy_note": {
+        "ar": "🔒 يُحلَّل في ذاكرة الجلسة ولا يُكتب في قاعدة البيانات. "
+              "يختفي بإغلاق التبويب أو إعادة التشغيل.",
+        "en": "🔒 Analysed in session memory, never written to the "
+              "database. It disappears when you close the tab or restart.",
+    },
+    "cust.loaded": {
+        "ar": "ملفك: **{count}** عميل × **{months}** شهر",
+        "en": "Your file: **{count}** customers × **{months}** months",
+    },
+    "cust.clear": {"ar": "إزالة الملف", "en": "Remove file"},
+    "cust.read_failed": {
+        "ar": "تعذّرت قراءة الملف: {detail}",
+        "en": "Could not read the file: {detail}",
+    },
+    "cust.map_columns_help": {
+        "ar": "لم نتعرّف على أعمدة ملفك تلقائياً. اختر أيّ عمود هو أيّ.",
+        "en": "We couldn't recognise your file's columns automatically. "
+              "Pick which column is which.",
+    },
+    "cust.map_customer": {"ar": "عمود العميل", "en": "Customer column"},
+    "cust.upload_first": {
+        "ar": "ارفع ملف مبيعات حسب العميل من الشريط الجانبي لرؤية التحليل.",
+        "en": "Upload a sales-by-customer file from the sidebar to see "
+              "the analysis.",
+    },
+    "cust.customer": {"ar": "العميل", "en": "Customer"},
+    "cust.share": {"ar": "الحصة", "en": "Share"},
+    "cust.cumulative_share": {"ar": "الحصة التراكمية", "en": "Cumulative share"},
+    "cust.concentration_title": {
+        "ar": "📊 تركّز الاعتماد على العملاء", "en": "📊 Customer concentration",
+    },
+    "cust.concentration_summary": {
+        "ar": "أعلى {count} عميل يمثّلان **{pct:.0f}%** من إجمالي الكمية "
+              "في الملف.",
+        "en": "The top {count} customers account for **{pct:.0f}%** of "
+              "total quantity in the file.",
+    },
+    "cust.concentration_none": {
+        "ar": "لا كمية مسجَّلة في الملف — لا حصص يمكن حسابها.",
+        "en": "No quantity recorded in the file — no shares to compute.",
+    },
+    "cust.bleeding_title": {"ar": "🩸 عملاء ينزفون", "en": "🩸 Bleeding customers"},
+    "cust.bleeding_help": {
+        "ar": "عملاء انخفضت مشترياتهم أكثر من {threshold:.0f}% بين النصف "
+              "الأول والثاني من نافذة الملف — الأشد انحداراً أولاً.",
+        "en": "Customers whose purchases dropped more than {threshold:.0f}% "
+              "between the first and second half of the file's window — "
+              "steepest decline first.",
+    },
+    "cust.bleeding_none": {
+        "ar": "لا عميل انخفضت مشترياته أكثر من {threshold:.0f}% في هذه "
+              "النافذة.",
+        "en": "No customer dropped more than {threshold:.0f}% in this window.",
+    },
+    "cust.first_half": {"ar": "متوسط النصف الأول", "en": "First-half avg"},
+    "cust.second_half": {"ar": "متوسط النصف الثاني", "en": "Second-half avg"},
+    "cust.growth": {"ar": "النمو", "en": "Growth"},
+    "cust.growth_title": {"ar": "📈 النمو حسب العميل", "en": "📈 Growth by customer"},
+    "cust.growth_help": {
+        "ar": "كل العملاء، الأسرع نمواً أولاً. \"—\" تعني: لا مشتريات في "
+              "النصف الأول، فنسبة النمو من صفر غير معرَّفة — لا صفر ولا "
+              "رقم مخترَع.",
+        "en": "Every customer, fastest growth first. \"—\" means: no "
+              "purchases in the first half, so growth from zero isn't "
+              "mathematically defined — not zero, not an invented number.",
     },
 }

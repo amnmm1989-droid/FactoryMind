@@ -30,6 +30,7 @@ PAGE_MODULES = [
     "production_planning",
     "product_intelligence",
     "advanced_analytics",
+    "customer_intelligence",
 ]
 
 

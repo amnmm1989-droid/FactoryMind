@@ -501,17 +501,40 @@ item only unlocked the data it would need.
 > followed?" — can now be asked (`actual_quantity` is fillable), but nothing
 > yet computes the answer from it.
 
-## 5. Customer dimension — for the sales manager
+## 5. Customer dimension — for the sales manager ✅
 
 `product, customer, month, quantity` (Sales by Customer). A third dimension
 — `services/ingest.py` reads two today.
 
-Unlocks analysis that exists on no other page: risk concentration ("40% of
-your sales come from two customers"), bleeding customers, growth by
-customer.
+Unlocked: a new page, Customer Intelligence, answering three questions no
+other page can — none of them possible without the customer column:
 
-**Analysis only — no order creation.** The sales manager receives orders;
-he does not place them.
+- **Concentration**: rank every customer by share of total quantity, with
+  a running cumulative share ("the top 2 customers are 94% of volume").
+- **Bleeding customers**: whose purchases dropped more than 20% between
+  the first and second half of the file's window, steepest decline first.
+- **Growth by customer**: the same first-half/second-half comparison for
+  everyone, not just decliners — deliberately the simplest calculation
+  that's explainable in one sentence, not a linear-regression trend line
+  (same preference for plain-explainable math already made for Bottom-Up
+  reconciliation over MinT elsewhere in this doc).
+
+`services/customer_analysis.py` holds the three pure functions;
+`services/ingest.py::parse_customer_upload` reads the file (long-format
+only — a 3D cube has no natural flat "wide" shape) using the same
+hint-guessing and manual-mapping machinery as the other files, but with
+its own `CUSTOMER_MIN_MONTHS = 2` rather than the sales file's 3: this
+analysis compares two halves of a window, not a forecast, and doesn't
+need three months' minimum for a reason that doesn't apply to it — the
+same lesson the actual-production file taught above.
+
+**Analysis only — no order creation, and no persistence.** The sales
+manager receives orders; they do not place them. And unlike the
+production-actuals file, this never touches SQLite at all: every number
+the analysis needs is already inside the uploaded file itself (a full
+multi-month history), not a snapshot to be compared against something
+saved from an earlier session — so it's exactly as ephemeral as the sales
+and stock files, in both local and hosted mode alike.
 
 ---
 

@@ -81,7 +81,19 @@ STOCK_HINTS = (
     "المخزون", "الرصيد", "الكمية المتاحة", "الكمية الحالية",
 )
 
+# عمود العميل — البُعد الثالث (ملف المبيعات حسب العميل، Roadmap بند 5).
+CUSTOMER_HINTS = (
+    "customer", "client", "account", "buyer", "sold to", "sold-to",
+    "العميل", "الزبون", "الحساب", "المشتري",
+)
+
 MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى بأي نموذج
+
+# تحليل العميل (تركّز، نمو، عملاء ينزفون) يقارن نصف نافذة الملف بالآخر —
+# يحتاج شهرين ليكون للمقارنة معنى، لا ثلاثة كحدّ التنبؤ في MIN_MONTHS: لا
+# تنبؤ يُبنى هنا، فلا سبب لفرض حدّه. نفس الدرس الذي كشفه ملف الإنتاج
+# الفعلي: حدّ صُمِّم لغرض غير هذا يرفض الاستخدام الحقيقي الأشيع.
+CUSTOMER_MIN_MONTHS = 2
 
 # الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم.
 # المشروع يدعم الشهري وحده اليوم؛ الباقي يُرفَض صراحةً لا يُقبَل ويُساء
@@ -143,6 +155,31 @@ class StockSnapshot:
 
     levels: dict[str, float]              # {اسم المنتج: المخزون الحالي}
     warnings: list[Warning_] = field(default_factory=list)
+
+
+@dataclass
+class CustomerSalesDataset:
+    """مبيعات بمنتج × عميل × شهر — البُعد الثالث الذي لا يقرأه parse_upload.
+
+    rows: {عميل: {منتج: [كميات مرتّبة بترتيب months]}}. الإجمالي الشهري
+    لعميل لا يُخزَّن مكرَّراً هنا — customer_totals() يحسبه من مصدره
+    (مجموع منتجاته) كي لا ينحرف عنه لو حُسب مرتين في مكانين.
+    """
+
+    months: list[str]
+    rows: dict[str, dict[str, list[float]]]
+    warnings: list[Warning_] = field(default_factory=list)
+
+    @property
+    def customer_count(self) -> int:
+        return len(self.rows)
+
+    def customer_totals(self) -> dict[str, list[float]]:
+        """إجمالي كل عميل عبر كل منتجاته، شهراً بشهر — لا رقماً واحداً."""
+        return {
+            customer: [sum(month_values) for month_values in zip(*products.values())]
+            for customer, products in self.rows.items()
+        }
 
 
 def parse_full_date(label: str) -> date | None:
@@ -330,15 +367,17 @@ def read_columns(content: bytes, filename: str) -> list[str]:
 def guess_column(columns: list[str], role: str) -> str | None:
     """أفضل تخمين لعمود بدور معيّن — لتعبئة شاشة الربط اليدوي مسبقاً.
 
-    role: "product" | "month" | "quantity" | "stock". يستخدم نفس تلميحات
-    التخمين التلقائي (PRODUCT_HINTS إلخ) — تخمين أفضل من لا شيء، لكنه يبقى
-    تخميناً يُعرض على المستخدم لا يُفرَض عليه؛ الشاشة تسمح بتغييره بنقرة.
+    role: "product" | "month" | "quantity" | "stock" | "customer". يستخدم
+    نفس تلميحات التخمين التلقائي (PRODUCT_HINTS إلخ) — تخمين أفضل من لا
+    شيء، لكنه يبقى تخميناً يُعرض على المستخدم لا يُفرَض عليه؛ الشاشة تسمح
+    بتغييره بنقرة.
     """
     hints = {
         "product": PRODUCT_HINTS,
         "month": MONTH_HINTS,
         "quantity": QUANTITY_HINTS,
         "stock": STOCK_HINTS,
+        "customer": CUSTOMER_HINTS,
     }[role]
     return _find_column(columns, hints)
 
@@ -764,3 +803,204 @@ def parse_actuals_upload_with_mapping(
 
     pivoted, _, _ = _from_long(frame, product_column, month_column, quantity_column)
     return _actuals_from_pivot(pivoted)
+
+
+def _customer_pivot(
+    frame: pd.DataFrame, product_column: str, customer_column: str,
+    month_column: str, quantity_column: str,
+) -> tuple[pd.DataFrame, list[Warning_]]:
+    """محور (منتج، عميل) × شهر — بُعدان في الفهرس لا بُعد واحد كملف
+    المبيعات، لأن "من اشترى" لا يقلّ أهمية عن "ماذا اشترى" هنا.
+    """
+    warnings: list[Warning_] = []
+    duplicates = int(
+        frame.duplicated(subset=[product_column, customer_column, month_column]).sum()
+    )
+    if duplicates:
+        warnings.append(Warning_("customer_duplicate_rows", {"count": duplicates}))
+
+    pivoted = frame.pivot_table(
+        index=[product_column, customer_column], columns=month_column,
+        values=quantity_column, aggfunc="sum", fill_value=0,
+    )
+    return pivoted, warnings
+
+
+def _finalize_customer(
+    pivoted: pd.DataFrame, warnings: list[Warning_]
+) -> CustomerSalesDataset:
+    """نظير _finalize، لكن بفهرس ثنائي (منتج، عميل) بدل منتج وحده، وحدّ
+    أدنى شهرين لا ثلاثة (CUSTOMER_MIN_MONTHS — راجع تعليقه: لا تنبؤ هنا).
+
+    التكرار مع _finalize مقصود لا إهمال: بوابة الحبيبة والترتيب الزمني
+    منطق واحد فعلاً، لكن استخلاصه المشترك كان يخاطر بكسر Dataset القائم
+    لأجل ملف جديد — نفس القرار الذي اتُّخذ مع _actuals_from_pivot.
+    """
+    parsed_full: list[tuple[str, date | None]] = [
+        (str(column), parse_full_date(column)) for column in pivoted.columns
+    ]
+    full_dates = [parsed for _, parsed in parsed_full if parsed]
+
+    granularity = detect_granularity(full_dates)
+    if granularity is not None and granularity != SUPPORTED_GRANULARITY:
+        raise DataValidationError(
+            f"بيانات {granularity} — المدعوم حالياً: {SUPPORTED_GRANULARITY}",
+            context={
+                "code": "unsupported_granularity",
+                "granularity": granularity,
+                "supported": SUPPORTED_GRANULARITY,
+            },
+        )
+
+    parsed_months: list[tuple[str, date | None]] = [
+        (label, date(parsed.year, parsed.month, 1) if parsed else None)
+        for label, parsed in parsed_full
+    ]
+    understood = [(label, parsed) for label, parsed in parsed_months if parsed]
+
+    if not understood:
+        raise DataValidationError(
+            "لم يُفهَم أي عمود كشهر. الأشكال المقبولة: "
+            "'يناير 2023'، 'Jan 2023'، '2023-01'.",
+            context={
+                "code": "no_months",
+                "columns": [label for label, _ in parsed_months][:6],
+            },
+        )
+
+    unreadable = [label for label, parsed in parsed_months if not parsed]
+    if unreadable:
+        warnings.append(Warning_("dropped_columns", {
+            "count": len(unreadable), "names": "، ".join(unreadable[:4]),
+        }))
+
+    understood.sort(key=lambda pair: pair[1])
+    ordered_labels = [label for label, _ in understood]
+    pivoted = pivoted[ordered_labels]
+
+    if len(ordered_labels) < CUSTOMER_MIN_MONTHS:
+        raise DataValidationError(
+            f"{len(ordered_labels)} شهراً فقط — الحد الأدنى {CUSTOMER_MIN_MONTHS}.",
+            context={
+                "code": "too_few_months",
+                "months": len(ordered_labels),
+                "minimum": CUSTOMER_MIN_MONTHS,
+            },
+        )
+
+    dates = [parsed for _, parsed in understood]
+    expected = (dates[-1].year - dates[0].year) * 12 + (dates[-1].month - dates[0].month) + 1
+    if expected != len(dates):
+        warnings.append(Warning_("timeline_gaps", {
+            "found": len(dates), "expected": expected,
+            "start": str(dates[0]), "end": str(dates[-1]),
+        }))
+
+    numeric = pivoted.apply(pd.to_numeric, errors="coerce")
+    non_numeric = int(numeric.isna().sum().sum() - pivoted.isna().sum().sum())
+    if non_numeric > 0:
+        warnings.append(Warning_("non_numeric", {"count": non_numeric}))
+    numeric = numeric.fillna(0.0)
+
+    negatives = int((numeric < 0).sum().sum())
+    if negatives:
+        warnings.append(Warning_("negatives", {"count": negatives}))
+        numeric = numeric.clip(lower=0)
+
+    rows: dict[str, dict[str, list[float]]] = {}
+    for (product_name, customer_name), row in numeric.iterrows():
+        product_label = str(product_name).strip()
+        customer_label = str(customer_name).strip()
+        if not customer_label or customer_label.lower() == "nan":
+            continue
+        if not product_label or product_label.lower() == "nan":
+            continue
+        rows.setdefault(customer_label, {})[product_label] = [
+            float(v) for v in row.tolist()
+        ]
+
+    if not rows:
+        raise DataValidationError(
+            "لا عملاء صالحون في الملف", context={"code": "no_customers"}
+        )
+
+    return CustomerSalesDataset(months=ordered_labels, rows=rows, warnings=warnings)
+
+
+def parse_customer_upload(content: bytes, filename: str) -> CustomerSalesDataset:
+    """قراءة ملف مبيعات حسب العميل (منتج، عميل، شهر، كمية) — شكل طويل
+    إلزامي: لا شكل عريض طبيعياً لثلاثة أبعاد (منتج × عميل × شهر) في جدول
+    مسطّح، خلافاً لملف المبيعات العادي.
+
+    Raises:
+        DataValidationError: ملف غير مقروء أو فارغ، أو الأعمدة الأربعة لم
+            تُفهَم (code="no_customer_columns" — قابل للإنقاذ عبر
+            parse_customer_upload_with_mapping)، أو ما يرفضه
+            _finalize_customer (حبيبة غير مدعومة، أشهر قليلة، لا عملاء).
+    """
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    columns = [str(c) for c in frame.columns]
+    product_column = _find_column(columns, PRODUCT_HINTS)
+    customer_column = _find_column(columns, CUSTOMER_HINTS)
+    month_column = _find_column(columns, MONTH_HINTS)
+    quantity_column = _find_column(columns, QUANTITY_HINTS)
+    if not all([product_column, customer_column, month_column, quantity_column]):
+        raise DataValidationError(
+            "لم يُفهَم عمود المنتج أو العميل أو الشهر أو الكمية",
+            context={"code": "no_customer_columns", "columns": columns[:6]},
+        )
+
+    pivoted, warnings = _customer_pivot(
+        frame, product_column, customer_column, month_column, quantity_column
+    )
+    return _finalize_customer(pivoted, warnings)
+
+
+def parse_customer_upload_with_mapping(
+    content: bytes, filename: str, *,
+    product_column: str, customer_column: str, month_column: str, quantity_column: str,
+) -> CustomerSalesDataset:
+    """كـ parse_customer_upload، لكن بأعمدة اختارها المستخدم يدوياً."""
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    columns = [str(c) for c in frame.columns]
+    chosen = {
+        "product": product_column, "customer": customer_column,
+        "month": month_column, "quantity": quantity_column,
+    }
+    for role, column in chosen.items():
+        if column not in columns:
+            raise DataValidationError(
+                f"العمود المختار لـ{role} غير موجود في الملف: {column}",
+                context={"code": "unknown_mapped_column", "role": role, "column": column},
+            )
+    if len(set(chosen.values())) < 4:
+        raise DataValidationError(
+            "اختر أربعة أعمدة مختلفة — نفس العمود لا يصلح لدورين",
+            context={"code": "duplicate_mapped_columns"},
+        )
+
+    pivoted, warnings = _customer_pivot(
+        frame, product_column, customer_column, month_column, quantity_column
+    )
+    return _finalize_customer(pivoted, warnings)
+
+
+def customer_csv_template() -> bytes:
+    """نموذج فارغ — شكل طويل إلزامي، أربعة أعمدة."""
+    frame = pd.DataFrame({
+        "المنتج": ["Hydraulic Pump 50mm", "Hydraulic Pump 50mm", "Safety Valve 2in"],
+        "العميل": ["ACME Factories", "Delta Manufacturing", "ACME Factories"],
+        "الشهر": ["يناير 2024", "يناير 2024", "فبراير 2024"],
+        "الكمية": [80, 40, 20],
+    })
+    return frame.to_csv(index=False).encode("utf-8-sig")
