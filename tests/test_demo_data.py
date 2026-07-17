@@ -112,17 +112,19 @@ def test_the_demo_data_is_monthly(demo):
 # ---------------------------------------------------------------------------
 # لا أثر للبيانات الأصلية في أي نص يراه المستخدم
 # ---------------------------------------------------------------------------
-# أسماء البيانات الأصلية — ونطاقها. "185" ليس اسماً لكنه حجم كتالوج
-# حقيقي: ذِكره في نص يراه المستخدم يكشف عن العمل الذي جاءت منه البيانات.
-REAL_DATA_TERMS = ("coffee", "بنّ", "Demo Part", "Demo Part", "Demo Part",
-                   "Demo Part", "Demo Pack", "Demo Pack", "185")
+# مصطلحات ممنوعة في أي نص يراه المستخدم.
+#
+# عامة عمداً: النسخة الأولى من هذا الحارس عدّدت أسماء أصناف بعينها —
+# فكان يكتب على بابه ما يحرسه. الأسماء اختفت من الكود، فحراستها بلا معنى؛
+# وما يعود فعلاً هو الوصف العام ("185 صنف بنّ") لا الاسم المفرد.
+FORBIDDEN_TERMS = ("coffee", "بنّ", "185")
 
 
 def test_no_user_facing_string_mentions_the_original_data():
     """انحدار: القاموس ظلّ يصف البيانات القديمة بعد استبدالها.
 
     استُبدل الملف ونُقّي التاريخ، ثم بقي النص الذي *يصف* الملف يُعلن نوع
-    البيانات على كل زائر. تغيير البيانات بلا تغيير ما يصفها تسريب.
+    البيانات وحجمها على كل زائر. تغيير البيانات بلا تغيير ما يصفها تسريب.
     """
     from ui.i18n import STRINGS
 
@@ -130,7 +132,7 @@ def test_no_user_facing_string_mentions_the_original_data():
         f"{key}[{lang}]"
         for key, entry in STRINGS.items()
         for lang, text in entry.items()
-        if any(term.lower() in text.lower() for term in REAL_DATA_TERMS)
+        if any(term.lower() in text.lower() for term in FORBIDDEN_TERMS)
     ]
 
     assert offenders == [], f"نصوص تذكر البيانات الأصلية: {offenders}"
@@ -142,12 +144,12 @@ def test_the_csv_template_uses_synthetic_names():
 
     template = to_csv_template().decode("utf-8-sig")
 
-    assert not any(term.lower() in template.lower() for term in REAL_DATA_TERMS)
+    assert not any(term.lower() in template.lower() for term in FORBIDDEN_TERMS)
 
 
 def test_the_demo_catalogue_uses_synthetic_names(demo):
     assert not any(
         term.lower() in name.lower()
         for name in demo["products"]
-        for term in REAL_DATA_TERMS
+        for term in FORBIDDEN_TERMS
     )

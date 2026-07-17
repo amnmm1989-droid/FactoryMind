@@ -21,8 +21,8 @@ def csv(text: str) -> bytes:
 
 WIDE = csv(
     "المنتج,يناير 2024,فبراير 2024,مارس 2024,أبريل 2024\n"
-    "بنّ برازيلي,120,95,130,110\n"
-    "بنّ إثيوبي,45,0,60,30\n"
+    "Hydraulic Pump,120,95,130,110\n"
+    "Safety Valve,45,0,60,30\n"
 )
 LONG = csv(
     "product,month,quantity\n"
@@ -66,7 +66,7 @@ def test_wide_layout_is_read():
 
     assert dataset.product_count == 2
     assert dataset.month_count == 4
-    assert dataset.products["بنّ برازيلي"] == [120.0, 95.0, 130.0, 110.0]
+    assert dataset.products["Hydraulic Pump"] == [120.0, 95.0, 130.0, 110.0]
 
 
 def test_start_date_comes_from_the_file_not_a_constant():
