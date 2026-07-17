@@ -1,5 +1,7 @@
 # 🔮 FactoryMind — تحليل وتنبؤ لبيانات التصنيع
 
+[![CI](https://github.com/amnmm1989-droid/FactoryMind/actions/workflows/ci.yml/badge.svg)](https://github.com/amnmm1989-droid/FactoryMind/actions/workflows/ci.yml)
+
 **أداة مجانية ومفتوحة تقرأ تقارير نظامك وتحلّلها.**
 
 مصنعك لديه Odoo أو SAP أو ما يشبههما. صدّر منه تقريراً، ارفعه هنا، واعرف
@@ -96,8 +98,13 @@ streamlit run app.py
 
 ```bash
 python migrate.py --status    # ما هو مطبَّق وما هو معلّق
-pytest                        # 354 اختباراً
+pytest                        # الحزمة كاملة
 ```
+
+الشارة أعلاه تُشغَّل على كل دفعة إلى `main` وكل PR
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). العدد ليس مكتوباً
+هنا عمداً: **رقم يُكتب باليد يتقادم بصمت** — كان مكتوباً «354» بينما الحقيقة
+369، فنقل مراجِعٌ الرقمَ الخطأ لأنه صدّق هذا الملف. الراية الخضراء تُقاس.
 
 ### وضعان
 

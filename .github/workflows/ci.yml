@@ -1,0 +1,28 @@
+name: CI
+
+# 369 اختباراً بلا مشغّل آلي = صفر اختبار. هذا الملف هو المشغّل.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      # القفل لا الفضفاض: البيئة المُختبَرة محلياً هي نفسها هنا،
+      # وإلا فالراية الخضراء تصف بيئة لا يملكها أحد.
+      - run: pip install -r requirements.lock.txt
+
+      # بنية القاعدة مملوكة لـ migrations/؛ التطبيق يتحقق ولا ينشئ.
+      - run: python migrate.py
+
+      - run: pytest -q
