@@ -50,28 +50,21 @@ def _isolate_streamlit_caches():
 def cold_db(tmp_path, monkeypatch):
     """قاعدة غير موجودة — حالة كل استنساخ جديد.
 
-    ترقيع config.DATABASE_PATH وحده لا يكفي، ورقعة __defaults__ أدناه ليست
-    ترفاً: المستودعات تكتب `db_path: str = DATABASE_PATH`، والقيمة
-    الافتراضية للوسيط تُقيَّم مرة عند استيراد الوحدة وتتجمّد. فمهما رقّعنا
-    config لاحقاً، تبقى SQLiteRepository() موجَّهة إلى data/app.db الحقيقية.
+    سطر واحد يكفي لإعادة التوجيه، وهذا مكتسَب حديث: كانت المستودعات تكتب
+    `db_path: str = DATABASE_PATH`، والقيمة الافتراضية للوسيط تُقيَّم مرة
+    عند تعريف الدالة وتتجمّد — فمهما رُقِّع config تبقى كل نسخة موجَّهة إلى
+    data/app.db الحقيقية، وكان هذا الملف يحتاج رقعة __defaults__ ليعمل.
 
-    وهذا ليس عرضاً جانبياً للاختبار بل **سبب العطل نفسه**: مسار غير قابل
-    لإعادة التوجيه = مسار غير قابل للاختبار، فلم يُختبر الإقلاع البارد قط،
-    فنجا كسره حتى الإنتاج. الرقعة هنا تُبقي الحقيقة ظاهرة بدل أن تخفيها؛
-    والعلاج الصحيح (db_path=None وقراءة config عند النداء) يخصّ المستودعات
-    لا هذا الملف.
+    ولم يكن ذلك عرَضاً جانبياً للاختبار بل سبب العطل: مسار لا يُعاد توجيهه
+    لا يُختبر، فلم يُختبر الإقلاع البارد، فوصل معطّلاً إلى الإنتاج. أُزيل
+    التجميد (repositories.base.resolve_db_path)، فسقطت الرقعة معه.
     """
     db = tmp_path / "cold" / "app.db"
     assert not db.exists()  # الشرط الابتدائي — لو انكسر لصار الاختبار وهماً
 
     import config
-    from repositories.forecast_repository import ForecastRepository
-    from repositories.recommendation_repository import RecommendationRepository
-    from repositories.sqlite_repository import SQLiteRepository
 
     monkeypatch.setattr(config, "DATABASE_PATH", str(db))
-    for repository in (SQLiteRepository, ForecastRepository, RecommendationRepository):
-        monkeypatch.setattr(repository.__init__, "__defaults__", (str(db),))
     return db
 
 
@@ -144,6 +137,70 @@ def test_a_hosted_boot_needs_no_terminal(cold_db, monkeypatch):
     assert not any("migrate" in str(e).lower() for e in errors), (
         f"طلب من المستضيف تشغيل أمر طرفية: {errors}"
     )
+
+
+# ---------------------------------------------------------------------------
+# التجميد نفسه — حارس على السبب لا على العرَض
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "module_path, attribute",
+    [
+        ("repositories.sqlite_repository", "SQLiteRepository"),
+        ("repositories.forecast_repository", "ForecastRepository"),
+        ("repositories.recommendation_repository", "RecommendationRepository"),
+        ("repositories.json_repository", "JsonRepository"),
+    ],
+)
+def test_no_repository_freezes_its_path_at_import(module_path, attribute):
+    """`db_path: str = DATABASE_PATH` يُقيَّم مرة عند التعريف ثم يتجمّد.
+
+    هذا ما جعل الإقلاع البارد غير قابل للاختبار، فغير مُختبَر، فمعطّلاً في
+    الإنتاج. الحارس هنا على السبب: أي قيمة افتراضية غير None في هذا الوسيط
+    تُعيد المسار مجمَّداً مهما بدت الاختبارات خضراء.
+    """
+    import importlib
+
+    cls = getattr(importlib.import_module(module_path), attribute)
+    defaults = cls.__init__.__defaults__ or ()
+
+    assert all(default is None for default in defaults), (
+        f"{attribute}.__init__ يجمّد مساراً عند الاستيراد: {defaults}"
+    )
+
+
+def test_migrate_does_not_freeze_its_path_at_import():
+    """migrate() تبني القاعدة — فلا يجوز أن يجمّد توقيعُها القاعدةَ نفسها."""
+    from migrate import migrate
+
+    assert (migrate.__defaults__ or ()) == (None,), migrate.__defaults__
+
+
+def test_redirecting_the_config_redirects_the_repositories(tmp_path, monkeypatch):
+    """السلوك الذي يخدمه فكّ التجميد: إعادة التوجيه تصل فعلاً.
+
+    الحارس أعلاه بنيويّ؛ هذا يقيس الأثر — لو عاد أحدهم يقرأ نسخة مجمَّدة
+    بطريقة أخرى، يسقط هنا.
+    """
+    import config
+    from repositories.forecast_repository import ForecastRepository
+    from repositories.recommendation_repository import RecommendationRepository
+
+    target = str(tmp_path / "redirected.db")
+    monkeypatch.setattr(config, "DATABASE_PATH", target)
+
+    assert ForecastRepository().db_path == target
+    assert RecommendationRepository().db_path == target
+
+
+def test_an_explicit_path_still_wins(tmp_path, monkeypatch):
+    """None تعني "الافتراضي الحالي" — لا تُلغي وسيطاً صريحاً."""
+    import config
+    from repositories.recommendation_repository import RecommendationRepository
+
+    monkeypatch.setattr(config, "DATABASE_PATH", str(tmp_path / "default.db"))
+    explicit = str(tmp_path / "explicit.db")
+
+    assert RecommendationRepository(db_path=explicit).db_path == explicit
 
 
 def test_the_user_file_never_reaches_the_database(cold_db):

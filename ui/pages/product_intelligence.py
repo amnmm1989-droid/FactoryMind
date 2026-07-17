@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from config import DATABASE_PATH
+
 from core.exceptions import AppError
 from core.runtime_mode import is_hosted
 from domain.entities import RiskLevel
@@ -132,7 +132,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         return
 
     st.subheader(t("pi.stored_history"))
-    ranking = ForecastRepository(db_path=DATABASE_PATH).model_ranking(product)
+    ranking = ForecastRepository().model_ranking(product)
     if not ranking:
         st.info(t("pi.no_history"))
     else:
@@ -151,7 +151,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             use_container_width=True, hide_index=True,
         )
 
-    stored = RecommendationRepository(db_path=DATABASE_PATH).latest_for_product(product)
+    stored = RecommendationRepository().latest_for_product(product)
     if stored:
         st.subheader(t("pi.last_recommendation"))
         st.success(format_recommendation(stored))

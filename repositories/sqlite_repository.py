@@ -2,16 +2,16 @@
 import sqlite3
 import json
 from typing import Tuple, List, Dict, Any
-from repositories.base import DataRepository
-from config import DATABASE_PATH, DATA_FILE
+import config
+from repositories.base import DataRepository, resolve_db_path
 from core.exceptions import MigrationError
 from migrate import missing_tables
 
 class SQLiteRepository(DataRepository):
     """تطبيق DataRepository باستخدام SQLite مع هيكل Normalized"""
 
-    def __init__(self, db_path: str = DATABASE_PATH):
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None):
+        self.db_path = resolve_db_path(db_path)
         self._verify_schema()
         # التحقق مما إذا كانت قاعدة البيانات فارغة (لا توجد بيانات)
         if not self._has_data():
@@ -57,8 +57,8 @@ class SQLiteRepository(DataRepository):
         - إدراج الأشهر، المنتجات، والمبيعات.
         - التحقق من صحة البيانات بعد الترحيل.
         """
-        # 1. قراءة JSON
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+        # 1. قراءة JSON — عبر سمة الوحدة لا نسخة مجمَّدة عند الاستيراد
+        with open(config.DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         months_list = data['months']
         products_dict = data['products']

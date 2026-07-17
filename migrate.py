@@ -27,7 +27,8 @@ import sqlite3
 import sys
 from typing import List, Tuple
 
-from config import BASE_DIR, DATABASE_PATH
+import config
+from config import BASE_DIR
 from core.exceptions import MigrationError
 
 MIGRATIONS_DIR = os.path.join(BASE_DIR, "migrations")
@@ -190,11 +191,17 @@ def apply_migration(conn: sqlite3.Connection, version: str, name: str, path: str
         ) from exc
 
 
-def migrate(db_path: str = DATABASE_PATH, *, verbose: bool = True) -> List[str]:
+def migrate(db_path: str | None = None, *, verbose: bool = True) -> List[str]:
     """تطبيق كل الـ migrations المعلّقة. يُرجع قائمة ما طُبِّق في هذا التشغيل.
 
     idempotent: استدعاؤه على قاعدة محدَّثة بالكامل يُرجع [] ولا يغيّر شيئاً.
+
+    db_path=None تعني الافتراضي الحالي، ويُقرأ عند النداء: لا يجوز أن يجمّد
+    هذا التوقيعُ القاعدةَ التي يبنيها. (repositories.base.resolve_db_path
+    يشرح الثمن؛ لا يُستورَد هنا تفادياً لدائرة استيراد — sqlite_repository
+    يستورد هذه الوحدة.)
     """
+    db_path = db_path if db_path is not None else config.DATABASE_PATH
     os.makedirs(os.path.dirname(os.path.abspath(db_path)) or ".", exist_ok=True)
 
     migrations = discover_migrations()
@@ -256,7 +263,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="تطبيق migrations قاعدة البيانات (آمن للتشغيل المتكرر)"
     )
-    parser.add_argument("--db", default=DATABASE_PATH, help="مسار قاعدة البيانات")
+    parser.add_argument("--db", default=config.DATABASE_PATH,
+                        help="مسار قاعدة البيانات")
     parser.add_argument("--status", action="store_true", help="عرض الحالة دون تطبيق")
     args = parser.parse_args()
 

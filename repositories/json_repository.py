@@ -2,13 +2,15 @@
 import json
 from typing import Tuple, List, Dict, Any
 from repositories.base import DataRepository
-from config import DATA_FILE
+import config
 
 class JsonRepository(DataRepository):
     """تطبيق DataRepository باستخدام ملف JSON"""
-    
-    def __init__(self, file_path: str = DATA_FILE):
-        self.file_path = file_path
+
+    def __init__(self, file_path: str | None = None):
+        # None تعني الافتراضي الحالي — يُقرأ عند النداء لا عند الاستيراد.
+        # راجع repositories.base.resolve_db_path للسبب.
+        self.file_path = file_path if file_path is not None else config.DATA_FILE
         self._months = []
         self._products = {}
         self._load_from_file()

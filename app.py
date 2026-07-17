@@ -11,9 +11,10 @@
 """
 import streamlit as st
 
-from config import DATABASE_PATH, INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON, PAGE_TITLE
+from config import INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON, PAGE_TITLE
 from core.exceptions import MigrationError
 from migrate import migrate
+from repositories.base import resolve_db_path
 from ui.data_source import active_dataset, render_upload_widget
 from ui.i18n import render_language_switcher, t
 
@@ -66,7 +67,9 @@ def _ensure_database(db_path: str) -> None:
 
 
 try:
-    _ensure_database(DATABASE_PATH)
+    # resolve_db_path() لا DATABASE_PATH المستوردة: القيمة تُقرأ الآن، وهي
+    # مفتاح الـ cache أعلاه — فلا يخلط إقلاعان قاعدتين.
+    _ensure_database(resolve_db_path())
     render_upload_widget()
     months, products, is_user_data = active_dataset()
 except MigrationError as exc:

@@ -17,7 +17,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from config import DATABASE_PATH
+
 from core.runtime_mode import is_hosted
 from domain.entities import RiskLevel
 from repositories.recommendation_repository import RecommendationRepository
@@ -165,7 +165,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         if compute:
             _run_batch_ui(products, full_family)
             st.rerun()
-        stored = RecommendationRepository(db_path=DATABASE_PATH).highest_risk(limit=500)
+        stored = RecommendationRepository().highest_risk(limit=500)
 
     if not stored:
         st.info(t("exec.empty"))

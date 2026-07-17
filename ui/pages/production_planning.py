@@ -19,9 +19,10 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from config import DATABASE_PATH
+
 from core.logging_config import get_logger
 from core.runtime_mode import is_hosted
+from repositories.base import resolve_db_path
 from repositories.recommendation_repository import RecommendationRepository
 from ui.data_source import active_dataset
 from ui.i18n import format_month, format_reason, t
@@ -36,7 +37,7 @@ def _status_label(code: str) -> str:
 
 
 def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(resolve_db_path())
     conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
@@ -128,7 +129,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     st.warning(t("plan.inventory_warning"), icon="⚠️")
 
-    repository = RecommendationRepository(db_path=DATABASE_PATH)
+    repository = RecommendationRepository()
     month_options = _months()
 
     st.subheader(t("plan.create"))

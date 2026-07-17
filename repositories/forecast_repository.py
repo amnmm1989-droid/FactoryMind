@@ -12,9 +12,9 @@ import json
 import sqlite3
 from typing import Any
 
-from config import DATABASE_PATH
 from core.exceptions import DataAccessError
 from core.logging_config import get_logger
+from repositories.base import resolve_db_path
 from services.forecast_engine.engine import EngineResult
 
 logger = get_logger(__name__)
@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 class ForecastRepository:
     """كتابة/قراءة جداول forecasts و model_performance."""
 
-    def __init__(self, db_path: str = DATABASE_PATH) -> None:
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None) -> None:
+        self.db_path = resolve_db_path(db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

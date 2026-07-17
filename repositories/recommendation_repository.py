@@ -10,10 +10,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from config import DATABASE_PATH
 from core.exceptions import DataAccessError
 from core.logging_config import get_logger
 from domain.entities import ProductionRecommendation, RiskScore
+from repositories.base import resolve_db_path
 
 logger = get_logger(__name__)
 
@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 class RecommendationRepository:
     """كتابة/قراءة جدول recommendations."""
 
-    def __init__(self, db_path: str = DATABASE_PATH) -> None:
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None) -> None:
+        self.db_path = resolve_db_path(db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

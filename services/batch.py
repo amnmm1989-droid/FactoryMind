@@ -80,11 +80,10 @@ def run_batch(
     """
     import time
 
-    from config import DATABASE_PATH
-
-    path = db_path or DATABASE_PATH
-    forecast_repo = ForecastRepository(db_path=path)
-    recommendation_repo = RecommendationRepository(db_path=path)
+    # db_path=None يمرّ كما هو: المستودعات تحلّ الافتراضي عند النداء
+    # (repositories.base.resolve_db_path). لا داعي لقراءة config هنا.
+    forecast_repo = ForecastRepository(db_path=db_path)
+    recommendation_repo = RecommendationRepository(db_path=db_path)
     models = fast_models() if use_fast_models else None
 
     report = BatchReport(total=len(products))
