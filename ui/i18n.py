@@ -228,8 +228,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.compute": {"ar": "الحساب", "en": "Compute"},
     "common.all_nine_models": {"ar": "كل النماذج التسعة", "en": "All nine models"},
     "common.all_nine_help": {
-        "ar": "أدقّ، لكن ~3.3 دقيقة على 185 منتجاً. الخفيفة: ~1 ثانية.",
-        "en": "More accurate, but ~3.3 min for 185 products. Light models: ~1s.",
+        "ar": "أدقّ، لكن دقائق على كتالوج كامل بدل ثانية واحدة.",
+        "en": "More accurate, but minutes for a full catalogue instead of one second.",
     },
     "risk.low": {"ar": "🟢 منخفضة", "en": "🟢 Low"},
     "risk.medium": {"ar": "🟡 متوسطة", "en": "🟡 Medium"},
@@ -281,8 +281,8 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "data.back_to_demo": {"ar": "العودة لبيانات العرض", "en": "Back to demo data"},
     "data.demo_active": {
-        "ar": "بيانات العرض معروضة الآن (185 صنف بنّ). ارفع ملفك لتحليله.",
-        "en": "Showing demo data (185 coffee products). Upload your file to analyse it.",
+        "ar": "بيانات عرض اصطناعية معروضة الآن. ارفع ملفك لتحليله.",
+        "en": "Showing synthetic demo data. Upload your file to analyse it.",
     },
     "data.uploader": {"ar": "CSV أو Excel", "en": "CSV or Excel"},
     "data.uploader_help": {
@@ -376,9 +376,9 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "exec.empty": {
         "ar": "لا توصيات بعد. اضغط **حساب الكتالوج** في الشريط الجانبي — "
-              "النماذج الخفيفة تُنهي 185 منتجاً في نحو ثانية.",
+              "النماذج الخفيفة تُنهي الكتالوج في نحو ثانية.",
         "en": "No recommendations yet. Press **Compute catalogue** in the sidebar — "
-              "the light models finish 185 products in about a second.",
+              "the light models finish the catalogue in about a second.",
     },
     "exec.batch_done": {
         "ar": "تم حساب {count} منتجاً في {seconds:.1f}s.",

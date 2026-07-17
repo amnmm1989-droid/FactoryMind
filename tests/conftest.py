@@ -18,7 +18,7 @@ from repositories.sqlite_repository import SQLiteRepository
 def migrated_db(tmp_path_factory) -> str:
     """قاعدة بيانات مؤقتة طُبِّقت عليها كل الـ migrations.
 
-    session-scoped: بناء الـ schema وتعبئة 185 منتجاً × 44 شهراً من JSON
+    session-scoped: بناء الـ schema وتعبئة الكتالوج كاملاً من JSON
     عملية غير رخيصة، ولا اختبار هنا يعدّل البيانات — فمشاركتها آمنة.
     """
     db_path = tmp_path_factory.mktemp("db") / "test.db"

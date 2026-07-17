@@ -116,7 +116,7 @@ def test_batch_records_elapsed_time(catalogue, migrated_db):
 
 
 def test_fast_models_exclude_the_heavy_family():
-    """سبب وجود الوضع السريع: 9 نماذج × 185 منتجاً = 3.3 دقيقة."""
+    """سبب وجود الوضع السريع: 9 نماذج × كتالوج كامل = دقائق لا ثوانٍ."""
     names = {m.name for m in fast_models()}
 
     assert names == {"Naive", "MovingAverage", "Croston", "TSB"}

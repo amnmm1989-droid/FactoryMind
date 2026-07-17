@@ -60,13 +60,13 @@ def test_the_same_data_gives_the_same_signature():
 
 
 def test_a_different_product_set_changes_the_signature():
-    """الانحدار: 185 صنف بنّ مقابل 3 منتجات مرفوعة.
+    """الانحدار: كتالوج العرض كاملاً مقابل 3 منتجات مرفوعة.
 
     بدون البصمة كان الشريط يقول "ملفك: 3 منتجات" بينما الجدول يعرض
-    الـ 185 — نتائج محسوبة قبل الرفع وبقيت في session_state. مرّ الخطأ
+    كتالوج العرض — نتائج محسوبة قبل الرفع وبقيت في session_state. مرّ الخطأ
     من كل فحص آلي (النصوص كانت موجودة) وكشفته لقطة شاشة.
     """
-    demo = {f"بنّ {i}": [1.0, 2.0] for i in range(185)}
+    demo = {f"Demo Part {i}": [1.0, 2.0] for i in range(185)}
     uploaded = {"مضخة": [1.0, 2.0], "صمام": [3.0, 4.0], "محرك": [5.0, 6.0]}
 
     assert _dataset_signature(demo) != _dataset_signature(uploaded)

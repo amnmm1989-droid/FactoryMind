@@ -54,7 +54,7 @@ class ProphetForecaster(Forecaster):
         )
 
         # Prophet يطبع تقدّم التحسين على stdout عبر cmdstanpy — ضجيج بحت
-        # في سياقنا (185 منتجاً × عدة نماذج).
+        # في سياقنا (كتالوج كامل × عدة نماذج).
         cmdstanpy_logger = logging.getLogger("cmdstanpy")
         previous_level = cmdstanpy_logger.level
         cmdstanpy_logger.setLevel(logging.CRITICAL)

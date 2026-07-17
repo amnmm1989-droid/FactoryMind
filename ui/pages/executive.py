@@ -3,7 +3,7 @@
 الصفحة التنفيذية — "ما الذي يحتاج انتباهي؟"
 
 تقرأ من جدولَي recommendations و forecasts، ولا تحسب شيئاً. السبب قياس:
-النماذج التسعة على 185 منتجاً = 3.3 دقيقة. صفحة تحسب عند كل تحميل ميتة.
+النماذج التسعة على كتالوج كامل = دقائق. صفحة تحسب عند كل تحميل ميتة.
 الدفعة (services/batch.py) تملأ الجداول في 0.7s بالنماذج الخفيفة.
 
 ⚠️ قرار تصميمي كشفته البيانات: ترتيب المنتجات بالخطورة وحدها يُنتج شاشة
@@ -104,7 +104,7 @@ def _compute_in_session(products: dict[str, list[float]], full_family: bool) -> 
     """حساب بلا حفظ — لبيانات المستخدم وللوضع المستضاف.
 
     يُعيد كائنات ProductionRecommendation مباشرةً بدل المرور بقاعدة
-    البيانات. ممكن فقط لأن النماذج الخفيفة تُنهي 185 منتجاً في 0.7 ثانية.
+    البيانات. ممكن فقط لأن النماذج الخفيفة تُنهي الكتالوج في أقل من ثانية.
     """
     from core.exceptions import AppError
     from services.decision_engine import recommend_production
@@ -151,7 +151,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         # بصمة البيانات جزء من مفتاح الـ cache — وليست ترفاً.
         # بدونها: تُحسب التوصيات على بيانات العرض، يرفع المستخدم ملفه،
         # فيبقى الشريط الجانبي يقول "ملفك: 3 منتجات" بينما الجدول يعرض
-        # 185 صنف بنّ لا يملكها. كشفته لقطة شاشة بعد أن مرّ من كل فحص آلي.
+        # كتالوج العرض كاملاً لا يملكه. كشفته لقطة شاشة بعد كل فحص آلي.
         signature = _dataset_signature(products)
         if compute or st.session_state.get("session_signature") != signature:
             st.session_state["session_recommendations"] = _compute_in_session(

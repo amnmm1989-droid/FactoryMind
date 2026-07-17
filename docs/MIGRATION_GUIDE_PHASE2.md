@@ -28,7 +28,7 @@ MigrationError: قاعدة البيانات ناقصة 9 جدول. شغّل: pyt
 
 **قاعدة بياناتك الحالية لن تتأثر.** `001_baseline.sql` يستخدم
 `CREATE TABLE IF NOT EXISTS` ويمرّ فوق الجداول الموجودة دون لمسها؛
-بياناتك (185 منتجاً × 44 شهراً = 8140 صف مبيعات) تبقى كما هي.
+بياناتك تبقى كما هي.
 
 ---
 
@@ -98,7 +98,7 @@ migrations/008_add_supplier_column.sql
 
 ```python
 def test_something(repo):
-    assert len(repo.get_products()) == 185
+    assert repo.get_products()
 ```
 
 **تغيير مصاحب:** الاختبارات لم تعد تعمل على `data/app.db` الحقيقية.

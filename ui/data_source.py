@@ -37,7 +37,7 @@ def _privacy_note() -> str:
 
 @st.cache_data(show_spinner=False)
 def _demo_dataset() -> tuple[list[str], dict[str, list[float]]]:
-    """بيانات العرض المرفقة — 185 صنف بنّ.
+    """بيانات العرض المرفقة — كتالوج اصطناعي (scripts/generate_demo_data.py).
 
     cache_data يشاركها بين الجلسات، وهذا مقبول: إنها بيانات عامة في
     المستودع لا بيانات زائر.

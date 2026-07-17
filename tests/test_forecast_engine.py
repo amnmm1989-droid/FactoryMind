@@ -54,7 +54,7 @@ def test_seasonal_models_reject_sparse_series():
 
 
 def test_baselines_accept_sparse_series():
-    """بدون هذا، المحرك يفشل على 72 من 185 منتجاً."""
+    """بدون هذا، المحرك يفشل على 39% من كتالوج التحقّق المرجعي."""
     assert NaiveForecaster().can_handle(SPARSE)
     assert MovingAverageForecaster().can_handle(SPARSE)
 

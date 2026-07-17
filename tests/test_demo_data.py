@@ -5,7 +5,7 @@
 
 1. **اصطناعية.** أي ملف حقيقي هنا يعني نشر أرقام مبيعات — الأصناف
    والكميات الشهرية لسنوات. سرّ تجاري لا عيّنة. (الملف السابق كان بيانات
-   محمصة حقيقية: 185 صنفاً و1.66 مليون وحدة.)
+   عمل حقيقية، أُزيلت من المستودع وتاريخه.)
 2. **شارحة.** الأداة تقوم على تصنيف الطلب؛ كتالوج بتصنيف واحد لا يُظهر
    لماذا بُنيت. كل تصنيف يجب أن يكون حاضراً.
 """
@@ -107,3 +107,47 @@ def test_the_demo_data_is_monthly(demo):
     dates = [parse_full_date(label) for label in demo["months"]]
 
     assert detect_granularity([d for d in dates if d]) == "monthly"
+
+
+# ---------------------------------------------------------------------------
+# لا أثر للبيانات الأصلية في أي نص يراه المستخدم
+# ---------------------------------------------------------------------------
+# أسماء البيانات الأصلية — ونطاقها. "185" ليس اسماً لكنه حجم كتالوج
+# حقيقي: ذِكره في نص يراه المستخدم يكشف عن العمل الذي جاءت منه البيانات.
+REAL_DATA_TERMS = ("coffee", "بنّ", "Demo Part", "Demo Part", "Demo Part",
+                   "Demo Part", "Demo Pack", "Demo Pack", "185")
+
+
+def test_no_user_facing_string_mentions_the_original_data():
+    """انحدار: القاموس ظلّ يصف البيانات القديمة بعد استبدالها.
+
+    استُبدل الملف ونُقّي التاريخ، ثم بقي النص الذي *يصف* الملف يُعلن نوع
+    البيانات على كل زائر. تغيير البيانات بلا تغيير ما يصفها تسريب.
+    """
+    from ui.i18n import STRINGS
+
+    offenders = [
+        f"{key}[{lang}]"
+        for key, entry in STRINGS.items()
+        for lang, text in entry.items()
+        if any(term.lower() in text.lower() for term in REAL_DATA_TERMS)
+    ]
+
+    assert offenders == [], f"نصوص تذكر البيانات الأصلية: {offenders}"
+
+
+def test_the_csv_template_uses_synthetic_names():
+    """النموذج يُنزّله المستخدم فعلاً — فهو نص يراه لا تعليق داخلي."""
+    from services.ingest import to_csv_template
+
+    template = to_csv_template().decode("utf-8-sig")
+
+    assert not any(term.lower() in template.lower() for term in REAL_DATA_TERMS)
+
+
+def test_the_demo_catalogue_uses_synthetic_names(demo):
+    assert not any(
+        term.lower() in name.lower()
+        for name in demo["products"]
+        for term in REAL_DATA_TERMS
+    )
