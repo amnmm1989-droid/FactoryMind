@@ -4,14 +4,13 @@ description: Build, run, and drive FactoryMind — a Streamlit demand-forecastin
 ---
 
 FactoryMind هو نظام تحليل وتنبؤ أوامر التصنيع: تطبيق Streamlit (Python)
-يُصيَّر في المتصفح. مقبضان لا واحد:
+متعدد الصفحات. مقبضان لا واحد:
 
 - **`.claude/skills/run-factorymind/smoke.py`** — يشغّل المحرّكات مباشرةً
-  بلا واجهة. **ابدأ من هنا**: `services/` عُدِّل 22 مرة عبر تاريخ المشروع
-  بينما `ui/` لم يُلمس منذ Phase 1، ومحرّكات التنبؤ/الخطورة/القرار
-  **غير موصولة بالواجهة أصلاً**. تغييرك فيها لن يظهر في أي لقطة شاشة.
+  بلا واجهة. **ابدأ من هنا** لأي تغيير في `services/` أو `models/` أو
+  `repositories/`: دورته أجزاء من الثانية مقابل ~25s للـ driver.
 - **`.claude/skills/run-factorymind/driver.mjs`** — يُشغّل Streamlit
-  ويقوده بـ Playwright. للواجهة فقط.
+  ويقوده بـ Playwright. للواجهة.
 
 كل المسارات أدناه نسبةً إلى جذر المستودع.
 
@@ -91,21 +90,44 @@ print(forecast_product(name, series, steps=3, use_cache=False).best_model_name)
 
 ## Run (agent path) — الواجهة
 
+خمس صفحات (`st.navigation`): `executive` (الافتراضية) · `forecasting` ·
+`production-planning` · `product-intelligence` · `advanced-analytics`.
+
 ```bash
-node .claude/skills/run-factorymind/driver.mjs shot   # لقطة
-node .claude/skills/run-factorymind/driver.mjs text   # قراءة الـ DOM المُصيَّر
-node .claude/skills/run-factorymind/driver.mjs flow   # تدفق: تمديد أفق التنبؤ
+node .claude/skills/run-factorymind/driver.mjs pages              # يزور الخمس ويلتقط لقطة لكل واحدة
+node .claude/skills/run-factorymind/driver.mjs shot forecasting   # لقطة صفحة بعينها
+node .claude/skills/run-factorymind/driver.mjs text executive     # قراءة الـ DOM المُصيَّر
+node .claude/skills/run-factorymind/driver.mjs flow               # تدفق: تمديد أفق التنبؤ
 ```
 
 كل أمر يُشغّل الخادم على المنفذ 8701، ينتظره، يقود المتصفح، ثم ينظّف.
-الدورة ~25s (إقلاع Streamlit ~12s). اللقطات تُحفظ في
+الدورة ~25s للأمر المفرد، و~70s لـ `pages`. اللقطات في
 `.claude/skills/run-factorymind/screenshots/`.
 
-`text` يطبع العنوان وأول 6 مؤشرات وعدد رسوم Plotly المُصيَّرة — الحكم
-الوحيد الصادق على أن التطبيق يعمل (انظر Gotchas).
+**`pages` هو فحص الانحدار الأساسي للواجهة**: يفشل بكود 1 إن رفعت أي صفحة
+استثناءً. مخرجات حقيقية:
 
-`flow` يمدّد أفق التنبؤ 6 → 12 ويلتقط `flow-before.png` و`flow-after.png`.
-يفشل صراحةً لو لم يتحرّك الشريط.
+```
+executive (الجذر)         4 مؤشر   0 رسم  📊 النظرة التنفيذية    ok
+forecasting               4 مؤشر   1 رسم  🔮 التنبؤ              ok
+production-planning       0 مؤشر   0 رسم  🏭 تخطيط الإنتاج       ok
+product-intelligence      6 مؤشر   2 رسم  🧠 ذكاء المنتج         ok
+advanced-analytics       17 مؤشر   5 رسم  🔮 نظام تحليل وتنبؤ    ok
+```
+
+`flow` يذهب تلقائياً إلى `advanced-analytics` — الصفحة الوحيدة التي تملك
+شريط أفق التنبؤ. يمدّده 6 → 12 ويفشل صراحةً لو لم يتحرّك.
+
+**الصفحة التنفيذية تبدأ فارغة** — تقرأ من قاعدة البيانات ولا تحسب. لملئها:
+اضغط "إعادة حساب الكتالوج" في الواجهة، أو:
+
+```bash
+./.venv/bin/python -c "
+import json, logging; logging.disable(logging.INFO)
+from services.batch import run_batch
+print(run_batch(json.load(open('data/data.json'))['products']))
+"
+```
 
 لمنفذ آخر: `PORT=8899 node .claude/skills/run-factorymind/driver.mjs shot`
 
@@ -120,7 +142,7 @@ node .claude/skills/run-factorymind/driver.mjs flow   # تدفق: تمديد أ�
 ## Test
 
 ```bash
-./.venv/bin/python -m pytest -q      # 219 اختباراً، ~1:40 دقيقة
+./.venv/bin/python -m pytest -q      # 251 اختباراً، ~1:40 دقيقة
 ```
 
 بطيء لأن الاختبارات تُدرّب نماذج حقيقية. للدورة السريعة (49 اختباراً،
@@ -138,8 +160,28 @@ migrations + الخطورة — لا نماذج):
 
 - **`curl` عديم الفائدة للحكم على الواجهة.** Streamlit يردّ HTTP 200
   بهيكل فارغ ثم يُصيّر عبر JavaScript — تحصل على 200 حتى لو كان التطبيق
-  يعرض خطأً. الشاهد الوحيد هو `driver.mjs text` (ينتظر
-  `[data-testid="stMetric"]`).
+  يعرض خطأً. الشاهد هو `driver.mjs text` (ينتظر `h1`).
+
+- **استثناء بايثون يُصيَّر *داخل* الصفحة ولا يصل console.** التطبيق يبدو
+  "يعمل" بينما يعرض stack trace. الفحص يجب أن يكون صريحاً على
+  `[data-testid="stException"]` — وهذا ما يفعله `driver.mjs`.
+
+- **لا تنتظر `[data-testid="stMetric"]` كشاهد على التصيير.** الصفحة
+  التنفيذية تبدأ بلا مؤشرات (تقرأ من قاعدة فارغة)، فالانتظار يعلّق 60s
+  على تطبيق سليم تماماً. `h1` هو الشاهد الصحيح.
+
+- **الصفحة الافتراضية تُخدَّم على الجذر لا على `url_path` الخاص بها.**
+  زيارة `/executive` "تعمل" لكن Streamlit يسجّل
+  `The page that you have requested does not seem to exist` ويتراجع إلى
+  الرئيسية — وهي executive نفسها، فيبدو كل شيء سليماً بينما التوجيه فشل.
+
+- **`404` على `health` و`host-config` طبيعية.** تظهر على كل صفحة بما فيها
+  السليمة — نقاط Streamlit الداخلية في هذا الإعداد. ليست عطلاً.
+
+- **صفحات `st.Page` تتصادم إن لم يُعطَ `url_path`.** Streamlit يشتقّ
+  المسار من اسم الدالة؛ ومصنع الصفحات في `app.py` يُرجع دوالاً كلها اسمها
+  `run` — فترفع `StreamlitAPIException: Multiple Pages specified with URL
+  pathname run`.
 
 - **شريط Streamlit ليس `[role="slider"]`.** النمط الشائع في Playwright
   لا ينطبق: فحص الـ DOM يعطي `role=slider: 0` مقابل
@@ -176,6 +218,9 @@ migrations + الخطورة — لا نماذج):
 | `ModuleNotFoundError: No module named 'pandas'` | تُشغّل python النظام لا الـ venv. استخدم `./.venv/bin/python` |
 | `ERR_MODULE_NOT_FOUND: playwright` | `cd .claude/skills/run-factorymind && npm install` |
 | `elementHandle.click: Timeout 30000ms exceeded` | مقبض Streamlit يعترض المؤشر. `focus()` + أسهم |
+| `StreamlitAPIException: Multiple Pages ... pathname run` | صفحة بلا `url_path` في `app.py` |
+| `page.waitForSelector: Timeout` على `stMetric` | الصفحة التنفيذية فارغة (لا توصيات محفوظة). شغّل الدفعة، أو انتظر `h1` |
+| `لا توصيات محفوظة بعد` في الواجهة | طبيعي على قاعدة جديدة. اضغط "إعادة حساب الكتالوج" (~1 ثانية) |
 | `الخادم لم يستجب على http://localhost:8701` | منفذ عالق من تشغيل سابق. `pkill -f "streamlit run app.py"` |
 | مخرجات الـ driver تبدو تحذيرات Streamlit فقط | الخطأ في آخر سطر. `2>&1 \| grep -E "^(✓\|✗)"` |
 | `الـ migration رقم NNN تغيّر بعد تطبيقه` | عُدِّل ملف SQL مُطبَّق. أنشئ migration جديداً بدل تعديله |

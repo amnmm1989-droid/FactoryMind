@@ -6,12 +6,13 @@
  * كل شيء عبر JavaScript. curl يرى صفحة ناجحة حتى لو كان التطبيق يعرض
  * رسالة خطأ. الحكم الوحيد الصادق هو متصفح حقيقي يقرأ الـ DOM بعد التصيير.
  *
- * ملاحظة على النطاق: الواجهة تستدعي مسار Phase 1 القديم
- * (services/product_analysis_service.py). محرّكات التنبؤ/الخطورة/القرار
- * **غير موصولة بها**. من يغيّر فيها لن يرى أثراً هنا — استخدم smoke.py.
+ * التطبيق متعدد الصفحات منذ Phase 6 (st.navigation). الصفحة الافتراضية
+ * "النظرة التنفيذية" تقرأ من قاعدة البيانات ولا تحسب — فتبدأ فارغة حتى
+ * تُشغَّل الدفعة. مرّر مسار الصفحة للوصول إلى غيرها.
  *
  *   node .claude/skills/run-factorymind/driver.mjs shot
- *   node .claude/skills/run-factorymind/driver.mjs text
+ *   node .claude/skills/run-factorymind/driver.mjs text forecasting
+ *   node .claude/skills/run-factorymind/driver.mjs pages   # يزور الخمس
  *   node .claude/skills/run-factorymind/driver.mjs flow
  */
 import { chromium } from 'playwright';
@@ -86,15 +87,39 @@ async function launch() {
   return { server, log: () => log };
 }
 
-async function openPage(browser) {
-  const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+/**
+ * مسارات الصفحات — تطابق url_path في app.py، باستثناء واحد:
+ * الصفحة الافتراضية (default=True) تُخدَّم على الجذر '' لا على url_path
+ * الخاص بها. زيارة /executive تعمل ظاهرياً لكن Streamlit يسجّل
+ * "The page that you have requested does not seem to exist" ويتراجع
+ * إلى الرئيسية — التي هي executive نفسها، فيبدو كل شيء سليماً.
+ */
+const PAGES = [
+  '', 'forecasting', 'production-planning',
+  'product-intelligence', 'advanced-analytics',
+];
+const PAGE_LABEL = (path) => path || 'executive (الجذر)';
+
+async function openPage(browser, path = '') {
+  const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.goto(URL, { waitUntil: 'networkidle' });
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(path ? `${URL}/${path}` : URL, { waitUntil: 'networkidle' });
 
-  // الشاهد على أن التصيير تمّ فعلاً — لا مجرد HTTP 200
-  await page.waitForSelector('[data-testid="stMetric"]', { timeout: 60000 });
+  // الشاهد على التصيير هو h1 لا stMetric: الصفحة التنفيذية تبدأ بلا
+  // مؤشرات (تقرأ من قاعدة بيانات فارغة)، وانتظار stMetric كان يعلّق 60s
+  // على تطبيق سليم تماماً.
+  await page.waitForSelector('h1', { timeout: 60000 });
+  await sleep(2500);  // تصيير Plotly وجداول Streamlit يلحق الـ h1
   return { page, errors };
+}
+
+/** استثناءات Streamlit تظهر في الصفحة لا في console — يجب فحصها صراحةً. */
+async function pageExceptions(page) {
+  return page.$$eval('[data-testid="stException"]', (nodes) =>
+    nodes.map((n) => n.innerText.slice(0, 160).replace(/\n+/g, ' '))
+  );
 }
 
 /** Streamlit يعيد التشغيل عند كل تفاعل — انتظر هدوء الشبكة لا مدة ثابتة. */
@@ -104,9 +129,9 @@ async function settle(page) {
 }
 
 const COMMANDS = {
-  async shot({ page }) {
+  async shot({ page, target }) {
     mkdirSync(SHOTS, { recursive: true });
-    const path = join(SHOTS, 'app.png');
+    const path = join(SHOTS, `${target || 'app'}.png`);
     await page.screenshot({ path, fullPage: false });
     console.log(`✓ لقطة: ${path}`);
   },
@@ -117,10 +142,45 @@ const COMMANDS = {
     const metrics = await page.$$eval('[data-testid="stMetric"]', (nodes) =>
       nodes.slice(0, 6).map((n) => n.innerText.replace(/\n+/g, ' = ').trim())
     );
-    console.log('المؤشرات:');
-    metrics.forEach((m) => console.log(`  ${m}`));
-    const charts = await page.$$('.js-plotly-plot');
-    console.log(`رسوم Plotly مُصيَّرة: ${charts.length}`);
+    if (metrics.length) {
+      console.log('المؤشرات:');
+      metrics.forEach((m) => console.log(`  ${m}`));
+    }
+    const alerts = await page.$$eval('[data-testid="stAlert"]', (nodes) =>
+      nodes.slice(0, 3).map((n) => n.innerText.slice(0, 90).replace(/\n+/g, ' '))
+    );
+    if (alerts.length) {
+      console.log('تنبيهات:');
+      alerts.forEach((a) => console.log(`  ${a}`));
+    }
+    console.log(`رسوم Plotly مُصيَّرة: ${(await page.$$('.js-plotly-plot')).length}`);
+  },
+
+  /** يزور الصفحات الخمس ويلتقط لقطة لكل واحدة. يفشل عند أي استثناء. */
+  async pages({ page, browser }) {
+    mkdirSync(SHOTS, { recursive: true });
+    const broken = [];
+
+    for (const path of PAGES) {
+      await page.goto(path ? `${URL}/${path}` : URL, { waitUntil: 'networkidle' });
+      await page.waitForSelector('h1', { timeout: 60000 });
+      // التنبؤ وذكاء المنتج يُدرّبان نماذج عند الفتح — أبطأ من الباقي
+      await sleep(path === 'forecasting' || path === 'product-intelligence' ? 9000 : 4000);
+
+      const title = (await page.textContent('h1'))?.trim() ?? '?';
+      const exceptions = await pageExceptions(page);
+      const metrics = (await page.$$('[data-testid="stMetric"]')).length;
+      const charts = (await page.$$('.js-plotly-plot')).length;
+      await page.screenshot({ path: join(SHOTS, `page-${path || 'executive'}.png`) });
+
+      const status = exceptions.length ? `✗ ${exceptions[0]}` : 'ok';
+      console.log(`${PAGE_LABEL(path).padEnd(24)} ${String(metrics).padStart(2)} مؤشر  ` +
+                  `${String(charts).padStart(2)} رسم  ${title.slice(0, 20).padEnd(22)} ${status}`);
+      if (exceptions.length) broken.push(PAGE_LABEL(path));
+    }
+
+    if (broken.length) throw new Error(`صفحات بها استثناءات: ${broken.join(', ')}`);
+    console.log(`\n✓ الصفحات الخمس تُصيَّر بلا استثناء — لقطات في ${SHOTS}/`);
   },
 
   /**
@@ -173,17 +233,35 @@ const COMMANDS = {
 
 async function main() {
   const command = process.argv[2] || 'shot';
+  let target = process.argv[3] || '';
   if (!COMMANDS[command]) {
     console.error(`أوامر متاحة: ${Object.keys(COMMANDS).join(', ')}`);
+    console.error(`صفحات: ${PAGES.join(', ')}`);
     process.exit(1);
   }
+  // 'executive' اسم مقبول من المستخدم، لكنه يُخدَّم على الجذر
+  if (target === 'executive') target = '';
+  if (target && !PAGES.includes(target)) {
+    console.error(`صفحة غير معروفة: ${target}\nالمتاح: ${PAGES.map(PAGE_LABEL).join(', ')}`);
+    process.exit(1);
+  }
+  // شريط أفق التنبؤ في التحليل المتقدّم — الصفحة الوحيدة التي تملكه
+  if (command === 'flow') target = 'advanced-analytics';
 
   const { server, log } = await launch();
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
   let code = 0;
   try {
-    const { page, errors } = await openPage(browser);
-    await COMMANDS[command]({ page });
+    const { page, errors } = await openPage(browser, target);
+    await COMMANDS[command]({ page, browser, target });
+
+    // استثناء بايثون يُصيَّر داخل الصفحة ولا يصل console — التطبيق "يعمل"
+    // بينما يعرض stack trace. الفحص صريح لهذا السبب.
+    const exceptions = command === 'pages' ? [] : await pageExceptions(page);
+    if (exceptions.length) {
+      console.error(`\n✗ استثناء في الصفحة:\n  ${exceptions[0]}`);
+      code = 1;
+    }
     if (errors.length) {
       console.log(`\n⚠ أخطاء console (${errors.length}):`);
       errors.slice(0, 3).forEach((e) => console.log(`  ${e.slice(0, 120)}`));
