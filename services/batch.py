@@ -68,6 +68,7 @@ def run_batch(
     use_fast_models: bool = True,
     db_path: str | None = None,
     inventory: dict[str, InventoryStatus] | None = None,
+    granularity: str = "monthly",
     on_progress: Callable[[int, int, str], None] | None = None,
 ) -> BatchReport:
     """حساب وحفظ تنبؤ + توصية لكل منتج.
@@ -79,6 +80,11 @@ def run_batch(
         inventory: {اسم المنتج: InventoryStatus}، إن وُجد ملف مخزون مرفوع.
             منتج غائب عن القاموس (أو القاموس None كله) يمرّ بلا مخزون —
             نفس الوضع الافتراضي قبل هذه الميزة، لا خطأ.
+        granularity: حبيبة الكتالوج الفعلية (dataset.granularity) — تُمرَّر
+            إلى forecast_product/recommend_production فتشتقّان الدورة
+            الموسمية وتحويل مهلة التوريد الصحيحين. لا تؤثر على
+            use_fast_models=True (Naive/MovingAverage/Croston/TSB بلا
+            مفهوم موسمي أصلاً).
 
     منتج يفشل لا يُسقط الدفعة — يُسجَّل في report.failed ويستمر الباقي.
     منتج بلا مبيعات قط يفشل بـ InsufficientDataError، وهذا متوقَّع لا عطل.
@@ -97,12 +103,14 @@ def run_batch(
     for index, (name, series) in enumerate(products.items(), start=1):
         try:
             result = forecast_product(
-                name, series, steps=steps, models=models, use_cache=True
+                name, series, steps=steps, models=models, use_cache=True,
+                granularity=granularity,
             )
             forecast_id = forecast_repo.save_result(result)
             product_inventory = inventory.get(name) if inventory else None
             recommendation = recommend_production(
-                name, list(series), result.best, product_inventory
+                name, list(series), result.best, product_inventory,
+                granularity=granularity,
             )
             recommendation_repo.save(recommendation, forecast_id=forecast_id)
             report.succeeded += 1

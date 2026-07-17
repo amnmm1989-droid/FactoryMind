@@ -21,7 +21,7 @@ from domain.entities import RiskLevel
 from repositories.forecast_repository import ForecastRepository
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models
-from ui.data_source import active_dataset, active_inventory
+from ui.data_source import active_dataset, active_granularity, active_inventory
 from ui.i18n import error as translate_error
 from ui.i18n import format_months, format_reason, format_recommendation, t
 from services.forecast_engine import classify_demand, forecast_product
@@ -85,12 +85,15 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     )
 
     inventory = active_inventory()
+    granularity = active_granularity()
     try:
         with st.spinner(t("pi.computing_risk")):
-            result = forecast_product(product, series, steps=6, models=fast_models())
+            result = forecast_product(product, series, steps=6, models=fast_models(),
+                                      granularity=granularity)
             risk = compute_risk(
                 product, series, result.best,
                 inventory.get(product) if inventory else None,
+                granularity=granularity,
             )
     except AppError as exc:
         st.error(t("pi.analysis_failed", detail=translate_error(exc)))

@@ -22,18 +22,28 @@ from .statistical import SERIES_START
 
 
 class ProphetForecaster(Forecaster):
-    """Prophet بموسمية سنوية.
+    """Prophet بموسمية سنوية (والأسبوعية أيضاً حين تكون البيانات يومية).
 
-    weekly/daily معطّلتان: البيانات شهرية، وتفعيلهما يجعل النموذج يلائم
-    ضجيجاً لا وجود له في بيانات بهذا التردد.
+    weekly_seasonality مفعَّلة لليومي وحده: نمط "يوم الأسبوع" حقيقي وقابل
+    للقياس في بيانات يومية، بينما تفعيلها لبيانات أخشن (شهرية مثلاً) يجعل
+    النموذج يلائم ضجيجاً لا وجود له فيها. daily_seasonality تبقى معطَّلة
+    دوماً — تخصّ أنماطاً دون يومية (بالساعة) لا نملك بياناتها أصلاً.
 
-    min_points = 24: Prophet يحذّر تحت دورتين ثم يُدرّب على أي حال —
-    وهذا بالضبط النمط الذي نتجنّبه (رقم يبدو إجابة وليس كذلك).
+    min_points/min_non_zero صفتا نسخة، تُشتقّان من seasonal_periods (2×
+    و1× على الترتيب) — نفس مبدأ ETS/SARIMA، بدل 24/12 مفروضتين على أي
+    حبيبة. freq يطابق حبيبة الملف الفعلية بدل "MS" الثابتة.
     """
 
     name = "Prophet"
-    min_points = 24
-    min_non_zero = 12
+
+    def __init__(
+        self, freq: str = "MS", seasonal_periods: int = 12, *, daily: bool = False,
+    ) -> None:
+        self.freq = freq
+        self.seasonal_periods = seasonal_periods
+        self.daily = daily
+        self.min_points = 2 * seasonal_periods
+        self.min_non_zero = seasonal_periods
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
         try:
@@ -48,7 +58,7 @@ class ProphetForecaster(Forecaster):
         values = np.asarray(series, dtype=float)
         frame = pd.DataFrame(
             {
-                "ds": pd.date_range(start=SERIES_START, periods=len(values), freq="MS"),
+                "ds": pd.date_range(start=SERIES_START, periods=len(values), freq=self.freq),
                 "y": values,
             }
         )
@@ -63,11 +73,11 @@ class ProphetForecaster(Forecaster):
                 warnings.simplefilter("ignore")
                 model = Prophet(
                     yearly_seasonality=True,
-                    weekly_seasonality=False,
+                    weekly_seasonality=self.daily,
                     daily_seasonality=False,
                 )
                 model.fit(frame)
-                future = model.make_future_dataframe(periods=steps, freq="MS")
+                future = model.make_future_dataframe(periods=steps, freq=self.freq)
                 prediction = model.predict(future).iloc[-steps:]
         except Exception as exc:
             raise ModelTrainingError(

@@ -267,19 +267,20 @@ def test_manual_mapping_rescues_what_automatic_parsing_rejected():
     assert dataset.products == {"PUMP-01": [10.0, 12.0, 9.0, 11.0]}
 
 
-def test_manual_mapping_still_runs_the_granularity_gate():
-    """الربط اليدوي لا يتجاوز بوابات الجودة — يُعاد استخدام _finalize نفسه
-    لا نسخة أخف منه."""
+def test_manual_mapping_tags_the_real_granularity_too():
+    """الربط اليدوي يمرّ بـ_finalize نفسه — فيكتشف الحبيبة الحقيقية أيضاً،
+    لا نسخة أخف منه تفترض الشهري صامتة."""
     weekly = csv(
         "Ident,Zeitraum,Betrag\n"
         "X,2024-01-01,1\nX,2024-01-08,2\nX,2024-01-15,3\nX,2024-01-22,4\n"
     )
 
-    with pytest.raises(DataValidationError, match="weekly"):
-        parse_upload_with_mapping(
-            weekly, "w.csv",
-            product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
-        )
+    dataset = parse_upload_with_mapping(
+        weekly, "w.csv",
+        product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
+    )
+
+    assert dataset.granularity == "weekly"
 
 
 def test_manual_mapping_still_flags_duplicate_rows():
@@ -587,25 +588,61 @@ def test_identical_labels_measure_nothing():
     assert detect_granularity([date(2024, 1, 1)] * 3) is None
 
 
-def test_weekly_data_is_rejected_not_silently_treated_as_monthly():
-    """الانحدار الأساسي لهذه المرحلة.
-
-    قبل البوابة: 30 أسبوعاً تُقبل وتُقرأ 30 شهراً، وSEASONAL_PERIODS=12
-    يبحث عن دورة كل 12 *أسبوعاً* ويسمّيها سنوية. لا خطأ يظهر — فقط
-    تحليل واثق وخاطئ، والتحذير الوحيد (timeline_gaps) مضلّل: لا فجوات.
+def test_weekly_data_is_accepted_and_tagged_with_its_real_granularity():
+    """الانحدار الأساسي لهذه المرحلة (قبل بند 1 من ROADMAP): 30 أسبوعاً
+    كانت تُقرأ 30 شهراً، وSEASONAL_PERIODS=12 يبحث عن دورة كل 12 *أسبوعاً*
+    ويسمّيها سنوية — تحليل واثق وخاطئ. الآن: يُقبَل ويُوسَم بحبيبته
+    الحقيقية، فتشتقّ طبقات لاحقة (services/forecast_engine) الدورة
+    الموسمية الصحيحة من dataset.granularity لا من ثابت شهري.
     """
-    with pytest.raises(DataValidationError) as excinfo:
-        parse_upload(_series((2025, 1, 6), 7, 30), "weekly.csv")
+    dataset = parse_upload(_series((2025, 1, 6), 7, 30), "weekly.csv")
 
-    assert excinfo.value.context["code"] == "unsupported_granularity"
-    assert excinfo.value.context["granularity"] == "weekly"
+    assert dataset.granularity == "weekly"
+    assert dataset.month_count == 30
 
 
-def test_daily_data_is_rejected_too():
-    with pytest.raises(DataValidationError) as excinfo:
-        parse_upload(_series((2024, 1, 3), 1, 20), "daily.csv")
+def test_daily_data_is_accepted_too():
+    dataset = parse_upload(_series((2024, 1, 3), 1, 20), "daily.csv")
 
-    assert excinfo.value.context["granularity"] == "daily"
+    assert dataset.granularity == "daily"
+
+
+def test_quarterly_data_is_accepted_and_tagged():
+    dataset = parse_upload(_series((2020, 1, 1), 91, 4), "quarterly.csv")
+
+    assert dataset.granularity == "quarterly"
+
+
+def test_yearly_data_is_accepted_and_tagged():
+    dataset = parse_upload(_series((2015, 1, 1), 365, 4), "yearly.csv")
+
+    assert dataset.granularity == "yearly"
+
+
+def test_a_continuous_weekly_timeline_raises_no_false_gap_warning():
+    """_expected_period_count يجب ألا يفترض شهراً لغير الشهري — سلسلة
+    أسبوعية متصلة لا تستحق timeline_gaps."""
+    dataset = parse_upload(_series((2025, 1, 6), 7, 10), "weekly.csv")
+
+    assert not any(w.code == "timeline_gaps" for w in dataset.warnings)
+
+
+def test_a_continuous_daily_timeline_raises_no_false_gap_warning():
+    dataset = parse_upload(_series((2024, 1, 1), 1, 15), "daily.csv")
+
+    assert not any(w.code == "timeline_gaps" for w in dataset.warnings)
+
+
+def test_a_gap_in_a_weekly_timeline_is_still_flagged():
+    """البوابة تكتشف الحبيبة، لكن الفجوات الحقيقية تبقى مرئية."""
+    data = csv(
+        "Product,2025-01-06,2025-01-13,2025-02-03\nWidget,10,20,30\n"
+    )
+
+    dataset = parse_upload(data, "gap.csv")
+
+    assert dataset.granularity == "weekly"
+    assert any(w.code == "timeline_gaps" for w in dataset.warnings)
 
 
 def test_monthly_data_still_passes():

@@ -76,6 +76,18 @@ def active_dataset() -> tuple[list[str], dict[str, list[float]], bool]:
     return months, products, False
 
 
+def active_granularity() -> str:
+    """حبيبة الجلسة الحالية الزمنية — "daily"/"weekly"/"monthly"/
+    "quarterly"/"yearly". بيانات العرض المرفقة شهرية دوماً (مُثبَّتة،
+    تختبرها tests/test_demo_data.py)؛ ملف المستخدم يحمل حبيبته الحقيقية
+    التي اكتشفها services.ingest.parse_upload — لا افتراض شهري صامت.
+    """
+    dataset: Dataset | None = st.session_state.get(SESSION_KEY)
+    if dataset is not None:
+        return dataset.granularity
+    return "monthly"
+
+
 def active_categories() -> dict[str, str]:
     """فئات المنتجات إن وُجدت — من ملف المستخدم (عمود فئة اختياري اكتُشف
     عند الرفع) أو من products_meta.category لبيانات العرض المرفقة.
@@ -320,8 +332,11 @@ def render_upload_widget() -> None:
         st.header(t("data.header"))
 
         if dataset is not None:
-            st.success(t("data.your_file", products=dataset.product_count,
-                         months=dataset.month_count))
+            st.success(t(
+                "data.your_file", products=dataset.product_count,
+                months=dataset.month_count,
+                unit=t(f"granularity.unit.{dataset.granularity}"),
+            ))
             # الطمأنة تُعرَض هنا لا قبل الرفع فقط: بيانات المستخدم محمّلة
             # الآن، وهذه اللحظة بالضبط هي التي يحتاج فيها الجواب على
             # "أين ذهب ملفي؟". عرضها قبل الرفع وحده يجعلها تختفي عند

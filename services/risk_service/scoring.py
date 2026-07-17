@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
+import config
 from core.exceptions import InsufficientDataError
 from core.logging_config import get_logger
 from domain.entities import ForecastResult, InventoryStatus, RiskScore
@@ -58,23 +59,33 @@ def compute_risk(
     series: Sequence[float],
     forecast: ForecastResult,
     inventory: InventoryStatus | None = None,
+    *, granularity: str = "monthly",
 ) -> RiskScore:
     """حساب درجة خطورة منتج من عوامله الخمسة.
 
     Args:
-        inventory: حالة المخزون إن عُرفت. None (الافتراضي حتى Phase 5)
-            يعني استبعاد عامل النفاد وإعادة موازنة الباقي — لا افتراض
-            أن المخزون وفير.
+        inventory: حالة المخزون إن عُرفت. None يعني استبعاد عامل النفاد
+            وإعادة موازنة الباقي — لا افتراض أن المخزون وفير.
+        granularity: حبيبة series/forecast الفعلية — تُشتقّ منها الدورة
+            الموسمية (seasonality_factor)، الفترات في السنة (growth_rate)،
+            وتحويل مهلة التوريد بالأيام إلى فترات (stock_depletion_risk).
+            لا 12/30 يوماً مفروضتين على بيانات قد تكون أسبوعية أو يومية.
 
     Raises:
         InsufficientDataError: تعذّر حساب أي عامل.
     """
+    seasonal_period = config.SEASONAL_PERIODS_BY_GRANULARITY[granularity]
+    periods_per_year = config.PERIODS_PER_YEAR_BY_GRANULARITY[granularity]
     computed = {
         "demand_volatility": factors.demand_volatility(series),
-        "stock_depletion_risk": factors.stock_depletion_risk(inventory, forecast),
+        "stock_depletion_risk": factors.stock_depletion_risk(
+            inventory, forecast, granularity=granularity
+        ),
         "forecast_accuracy_penalty": factors.forecast_accuracy_penalty(forecast, series),
-        "seasonality_factor": factors.seasonality_factor(series),
-        "growth_rate": factors.growth_rate(series),
+        "seasonality_factor": factors.seasonality_factor(
+            series, seasonal_period=seasonal_period
+        ),
+        "growth_rate": factors.growth_rate(series, periods_per_year=periods_per_year),
     }
     known = {name: value for name, value in computed.items() if value is not None}
     score = _weighted_score(known)

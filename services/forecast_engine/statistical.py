@@ -26,7 +26,8 @@ from core.exceptions import ModelTrainingError
 
 from .base import Forecaster, ForecastOutput
 
-# محور زمني اصطناعي: النماذج تحتاج فهرساً شهرياً، لا تاريخاً حقيقياً.
+# محور زمني اصطناعي: النماذج تحتاج فهرساً منتظم الخطوة (freq يطابق حبيبة
+# الملف الفعلية)، لا تاريخاً حقيقياً.
 #
 # التعليق السابق هنا ادّعى أن Prophet يعتمد على مطابقة هذا التاريخ للبيانات
 # الفعلية (لأن موسميته السنوية تُحسب من اليوم في السنة). الادّعاء **خاطئ**،
@@ -44,13 +45,13 @@ from .base import Forecaster, ForecastOutput
 SERIES_START = "2022-12-01"
 
 
-def _monthly_index(length: int) -> pd.DatetimeIndex:
-    return pd.date_range(start=SERIES_START, periods=length, freq="MS")
+def _period_index(length: int, freq: str) -> pd.DatetimeIndex:
+    return pd.date_range(start=SERIES_START, periods=length, freq=freq)
 
 
-def _as_timeseries(series: Sequence[float]) -> pd.Series:
+def _as_timeseries(series: Sequence[float], freq: str) -> pd.Series:
     values = np.asarray(series, dtype=float)
-    return pd.Series(values, index=_monthly_index(len(values)))
+    return pd.Series(values, index=_period_index(len(values), freq))
 
 
 def _bounds_from_residuals(
@@ -70,22 +71,31 @@ def _bounds_from_residuals(
 class ETSForecaster(Forecaster):
     """Exponential Smoothing بمركّبتَي اتجاه وموسمية جمعيّتين.
 
-    min_points = 24: النموذج الموسمي يحتاج دورتين كاملتين ليفصل النمط
-    الموسمي عن الاتجاه. أقل من ذلك — statsmodels قد يُدرّب ويُرجع رقماً،
-    لكنه رقم مُلائم للضجيج لا للموسمية.
+    min_points = 2×seasonal_periods: النموذج الموسمي يحتاج دورتين كاملتين
+    ليفصل النمط الموسمي عن الاتجاه. أقل من ذلك — statsmodels قد يُدرّب
+    ويُرجع رقماً، لكنه رقم مُلائم للضجيج لا للموسمية.
+
+    seasonal_periods/freq يُشتقّان من حبيبة الملف الفعلية (config.
+    SEASONAL_PERIODS_BY_GRANULARITY/PANDAS_FREQ_BY_GRANULARITY عبر
+    registry.default_models) — لا 12/"MS" مفروضتين على بيانات أسبوعية
+    مثلاً. min_points/min_non_zero صفتا نسخة لا صنف: تُحسبان من
+    seasonal_periods الممرَّر فعلاً، لا من الثابت الشهري دائماً.
     """
 
     name = "ETS"
-    min_points = 2 * SEASONAL_PERIODS
-    min_non_zero = 12
 
-    def __init__(self, seasonal_periods: int = SEASONAL_PERIODS) -> None:
+    def __init__(
+        self, seasonal_periods: int = SEASONAL_PERIODS, freq: str = "MS"
+    ) -> None:
         self.seasonal_periods = seasonal_periods
+        self.freq = freq
+        self.min_points = 2 * seasonal_periods
+        self.min_non_zero = seasonal_periods
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
         from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-        timeseries = _as_timeseries(series)
+        timeseries = _as_timeseries(series, self.freq)
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -127,16 +137,19 @@ class SARIMAForecaster(Forecaster):
     """
 
     name = "SARIMA"
-    min_points = 2 * SEASONAL_PERIODS
-    min_non_zero = 12
 
-    def __init__(self, seasonal_periods: int = SEASONAL_PERIODS) -> None:
+    def __init__(
+        self, seasonal_periods: int = SEASONAL_PERIODS, freq: str = "MS"
+    ) -> None:
         self.seasonal_periods = seasonal_periods
+        self.freq = freq
+        self.min_points = 2 * seasonal_periods
+        self.min_non_zero = seasonal_periods
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
         from statsmodels.tsa.arima.model import ARIMA
 
-        timeseries = _as_timeseries(series)
+        timeseries = _as_timeseries(series, self.freq)
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")

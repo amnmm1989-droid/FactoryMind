@@ -316,6 +316,23 @@ def test_model_name_is_part_of_the_cache_key():
     assert ets != naive
 
 
+def test_granularity_is_part_of_the_cache_key_and_the_hash():
+    """نفس السلسلة الرقمية بحبيبتين مختلفتين تعني seasonal_periods مختلفة
+    تماماً — نتيجتان حقيقيتان لا نتيجة واحدة يصحّ تخزينها تحت مفتاح واحد."""
+    monthly = cache_key("منتج", [1.0, 2.0], "ETS", 6, "monthly")
+    weekly = cache_key("منتج", [1.0, 2.0], "ETS", 6, "weekly")
+    assert monthly != weekly
+
+    assert data_hash("منتج", [1.0, 2.0], "monthly") != data_hash("منتج", [1.0, 2.0], "weekly")
+
+
+def test_cache_key_defaults_to_monthly_for_old_callers():
+    """استدعاء بلا granularity (الكود القديم) يبقى كما كان — لا يُبطَل صامتاً."""
+    assert cache_key("منتج", [1.0, 2.0], "ETS", 6) == cache_key(
+        "منتج", [1.0, 2.0], "ETS", 6, "monthly"
+    )
+
+
 # ---------------------------------------------------------------------------
 # السجل
 # ---------------------------------------------------------------------------
@@ -331,6 +348,51 @@ def test_registry_covers_every_model_the_roadmap_asks_for():
     names = {m.name for m in default_models()}
 
     assert {"ETS", "SARIMA", "Prophet", "XGBoost", "RandomForest"} <= names
+
+
+# ---------------------------------------------------------------------------
+# الحبيبة الزمنية — بند 1 في ROADMAP.md: لا 12/"MS" مفروضتان على أي بيانات
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("granularity,expected_periods,expected_freq", [
+    ("daily", 7, "D"),
+    ("weekly", 52, "W"),
+    ("monthly", 12, "MS"),
+    ("quarterly", 4, "QS"),
+    ("yearly", 1, "YS"),
+])
+def test_default_models_derive_seasonal_periods_and_freq_from_granularity(
+    granularity, expected_periods, expected_freq
+):
+    """ETS/SARIMA/Prophet وحدها بها مفهوم موسمي — يجب أن تحمل قيم حبيبتها
+    الفعلية، لا الثابت الشهري (12/"MS") دائماً."""
+    models = {m.name: m for m in default_models(granularity)}
+
+    for name in ("ETS", "SARIMA"):
+        assert models[name].seasonal_periods == expected_periods
+        assert models[name].freq == expected_freq
+        # min_points/min_non_zero صفتا نسخة مُشتقّة، لا 24/12 ثابتتين دوماً
+        assert models[name].min_points == 2 * expected_periods
+        assert models[name].min_non_zero == expected_periods
+
+    assert models["Prophet"].freq == expected_freq
+    assert models["Prophet"].seasonal_periods == expected_periods
+
+
+def test_daily_granularity_enables_weekly_seasonality_on_prophet():
+    """يوم الأسبوع نمط حقيقي في بيانات يومية — غير مفعَّل لأي حبيبة أخرى."""
+    daily_models = {m.name: m for m in default_models("daily")}
+    monthly_models = {m.name: m for m in default_models("monthly")}
+
+    assert daily_models["Prophet"].daily is True
+    assert monthly_models["Prophet"].daily is False
+
+
+def test_default_models_default_to_monthly_for_old_callers():
+    """استدعاء بلا حبيبة (الكود القديم) يبقى شهرياً — لا يتغيّر سلوكه صامتاً."""
+    models = {m.name: m for m in default_models()}
+
+    assert models["ETS"].seasonal_periods == 12
+    assert models["ETS"].freq == "MS"
 
 
 def test_applicable_models_shrink_as_data_thins():

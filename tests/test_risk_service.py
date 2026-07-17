@@ -110,6 +110,40 @@ def test_growth_needs_at_least_three_points():
     assert factors.growth_rate([1.0, 2.0]) is None
 
 
+def test_growth_rate_uses_the_custom_periods_per_year():
+    """الميل لكل فترة × فترات/سنة = التغيّر السنوي — 52 لا 12 لسلسلة أسبوعية.
+
+    نفس الميل بوحدتي حبيبة مختلفتين يُنسَّى بمعامل مختلف تماماً: تجاهل
+    ذلك (استخدام 12 دائماً) كان يُصغِّر خطورة النمو الحقيقية لبيانات
+    أسبوعية بمعامل 52/12 ≈ 4.3.
+    """
+    rising = [float(i) for i in range(10, 40)]
+
+    monthly = factors.growth_rate(rising, periods_per_year=12)
+    weekly = factors.growth_rate(rising, periods_per_year=52)
+
+    assert weekly > monthly
+
+
+# ---------------------------------------------------------------------------
+# الموسمية بحبيبة غير شهرية
+# ---------------------------------------------------------------------------
+def test_seasonality_with_a_custom_period_needs_two_cycles_of_that_period():
+    """دورة أسبوعية طولها 7 (يوم الأسبوع) لا 12 — دورتان أي 14 نقطة."""
+    assert factors.seasonality_factor([100.0] * 13, seasonal_period=7) is None
+    assert factors.seasonality_factor([100.0] * 14, seasonal_period=7) is not None
+
+
+def test_seasonality_detects_a_weekly_pattern_with_period_seven():
+    import itertools
+
+    weekday_pattern = [50.0, 60.0, 70.0, 80.0, 90.0, 30.0, 20.0]
+    series = list(itertools.islice(itertools.cycle(weekday_pattern), 28))
+
+    assert factors.seasonality_factor(series, seasonal_period=7) > \
+        factors.seasonality_factor(series, seasonal_period=12)
+
+
 # ---------------------------------------------------------------------------
 # عقوبة دقة التنبؤ
 # ---------------------------------------------------------------------------
@@ -162,6 +196,32 @@ def test_partial_coverage_lands_between_the_extremes():
     risk = factors.stock_depletion_risk(partial, _forecast())
 
     assert 0 < risk < 100
+
+
+def test_lead_time_conversion_uses_the_real_granularity_not_a_fixed_month():
+    """30 يوم مهلة توريد لبيانات أسبوعية = ~4.3 فترة لا فترة واحدة.
+
+    الخطأ الذي كان قائماً: lead_time_days / 30.0 دائماً، فمهلة 30 يوماً
+    كانت تُحسب "شهراً واحداً" حتى لو forecast.forecast_values أسابيع —
+    وحدتان مختلفتان تُضربان كأنهما واحدة.
+    """
+    ample = _inventory(current=300.0, safety=20.0, lead_days=30)
+    weekly_forecast = _forecast(values=[100.0] * 6)  # 100 وحدة/أسبوع مفترضة
+
+    monthly_risk = factors.stock_depletion_risk(ample, weekly_forecast, granularity="monthly")
+    weekly_risk = factors.stock_depletion_risk(ample, weekly_forecast, granularity="weekly")
+
+    # شهرياً: طلب خلال "شهر" واحد (lead_time_periods=1) = 100 -> تغطية 3x -> 0
+    assert monthly_risk == 0.0
+    # أسبوعياً: نفس 30 يوماً = ~4.3 أسبوع -> طلب ~430 -> تغطية 300/430 < 1 -> خطورة حقيقية
+    assert weekly_risk > 0.0
+
+
+def test_lead_time_conversion_defaults_to_monthly_for_old_callers():
+    ample = _inventory(current=10_000.0, safety=20.0, lead_days=30)
+
+    assert factors.stock_depletion_risk(ample, _forecast()) == \
+        factors.stock_depletion_risk(ample, _forecast(), granularity="monthly")
 
 
 def test_more_stock_never_means_more_risk():
@@ -255,3 +315,15 @@ def test_short_series_still_scores_on_what_is_known():
 
     assert 0 <= risk.score <= 100
     assert risk.confidence < 1.0
+
+
+def test_compute_risk_threads_granularity_into_stock_depletion():
+    """compute_risk يمرّر granularity إلى stock_depletion_risk فعلاً —
+    نفس المخزون والتنبؤ ينتجان خطورة نفاد مختلفة بحبيبتين مختلفتين."""
+    inventory = _inventory(current=300.0, safety=20.0, lead_days=30)
+    forecast = _forecast(values=[100.0] * 6)
+
+    monthly = compute_risk("منتج", STEADY, forecast, inventory, granularity="monthly")
+    weekly = compute_risk("منتج", STEADY, forecast, inventory, granularity="weekly")
+
+    assert monthly.stock_depletion_risk != weekly.stock_depletion_risk

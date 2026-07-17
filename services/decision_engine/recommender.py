@@ -168,14 +168,20 @@ def recommend_production(
     inventory: InventoryStatus | None = None,
     *,
     horizon_months: int = 1,
+    granularity: str = "monthly",
 ) -> ProductionRecommendation:
     """توليد توصية إنتاج من تنبؤ.
 
     الكمية = الطلب المتوقع خلال الأفق، ناقص المخزون المتاح (إن عُرف).
 
     ⚠️ التوصية لا تكون أدق من التنبؤ خلفها. على هذه البيانات، الفائز غالباً
-    متوسط متحرك — أي أن "الطلب المتوقع" في جوهره "مثل الأشهر الماضية".
+    متوسط متحرك — أي أن "الطلب المتوقع" في جوهره "مثل الفترات الماضية".
     نص السبب يحمل اسم النموذج وخطأه التاريخي كي لا يُقرأ الرقم كنبوءة.
+
+    horizon_months عدد فترات لا أشهر بالضرورة — الاسم تاريخي (أول استخدام
+    كان شهرياً حصراً)، لكن كل استخدام له في هذه الدالة عدّاً لا حساب تقويم
+    (راجع docs/ROADMAP.md بند 1). granularity تمرَّر إلى compute_risk وحدها،
+    لتشتقّ الدورة الموسمية وتحويل مهلة التوريد الصحيحين.
 
     Raises:
         DecisionEngineError: تنبؤ فارغ أو أفق غير صالح.
@@ -193,11 +199,11 @@ def recommend_production(
     if horizon_months > len(forecast.forecast_values):
         raise DecisionEngineError(
             f"الأفق المطلوب ({horizon_months}) يتجاوز التنبؤ المتاح "
-            f"({len(forecast.forecast_values)} شهراً)",
+            f"({len(forecast.forecast_values)} فترة)",
             context={"product": product_name},
         )
 
-    risk = compute_risk(product_name, series, forecast, inventory)
+    risk = compute_risk(product_name, series, forecast, inventory, granularity=granularity)
 
     expected_demand = float(sum(forecast.forecast_values[:horizon_months]))
     available = _available_stock(inventory)
@@ -231,6 +237,7 @@ def borrow_recommendation(
     source_series: Sequence[float],
     *,
     horizon_months: int = 1,
+    granularity: str = "monthly",
 ) -> ProductionRecommendation:
     """توصية لمنتج بلا تاريخ مبيعات إطلاقاً — مُستعارة بالكامل من منتج آخر.
 
@@ -253,11 +260,12 @@ def borrow_recommendation(
     from services.forecast_engine import forecast_product
 
     engine_result = forecast_product(
-        source_product_name, source_series, steps=max(horizon_months, 6), use_cache=False
+        source_product_name, source_series, steps=max(horizon_months, 6),
+        use_cache=False, granularity=granularity,
     )
     borrowed = recommend_production(
         new_product_name, list(source_series), engine_result.best,
-        horizon_months=horizon_months,
+        horizon_months=horizon_months, granularity=granularity,
     )
     reason_parts = borrowed.reason_parts + (
         ReasonPart("borrowed", {"source": source_product_name}),

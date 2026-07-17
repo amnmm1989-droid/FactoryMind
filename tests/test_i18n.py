@@ -322,8 +322,11 @@ def test_a_missing_query_param_falls_back_to_the_default(monkeypatch):
     assert i18n.current_language() == "en"
 
 
-def test_the_granularity_message_translates_its_own_parameters(monkeypatch):
-    """رسالة الرفض تحمل رمزاً خاماً ("weekly") من الخدمة، وتحتاجه مصرَّفاً.
+def test_the_too_few_months_message_translates_its_own_unit(monkeypatch):
+    """رسالة "قلّة الفترات" تحمل رمز الحبيبة الخام ("weekly") من الخدمة،
+    وتحتاجه مصرَّفاً — نفس آلية unsupported_granularity السابقة، لكن على
+    الرسالة التي تصل فعلاً الآن (بعد بند 1 في ROADMAP، كل الحبيبات مقبولة
+    وunsupported_granularity لم يعد يُرفَع أصلاً).
 
     القيمة تُترجَم عبر t() متداخل، واسم المتغيّر واحد في الصياغتين — وإلا
     انكسر شرط تطابق المتغيّرات، وهو يحرس من صياغة تنهار للغة واحدة فقط.
@@ -331,16 +334,20 @@ def test_the_granularity_message_translates_its_own_parameters(monkeypatch):
     from core.exceptions import DataValidationError
 
     exc = DataValidationError(
-        "raw", context={"code": "unsupported_granularity", "granularity": "weekly"}
+        "raw",
+        context={
+            "code": "too_few_months", "months": 1, "minimum": 2,
+            "granularity": "weekly",
+        },
     )
 
     monkeypatch.setattr(i18n.st, "session_state", {"language": "en"})
     english = i18n.error(exc)
-    assert "weekly" in english and "weeks" in english
+    assert "weeks" in english
 
     monkeypatch.setattr(i18n.st, "session_state", {"language": "ar"})
     arabic = i18n.error(exc)
-    assert "أسبوعية" in arabic and "أسبوعاً" in arabic
+    assert "أسبوعاً" in arabic
 
 
 def test_every_granularity_bucket_has_a_label_and_unit():

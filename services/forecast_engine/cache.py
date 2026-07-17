@@ -48,27 +48,35 @@ class CachedForecast:
     version: int = CACHE_VERSION
 
 
-def data_hash(product_name: str, series: Sequence[float]) -> str:
-    """بصمة (المنتج + بياناته). نفس الدالة تملأ forecasts.data_hash.
+def data_hash(product_name: str, series: Sequence[float], granularity: str = "monthly") -> str:
+    """بصمة (المنتج + بياناته + حبيبته). نفس الدالة تملأ forecasts.data_hash.
 
     تُقرَّب القيم إلى 6 منازل قبل التجزئة: فروق الفاصلة العائمة تحت هذا
     الحد لا تغيّر تنبؤاً بأي معنى عملي، ولا يجب أن تُبطل الـ cache.
+
+    الحبيبة جزء من البصمة: نفس السلسلة الرقمية بحبيبتين مختلفتين (شهرية
+    مرة، أسبوعية أخرى) تُنتج seasonal_periods مختلفة تماماً — تنبؤاً
+    مختلفاً حقاً، لا نتيجة واحدة يصحّ تخزينها تحت مفتاح واحد.
     """
     digest = hashlib.sha256()
     digest.update(product_name.encode("utf-8"))
     digest.update(b"|")
     digest.update(",".join(f"{float(v):.6f}" for v in series).encode("utf-8"))
+    digest.update(f"|{granularity}".encode("utf-8"))
     return digest.hexdigest()
 
 
-def cache_key(product_name: str, series: Sequence[float], model_name: str, steps: int) -> str:
-    """مفتاح الـ cache = بصمة البيانات + النموذج + الأفق.
+def cache_key(
+    product_name: str, series: Sequence[float], model_name: str, steps: int,
+    granularity: str = "monthly",
+) -> str:
+    """مفتاح الـ cache = بصمة البيانات (والحبيبة) + النموذج + الأفق.
 
     الأفق جزء من المفتاح: تنبؤ بـ 6 أشهر ليس بادئة تنبؤ بـ 12 — النماذج
     التكرارية (الأشجار) تُنتج مساراً مختلفاً لكل أفق.
     """
     digest = hashlib.sha256()
-    digest.update(data_hash(product_name, series).encode("utf-8"))
+    digest.update(data_hash(product_name, series, granularity).encode("utf-8"))
     digest.update(f"|{model_name}|{steps}|v{CACHE_VERSION}".encode("utf-8"))
     return digest.hexdigest()[:32]
 

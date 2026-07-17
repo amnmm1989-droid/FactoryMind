@@ -11,10 +11,15 @@ from core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-def forecast_ets(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
+def forecast_ets(series, steps=6, seasonal_periods=SEASONAL_PERIODS, freq='MS'):
     """
     توقع باستخدام نموذج Exponential Smoothing (ETS)
     إرجاع: (forecast, lower, upper, metrics, error_message)
+
+    freq: تردد pandas المطابق للحبيبة الفعلية (راجع
+    config.PANDAS_FREQ_BY_GRANULARITY). الافتراضي 'MS' يبقي هذه الدالة
+    كما هي لمستهلكيها الحاليين (ui/dashboard.py وtests/test_models.py) —
+    راجع services/forecast_engine/statistical.py للتنفيذ المُعمَّم فعلاً.
     """
     try:
         if len(series) < 2 * seasonal_periods:
@@ -24,7 +29,7 @@ def forecast_ets(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
             upper = forecast + abs(last_val * 0.2)
             return forecast, lower, upper, None, None
 
-        idx = pd.date_range(start='2022-12-01', periods=len(series), freq='MS')
+        idx = pd.date_range(start='2022-12-01', periods=len(series), freq=freq)
         ts = pd.Series(series, index=idx)
 
         model = ExponentialSmoothing(
@@ -88,11 +93,11 @@ def forecast_ets(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
         return forecast, lower, upper, None, str(e)
 
 
-def forecast_sarima(series, steps=6, seasonal_periods=SEASONAL_PERIODS):
+def forecast_sarima(series, steps=6, seasonal_periods=SEASONAL_PERIODS, freq='MS'):
     try:
         if len(series) < 2 * seasonal_periods:
             return None, None
-        idx = pd.date_range(start='2022-12-01', periods=len(series), freq='MS')
+        idx = pd.date_range(start='2022-12-01', periods=len(series), freq=freq)
         ts = pd.Series(series, index=idx)
         model = ARIMA(ts, order=(1,1,1), seasonal_order=(1,1,1,seasonal_periods))
         fitted = model.fit()

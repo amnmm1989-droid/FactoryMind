@@ -16,6 +16,7 @@ from typing import Sequence
 
 import numpy as np
 
+import config
 from domain.entities import ForecastResult, InventoryStatus
 
 # نقاط المنتصف: القيمة التي تُترجم إلى خطورة 50. معايرة قابلة للضبط،
@@ -24,8 +25,10 @@ CV_MIDPOINT = 1.0            # معامل اختلاف = 1 (الانحراف = �
 GROWTH_MIDPOINT = 0.5        # تغيّر سنوي = 50% من المتوسط -> 50
 MAPE_MIDPOINT = 30.0         # خطأ تنبؤ 30% -> 50
 
-MIN_POINTS_FOR_SEASONALITY = 24  # دورتان — أقل من ذلك لا يُميّز الموسمية من الضجيج
-SEASONAL_PERIOD = 12
+# افتراضيات شهرية — كل الدوال أدناه تقبل seasonal_period/periods_per_year/
+# granularity صراحة؛ هذه فقط قيمها حين لا يُمرَّر شيء (الاستدعاء القديم).
+SEASONAL_PERIOD = config.SEASONAL_PERIODS_BY_GRANULARITY["monthly"]  # 12
+PERIODS_PER_YEAR = config.PERIODS_PER_YEAR_BY_GRANULARITY["monthly"]  # 12
 
 
 def _saturate(value: float, midpoint: float) -> float:
@@ -57,13 +60,18 @@ def demand_volatility(series: Sequence[float]) -> float | None:
     return _saturate(cv, CV_MIDPOINT)
 
 
-def growth_rate(series: Sequence[float]) -> float | None:
+def growth_rate(series: Sequence[float], *, periods_per_year: int = PERIODS_PER_YEAR) -> float | None:
     """خطورة معدّل التغيّر — بالقيمة المطلقة.
 
     لماذا المطلقة؟ العامل يقيس *خطورة التخطيط* لا جودة الأعمال. نمو 40%
-    وانكماش 40% كلاهما يجعل الشهر القادم مختلفاً عن أمس، وكلاهما يُغري
+    وانكماش 40% كلاهما يجعل الفترة القادمة مختلفة عن أمس، وكلاهما يُغري
     بإنتاج خاطئ. الاتجاه (صعود أم هبوط) يحمله
     ProductionRecommendation.expected_demand_change_pct بإشارته.
+
+    periods_per_year: كم فترة تُكوِّن سنة في حبيبة هذه السلسلة (12 للشهري،
+    52 للأسبوعي، 365 لليومي — راجع config.PERIODS_PER_YEAR_BY_GRANULARITY).
+    الميل المحسوب "لكل فترة"، وتسنيته تحتاج هذا الرقم — لا 12 مفروضة على
+    سلسلة قد تكون أسبوعية أو يومية.
     """
     values = np.asarray(series, dtype=float)
     if len(values) < 3:
@@ -76,34 +84,39 @@ def growth_rate(series: Sequence[float]) -> float | None:
     from models.statistics import trend_analysis
 
     slope = float(trend_analysis(list(values))["slope"])
-    # الميل شهري -> نُسنِّته ونعبّر عنه كنسبة من المتوسط
-    annual_relative_change = abs(slope) * 12.0 / abs(mean)
+    # الميل لكل فترة -> نُسنِّته ونعبّر عنه كنسبة من المتوسط
+    annual_relative_change = abs(slope) * periods_per_year / abs(mean)
     return _saturate(annual_relative_change, GROWTH_MIDPOINT)
 
 
-def seasonality_factor(series: Sequence[float]) -> float | None:
-    """قوة النمط الموسمي: نسبة التباين الذي يفسّره الشهر من السنة.
+def seasonality_factor(
+    series: Sequence[float], *, seasonal_period: int = SEASONAL_PERIOD
+) -> float | None:
+    """قوة النمط الموسمي: نسبة التباين الذي تفسّره الدورة الموسمية.
 
-    موسمية عالية = خطورة تخطيط أعلى: الطلب يقفز ويهوي بحسب الشهر، وخطأ
-    التوقيت يعني مخزوناً راكداً أو نفاداً في الذروة.
+    موسمية عالية = خطورة تخطيط أعلى: الطلب يقفز ويهوي بحسب موقعه من
+    الدورة، وخطأ التوقيت يعني مخزوناً راكداً أو نفاداً في الذروة.
 
-    None تحت 24 نقطة: بدورة واحدة لا يمكن تمييز "موسمية" من "حدث لمرة".
+    None تحت دورتين (2×seasonal_period نقطة): بدورة واحدة لا يمكن تمييز
+    "موسمية" من "حدث لمرة". seasonal_period نفسه يُشتقّ من حبيبة السلسلة
+    (12 شهرياً، 52 أسبوعياً، 7 يومياً... راجع
+    config.SEASONAL_PERIODS_BY_GRANULARITY) — لا 12 مفروضة دوماً.
     """
     values = np.asarray(series, dtype=float)
-    if len(values) < MIN_POINTS_FOR_SEASONALITY:
+    if len(values) < 2 * seasonal_period:
         return None
 
     total_variance = float(np.var(values))
     if total_variance == 0:
         return 0.0  # سلسلة ثابتة تماماً: لا موسمية
 
-    # متوسط كل شهر من السنة عبر كل الدورات
-    month_means = [
-        float(np.mean(values[month::SEASONAL_PERIOD]))
-        for month in range(SEASONAL_PERIOD)
-        if len(values[month::SEASONAL_PERIOD]) > 0
+    # متوسط كل موضع من الدورة عبر كل الدورات
+    period_means = [
+        float(np.mean(values[offset::seasonal_period]))
+        for offset in range(seasonal_period)
+        if len(values[offset::seasonal_period]) > 0
     ]
-    seasonal_variance = float(np.var(month_means))
+    seasonal_variance = float(np.var(period_means))
 
     # نسبة التباين الموسمي إلى الكلي (0-1) -> 0-100
     ratio = min(seasonal_variance / total_variance, 1.0)
@@ -138,13 +151,20 @@ def forecast_accuracy_penalty(
 def stock_depletion_risk(
     inventory: InventoryStatus | None,
     forecast: ForecastResult,
+    *, granularity: str = "monthly",
 ) -> float | None:
     """خطورة نفاد المخزون قبل وصول الدفعة التالية.
 
-    None حين لا نعرف المخزون — وهو الوضع الافتراضي حتى Phase 5 تملأ جدول
-    inventory. هذا هو الفارق الذي يستحق التشدد: 0 يعني "المخزون يغطي
-    الطلب"، وNone يعني "لا نعرف كم لديك". منتج مجهول المخزون ليس آمناً؛
-    هو مجهول. وإعطاؤه 0 يجعله يبدو الأكثر أماناً في قائمة مرتّبة.
+    None حين لا نعرف المخزون — وهو الوضع الافتراضي حتى يُرفع ملف مخزون.
+    هذا هو الفارق الذي يستحق التشدد: 0 يعني "المخزون يغطي الطلب"، وNone
+    يعني "لا نعرف كم لديك". منتج مجهول المخزون ليس آمناً؛ هو مجهول.
+    وإعطاؤه 0 يجعله يبدو الأكثر أماناً في قائمة مرتّبة.
+
+    granularity: مهلة التوريد تصل بالأيام دوماً (InventoryStatus.
+    lead_time_days)، لكن forecast.forecast_values فترات بحبيبة الملف —
+    شهر إن كانت شهرية، أسبوع إن كانت أسبوعية. تحويل الأيام إلى عدد فترات
+    يحتاج طول الفترة الفعلي (config.GRANULARITY_DAYS)، لا 30 يوماً مفروضة
+    دوماً — بيانات أسبوعية بمهلة توريد 30 يوماً هي 30/7 ≈ 4.3 فترة، لا 1.
     """
     if inventory is None:
         return None
@@ -153,13 +173,14 @@ def stock_depletion_risk(
         return 100.0  # المخزون عند حد الأمان أو تحته
 
     # الطلب المتوقع خلال مهلة التوريد
-    lead_time_months = max(inventory.lead_time_days / 30.0, 0.0)
-    if lead_time_months == 0 or not forecast.forecast_values:
+    period_days = config.GRANULARITY_DAYS.get(granularity, config.GRANULARITY_DAYS["monthly"])
+    lead_time_periods = max(inventory.lead_time_days / period_days, 0.0)
+    if lead_time_periods == 0 or not forecast.forecast_values:
         # بلا مهلة توريد لا يوجد خطر نفاد أثناء الانتظار
         return 0.0 if inventory.current_stock > inventory.reorder_point else 100.0
 
-    monthly_demand = float(np.mean(forecast.forecast_values))
-    demand_during_lead_time = monthly_demand * lead_time_months
+    period_demand = float(np.mean(forecast.forecast_values))
+    demand_during_lead_time = period_demand * lead_time_periods
     if demand_during_lead_time <= 0:
         return 0.0  # لا طلب متوقع -> لا نفاد
 

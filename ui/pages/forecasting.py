@@ -20,6 +20,7 @@ from core.exceptions import AppError
 from services.batch import fast_models
 from services.decision_engine import recommend_production
 from services.forecast_engine import forecast_product
+from ui.data_source import active_granularity
 from ui.i18n import error as translate_error
 from ui.i18n import format_months, format_reason, format_recommendation, t
 
@@ -92,10 +93,12 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     series = products[product]
     models = None if full_family else fast_models()
+    granularity = active_granularity()
 
     try:
         with st.spinner(t("fc.training")):
-            result = forecast_product(product, series, steps=steps, models=models)
+            result = forecast_product(product, series, steps=steps, models=models,
+                                      granularity=granularity)
     except AppError as exc:
         st.error(t("fc.failed", detail=translate_error(exc)))
         st.info(t("fc.failed_help"))
@@ -147,7 +150,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     st.subheader(t("fc.recommendation"))
     try:
-        recommendation = recommend_production(product, series, best)
+        recommendation = recommend_production(product, series, best, granularity=granularity)
         st.success(format_recommendation(recommendation))
         st.caption(format_reason(recommendation))
     except AppError as exc:

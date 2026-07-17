@@ -29,6 +29,7 @@ from datetime import date
 
 import pandas as pd
 
+import config
 from core.exceptions import DataValidationError
 
 # أسماء الأشهر العربية — pandas لا يفهمها، وهي شكل بيانات هذا المشروع نفسه
@@ -95,17 +96,16 @@ MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى 
 # الفعلي: حدّ صُمِّم لغرض غير هذا يرفض الاستخدام الحقيقي الأشيع.
 CUSTOMER_MIN_MONTHS = 2
 
-# الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم.
-# المشروع يدعم الشهري وحده اليوم؛ الباقي يُرفَض صراحةً لا يُقبَل ويُساء
-# تفسيره. راجع docs/ROADMAP.md — "الحبيبة الزمنية المرنة".
-GRANULARITY_BUCKETS = {
-    1: "daily",
-    7: "weekly",
-    30: "monthly",
-    91: "quarterly",
-    365: "yearly",
-}
-SUPPORTED_GRANULARITY = "monthly"
+# الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم. مُشتقّة من
+# config.GRANULARITY_DAYS بالعكس — مصدر واحد للحقيقة، لا نسخة مستقلة قد
+# تنحرف عنها.
+#
+# كل الحبيبات الخمس مقبولة الآن (راجع docs/ROADMAP.md — "الحبيبة الزمنية
+# المرنة"، البند 1): الملف يُقرأ بحبيبته الفعلية بدل رفض ما ليس شهرياً.
+GRANULARITY_BUCKETS = {days: name for name, days in config.GRANULARITY_DAYS.items()}
+# افتراضي عند الغموض فقط (detect_granularity لا يجد يومين مختلفين ليقيس
+# بينهما) — لا حبيبة "مدعومة" بمعنى الرفض؛ الخمس كلها مقبولة دوماً.
+DEFAULT_GRANULARITY = "monthly"
 
 
 @dataclass(frozen=True)
@@ -128,6 +128,9 @@ class Dataset:
     months: list[str]                      # التسميات كما يراها المستخدم
     products: dict[str, list[float]]
     start_date: date | None                # مشتقّ من الملف، لا مثبَّت
+    # الحبيبة المكتشَفة فعلياً ("daily"/"weekly"/"monthly"/"quarterly"/
+    # "yearly") — لا افتراض شهري صامت. راجع docs/ROADMAP.md بند 1.
+    granularity: str = DEFAULT_GRANULARITY
     warnings: list[Warning_] = field(default_factory=list)
     # فئة كل منتج، إن وُجد عمود فئة في الملف (شكل طويل فقط، اكتشاف تلقائي).
     # {} لا تعني فشلاً — تعني أن الملف لا يحمل هذه المعلومة، وهذا شائع
@@ -168,6 +171,7 @@ class CustomerSalesDataset:
 
     months: list[str]
     rows: dict[str, dict[str, list[float]]]
+    granularity: str = DEFAULT_GRANULARITY
     warnings: list[Warning_] = field(default_factory=list)
 
     @property
@@ -251,7 +255,7 @@ def detect_granularity(dates: list[date]) -> str | None:
     # التمييز يحتاج انتظاماً لا تعطيه ثلاث نقاط، وخطؤه يرفض بيانات صحيحة.
     # والعطل الذي نحرسه هو الأدقّ-من-شهري تحديداً.
     if all(d.day == 1 for d in unique):
-        return SUPPORTED_GRANULARITY
+        return "monthly"
 
     smallest_gap = min(
         (unique[i + 1] - unique[i]).days for i in range(len(unique) - 1)
@@ -382,14 +386,30 @@ def guess_column(columns: list[str], role: str) -> str | None:
     return _find_column(columns, hints)
 
 
+def _expected_period_count(dates: list[date], granularity: str) -> int:
+    """عدد الفترات المتوقَّع بين أول تاريخ وآخره، حسب الحبيبة المكتشَفة.
+
+    الشهري وحده حساب تقويمي دقيق (فرق أشهر لا أيام): الأشهر أطوال متفاوتة
+    (28-31 يوماً)، والقسمة على 30 كانت لتُخطئ حالات حقيقية تحرسها اختبارات
+    موجودة (فجوات شهرية بأعداد أيام مختلفة). البقية فروق منتظمة، فالقسمة
+    على طول الحبيبة الاسمي بالأيام (config.GRANULARITY_DAYS) كافية.
+    """
+    if granularity == "monthly":
+        return (dates[-1].year - dates[0].year) * 12 + (dates[-1].month - dates[0].month) + 1
+    if granularity == "yearly":
+        return dates[-1].year - dates[0].year + 1
+    period_days = config.GRANULARITY_DAYS[granularity]
+    return round((dates[-1] - dates[0]).days / period_days) + 1
+
+
 def _finalize(
     pivoted: pd.DataFrame, warnings: list[Warning_], categories: dict[str, str] | None = None
 ) -> Dataset:
     """من إطار مُحوَّر (فهرس = منتجات، أعمدة = تسميات أشهر) إلى Dataset جاهز.
 
     مشتركة بين مسارَي التخمين التلقائي والربط اليدوي: كلاهما ينتج نفس
-    الشكل بعد _from_long/_from_wide، وبوابة الحبيبة والترتيب والتحذيرات
-    لا تفرّق بين مصدر الأعمدة — فلا يجوز أن تتكرر.
+    الشكل بعد _from_long/_from_wide، والترتيب والتحذيرات لا تفرّق بين
+    مصدر الأعمدة — فلا يجوز أن تتكرر.
     """
     # التواريخ كاملةً أولاً: الحبيبة تُقاس منها، وقصّ اليوم يمحوها.
     parsed_full: list[tuple[str, date | None]] = [
@@ -397,42 +417,37 @@ def _finalize(
     ]
     full_dates = [parsed for _, parsed in parsed_full if parsed]
 
-    # بوابة الحبيبة — قبل أي بناء.
-    #
-    # بدونها كان ملف أسبوعي *يُقبَل* ويُعامَل كأشهر: 30 أسبوعاً تُقرأ 30
-    # شهراً، وSEASONAL_PERIODS=12 يبحث عن دورة كل 12 *أسبوعاً* ويسمّيها
-    # سنوية. لا خطأ يظهر — فقط تحليل واثق وخاطئ، وهو أسوأ ما يمكن أن
-    # تفعله أداة دعواها أنها تعرف متى لا تعرف.
-    granularity = detect_granularity(full_dates)
-    if granularity is not None and granularity != SUPPORTED_GRANULARITY:
-        raise DataValidationError(
-            f"بيانات {granularity} — المدعوم حالياً: {SUPPORTED_GRANULARITY}",
-            context={
-                "code": "unsupported_granularity",
-                "granularity": granularity,
-                "supported": SUPPORTED_GRANULARITY,
-            },
-        )
+    # الحبيبة الفعلية — تُكتشَف لا تُفرَض. كل الحبيبات الخمس مقبولة (بند 1
+    # في docs/ROADMAP.md)؛ الغموض وحده (تاريخان لا يكفيان لقياس فارق) يقع
+    # افتراضياً على الشهري، وهو ما كانت تفعله البوابة القديمة عملياً على
+    # أي حال حين تعذّر عليها القياس.
+    granularity = detect_granularity(full_dates) or DEFAULT_GRANULARITY
 
-    # ترتيب الأشهر زمنياً — لا بترتيب ظهورها في الملف. عمود "يناير" قبل
-    # "ديسمبر" في ملف المستخدم يعني سنة تالية، لا شهراً سابقاً.
-    parsed_months: list[tuple[str, date | None]] = [
-        (label, date(parsed.year, parsed.month, 1) if parsed else None)
-        for label, parsed in parsed_full
-    ]
-    understood = [(label, parsed) for label, parsed in parsed_months if parsed]
+    # قصّ اليوم إلى بداية الشهر مناسب للشهري فقط — تصديرة قد تضع أي يوم
+    # داخل عمود شهر واحد، واليوم عندها ضجيج لا معلومة. لغير الشهري اليوم
+    # *هو* ما يميّز عموداً عن آخر (أسبوعان في يناير لهما نفس الشهر ويومان
+    # مختلفان تماماً) — قصّه كان يُصيّر كليهما "2024-01-01" فيُفسد الترتيب
+    # وحساب الفجوات معاً. راجع تعليق _expected_period_count.
+    if granularity == "monthly":
+        parsed_periods: list[tuple[str, date | None]] = [
+            (label, date(parsed.year, parsed.month, 1) if parsed else None)
+            for label, parsed in parsed_full
+        ]
+    else:
+        parsed_periods = parsed_full
+    understood = [(label, parsed) for label, parsed in parsed_periods if parsed]
 
     if not understood:
         raise DataValidationError(
-            "لم يُفهَم أي عمود كشهر. الأشكال المقبولة: "
+            "لم يُفهَم أي عمود كتاريخ. الأشكال المقبولة: "
             "'يناير 2023'، 'Jan 2023'، '2023-01'.",
             context={
                 "code": "no_months",
-                "columns": [label for label, _ in parsed_months][:6],
+                "columns": [label for label, _ in parsed_periods][:6],
             },
         )
 
-    unreadable = [label for label, parsed in parsed_months if not parsed]
+    unreadable = [label for label, parsed in parsed_periods if not parsed]
     if unreadable:
         warnings.append(Warning_("dropped_columns", {
             "count": len(unreadable), "names": "، ".join(unreadable[:4]),
@@ -444,21 +459,23 @@ def _finalize(
 
     if len(ordered_labels) < MIN_MONTHS:
         raise DataValidationError(
-            f"{len(ordered_labels)} شهراً فقط — الحد الأدنى {MIN_MONTHS}.",
+            f"{len(ordered_labels)} فترة فقط ({granularity}) — الحد الأدنى {MIN_MONTHS}.",
             context={
                 "code": "too_few_months",
                 "months": len(ordered_labels),
                 "minimum": MIN_MONTHS,
+                "granularity": granularity,
             },
         )
 
     # فجوات زمنية: تسلسل ناقص يُفسد الموسمية بصمت
     dates = [parsed for _, parsed in understood]
-    expected = (dates[-1].year - dates[0].year) * 12 + (dates[-1].month - dates[0].month) + 1
+    expected = _expected_period_count(dates, granularity)
     if expected != len(dates):
         warnings.append(Warning_("timeline_gaps", {
             "found": len(dates), "expected": expected,
             "start": str(dates[0]), "end": str(dates[-1]),
+            "granularity": granularity,
         }))
 
     numeric = pivoted.apply(pd.to_numeric, errors="coerce")
@@ -497,6 +514,7 @@ def _finalize(
         months=ordered_labels,
         products=products,
         start_date=dates[0],
+        granularity=granularity,
         warnings=warnings,
         categories=kept_categories,
     )
@@ -841,34 +859,29 @@ def _finalize_customer(
     ]
     full_dates = [parsed for _, parsed in parsed_full if parsed]
 
-    granularity = detect_granularity(full_dates)
-    if granularity is not None and granularity != SUPPORTED_GRANULARITY:
-        raise DataValidationError(
-            f"بيانات {granularity} — المدعوم حالياً: {SUPPORTED_GRANULARITY}",
-            context={
-                "code": "unsupported_granularity",
-                "granularity": granularity,
-                "supported": SUPPORTED_GRANULARITY,
-            },
-        )
+    granularity = detect_granularity(full_dates) or DEFAULT_GRANULARITY
 
-    parsed_months: list[tuple[str, date | None]] = [
-        (label, date(parsed.year, parsed.month, 1) if parsed else None)
-        for label, parsed in parsed_full
-    ]
-    understood = [(label, parsed) for label, parsed in parsed_months if parsed]
+    # راجع تعليق _finalize المطابق: قصّ اليوم مناسب للشهري فقط.
+    if granularity == "monthly":
+        parsed_periods: list[tuple[str, date | None]] = [
+            (label, date(parsed.year, parsed.month, 1) if parsed else None)
+            for label, parsed in parsed_full
+        ]
+    else:
+        parsed_periods = parsed_full
+    understood = [(label, parsed) for label, parsed in parsed_periods if parsed]
 
     if not understood:
         raise DataValidationError(
-            "لم يُفهَم أي عمود كشهر. الأشكال المقبولة: "
+            "لم يُفهَم أي عمود كتاريخ. الأشكال المقبولة: "
             "'يناير 2023'، 'Jan 2023'، '2023-01'.",
             context={
                 "code": "no_months",
-                "columns": [label for label, _ in parsed_months][:6],
+                "columns": [label for label, _ in parsed_periods][:6],
             },
         )
 
-    unreadable = [label for label, parsed in parsed_months if not parsed]
+    unreadable = [label for label, parsed in parsed_periods if not parsed]
     if unreadable:
         warnings.append(Warning_("dropped_columns", {
             "count": len(unreadable), "names": "، ".join(unreadable[:4]),
@@ -880,20 +893,23 @@ def _finalize_customer(
 
     if len(ordered_labels) < CUSTOMER_MIN_MONTHS:
         raise DataValidationError(
-            f"{len(ordered_labels)} شهراً فقط — الحد الأدنى {CUSTOMER_MIN_MONTHS}.",
+            f"{len(ordered_labels)} فترة فقط ({granularity}) — الحد الأدنى "
+            f"{CUSTOMER_MIN_MONTHS}.",
             context={
                 "code": "too_few_months",
                 "months": len(ordered_labels),
                 "minimum": CUSTOMER_MIN_MONTHS,
+                "granularity": granularity,
             },
         )
 
     dates = [parsed for _, parsed in understood]
-    expected = (dates[-1].year - dates[0].year) * 12 + (dates[-1].month - dates[0].month) + 1
+    expected = _expected_period_count(dates, granularity)
     if expected != len(dates):
         warnings.append(Warning_("timeline_gaps", {
             "found": len(dates), "expected": expected,
             "start": str(dates[0]), "end": str(dates[-1]),
+            "granularity": granularity,
         }))
 
     numeric = pivoted.apply(pd.to_numeric, errors="coerce")
@@ -924,7 +940,9 @@ def _finalize_customer(
             "لا عملاء صالحون في الملف", context={"code": "no_customers"}
         )
 
-    return CustomerSalesDataset(months=ordered_labels, rows=rows, warnings=warnings)
+    return CustomerSalesDataset(
+        months=ordered_labels, rows=rows, granularity=granularity, warnings=warnings
+    )
 
 
 def parse_customer_upload(content: bytes, filename: str) -> CustomerSalesDataset:

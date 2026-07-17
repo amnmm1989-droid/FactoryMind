@@ -293,8 +293,8 @@ STRINGS: dict[str, dict[str, str]] = {
     # ---- البيانات والرفع ----
     "data.header": {"ar": "📁 البيانات", "en": "📁 Data"},
     "data.your_file": {
-        "ar": "ملفك: **{products}** منتج × **{months}** شهر",
-        "en": "Your file: **{products}** products × **{months}** months",
+        "ar": "ملفك: **{products}** منتج × **{months}** {unit}",
+        "en": "Your file: **{products}** products × **{months}** {unit}",
     },
     "data.notes": {
         "ar": "⚠️ ملاحظات على الملف ({count})",
@@ -399,10 +399,10 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "error.empty_file": {"ar": "الملف فارغ.", "en": "The file is empty."},
     "error.no_months": {
-        "ar": "لم يُفهَم أي عمود كشهر. الأشكال المقبولة: "
-              "'يناير 2023'، 'Jan 2023'، '2023-01'.",
-        "en": "No column was understood as a month. Accepted formats: "
-              "'Jan 2023', 'January 2023', '2023-01'.",
+        "ar": "لم يُفهَم أي عمود كتاريخ. الأشكال المقبولة: "
+              "'يناير 2023'، 'Jan 2023'، '2023-01'، '2024-01-15'.",
+        "en": "No column was understood as a date. Accepted formats: "
+              "'Jan 2023', 'January 2023', '2023-01', '2024-01-15'.",
     },
     "error.no_stock_columns": {
         "ar": "لم يُفهَم عمود المنتج أو عمود المخزون في هذا الملف.",
@@ -424,23 +424,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "No valid customers in the file.",
     },
     "error.too_few_months": {
-        "ar": "{months} شهراً فقط — الحد الأدنى {minimum}.",
-        "en": "Only {months} months — the minimum is {minimum}.",
-    },
-    "error.unsupported_granularity": {
-        "ar": "بياناتك **{granularity}** — والمدعوم اليوم **شهري** فقط.\n\n"
-              "لا نقبلها ونتظاهر: معاملتها كأشهر تجعل النظام يبحث عن دورة "
-              "سنوية كل 12 {unit} ويُنتج موسمية خاطئة تبدو صحيحة. الرفض "
-              "أصدق من رقم لا يُعتمد عليه.\n\n"
-              "جمّع بياناتك شهرياً في نظامك ثم صدّرها — أو انتظر الدعم "
-              "(البند الأول في خارطة الطريق).",
-        "en": "Your data is **{granularity}** — only **monthly** is supported "
-              "today.\n\nWe will not accept it and pretend: treating it as "
-              "monthly makes the system hunt for a yearly cycle every 12 {unit} "
-              "and produce seasonality that is wrong but looks right. A refusal "
-              "is more honest than a number you cannot rely on.\n\nAggregate to "
-              "months in your ERP and re-export — or wait for support (first "
-              "item on the roadmap).",
+        "ar": "{months} {unit} فقط — الحد الأدنى {minimum}.",
+        "en": "Only {months} {unit} — the minimum is {minimum}.",
     },
     "granularity.daily": {"ar": "يومية", "en": "daily"},
     "granularity.weekly": {"ar": "أسبوعية", "en": "weekly"},
@@ -1105,15 +1090,15 @@ STRINGS: dict[str, dict[str, str]] = {
               "quantities were summed.",
     },
     "warn.dropped_columns": {
-        "ar": "{count} عموداً لم يُفهَم كشهر فأُهمل: {names}",
-        "en": "{count} columns were not understood as months and were ignored: {names}",
+        "ar": "{count} عموداً لم يُفهَم كتاريخ فأُهمل: {names}",
+        "en": "{count} columns were not understood as a date and were ignored: {names}",
     },
     "warn.timeline_gaps": {
-        "ar": "فجوات في التسلسل الزمني: {found} شهراً موجوداً من {expected} "
-              "بين {start} و{end}. الأشهر الناقصة ليست أصفاراً — هي غياب "
+        "ar": "فجوات في التسلسل الزمني: {found} فترة موجودة من {expected} "
+              "بين {start} و{end}. الفترات الناقصة ليست أصفاراً — هي غياب "
               "بيانات، والموسمية المحسوبة عليها غير دقيقة.",
-        "en": "Gaps in the timeline: {found} months present out of {expected} "
-              "between {start} and {end}. Missing months are not zeros — they are "
+        "en": "Gaps in the timeline: {found} periods present out of {expected} "
+              "between {start} and {end}. Missing periods are not zeros — they are "
               "absent data, and seasonality computed over them is unreliable.",
     },
     "warn.non_numeric": {

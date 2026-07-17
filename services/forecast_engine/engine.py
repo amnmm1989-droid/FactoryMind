@@ -91,10 +91,11 @@ def _run_model(
     steps: int,
     *,
     use_cache: bool,
+    granularity: str = "monthly",
 ) -> ModelEvaluation:
     """تشغيل نموذج واحد: cache -> تقييم -> تدريب نهائي."""
     started = time.perf_counter()
-    key = forecast_cache.cache_key(product_name, series, model.name, steps)
+    key = forecast_cache.cache_key(product_name, series, model.name, steps, granularity)
 
     if use_cache:
         cached = forecast_cache.load(key)
@@ -198,8 +199,17 @@ def forecast_product(
     *,
     models: list[Forecaster] | None = None,
     use_cache: bool = True,
+    granularity: str = "monthly",
 ) -> EngineResult:
     """تشغيل كل النماذج المنطبقة واختيار الأفضل.
+
+    Args:
+        granularity: حبيبة السلسلة الفعلية ("daily"/"weekly"/"monthly"/
+            "quarterly"/"yearly") — تُستخدم فقط حين models=None لبناء
+            العائلة الافتراضية (default_models) بدورة موسمية وfreq
+            مناسبين، لا 12/"MS" مفروضتين على أي بيانات. models صريحة
+            (مثل fast_models()) تتجاوزها: تلك النماذج بلا مفهوم موسمي
+            أصلاً فلا تحتاجها.
 
     Raises:
         InsufficientDataError: سلسلة فارغة، أو لا نموذج ينطبق عليها.
@@ -213,7 +223,7 @@ def forecast_product(
     if steps < 1:
         raise ValueError(f"عدد الخطوات يجب أن يكون >= 1، وصل: {steps}")
 
-    candidates = models if models is not None else default_models()
+    candidates = models if models is not None else default_models(granularity)
     applicable = [m for m in candidates if m.can_handle(series)]
 
     if not applicable:
@@ -229,7 +239,8 @@ def forecast_product(
     metric_name = "cumulative_error" if profile.is_intermittent else "rmse"
 
     evaluations = [
-        _run_model(model, product_name, series, steps, use_cache=use_cache)
+        _run_model(model, product_name, series, steps, use_cache=use_cache,
+                   granularity=granularity)
         for model in applicable
     ]
 
@@ -265,6 +276,6 @@ def forecast_product(
         best=result,
         best_model_name=best.model_name,
         evaluations=evaluations,
-        data_hash=forecast_cache.data_hash(product_name, series),
+        data_hash=forecast_cache.data_hash(product_name, series, granularity),
         profile=profile,
     )

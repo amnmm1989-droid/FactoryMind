@@ -24,7 +24,7 @@ from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models, run_batch
 from services.decision_engine import borrow_recommendation
 from services.reconciliation import category_totals
-from ui.data_source import active_categories, active_dataset, active_inventory
+from ui.data_source import active_categories, active_dataset, active_granularity, active_inventory
 from ui.i18n import t
 
 def _level_badge(level: RiskLevel) -> str:
@@ -42,6 +42,7 @@ MIN_ACTIONABLE_UNITS = 0.5
 def _run_batch_ui(
     products: dict[str, list[float]], full_family: bool,
     inventory: dict[str, InventoryStatus] | None = None,
+    granularity: str = "monthly",
 ) -> None:
     progress = st.progress(0.0, text=t("exec.computing"))
 
@@ -50,7 +51,7 @@ def _run_batch_ui(
 
     report = run_batch(
         products, use_fast_models=not full_family, inventory=inventory,
-        on_progress=on_progress,
+        granularity=granularity, on_progress=on_progress,
     )
     progress.empty()
 
@@ -152,7 +153,8 @@ def _render_category_totals(categories: dict[str, str], recommendations) -> None
 
 
 def _render_no_history_section(
-    no_history: list[str], products: dict[str, list[float]], *, ephemeral: bool
+    no_history: list[str], products: dict[str, list[float]], *, ephemeral: bool,
+    granularity: str = "monthly",
 ) -> None:
     """منتج بلا مبيعات إطلاقاً — مرئي هنا، لا غائباً بصمت.
 
@@ -185,7 +187,9 @@ def _render_no_history_section(
         source = col2.selectbox(t("exec.borrow_source"), source_options)
 
         if st.button(t("exec.borrow_apply"), key="_borrow_apply_btn"):
-            borrowed = borrow_recommendation(target, source, products[source])
+            borrowed = borrow_recommendation(
+                target, source, products[source], granularity=granularity
+            )
             if ephemeral:
                 current = st.session_state.get("session_recommendations", [])
                 current = [r for r in current if r.product_name != target] + [borrowed]
@@ -228,6 +232,7 @@ def _dataset_signature(
 def _compute_in_session(
     products: dict[str, list[float]], full_family: bool,
     inventory: dict[str, InventoryStatus] | None = None,
+    granularity: str = "monthly",
 ) -> list:
     """حساب بلا حفظ — لبيانات المستخدم وللوضع المستضاف.
 
@@ -246,10 +251,11 @@ def _compute_in_session(
     for index, (name, series) in enumerate(products.items(), start=1):
         try:
             result = forecast_product(name, series, steps=6, models=models,
-                                      use_cache=False)
+                                      use_cache=False, granularity=granularity)
             product_inventory = inventory.get(name) if inventory else None
             recommendations.append(
-                recommend_production(name, list(series), result.best, product_inventory)
+                recommend_production(name, list(series), result.best,
+                                      product_inventory, granularity=granularity)
             )
         except AppError:
             pass  # منتج بلا بيانات كافية — متوقَّع، يُتخطّى
@@ -270,6 +276,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     # أن يرى الزائر التالي مبيعات السابق.
     ephemeral = is_user_data or is_hosted()
     inventory = active_inventory()
+    granularity = active_granularity()
 
     with st.sidebar:
         st.header(t("common.compute"))
@@ -287,7 +294,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         signature = _dataset_signature(products, inventory)
         if compute or st.session_state.get("session_signature") != signature:
             st.session_state["session_recommendations"] = _compute_in_session(
-                products, full_family, inventory
+                products, full_family, inventory, granularity
             )
             st.session_state["session_signature"] = signature
         stored = st.session_state["session_recommendations"]
@@ -295,7 +302,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
                      else "exec.ephemeral_hosted"))
     else:
         if compute:
-            _run_batch_ui(products, full_family, inventory)
+            _run_batch_ui(products, full_family, inventory, granularity)
             st.rerun()
         # الحدّ يغطّي الكتالوج كاملاً لا 500 ثابتة: التقاطع بين products
         # وأسماء stored أدناه (no_history) يحتاج كل منتج له توصية، لا أعلى
@@ -350,6 +357,8 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         st.info(t("exec.empty"))
 
     if no_history:
-        _render_no_history_section(no_history, products, ephemeral=ephemeral)
+        _render_no_history_section(
+            no_history, products, ephemeral=ephemeral, granularity=granularity
+        )
 
     st.caption(t("exec.inventory_active") if inventory else t("exec.inventory_caveat"))

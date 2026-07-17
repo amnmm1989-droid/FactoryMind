@@ -389,7 +389,7 @@ because everything after it is built on its assumption.
 > The competitive dimension of each item (metrics, hierarchy, cold start,
 > accounts, scale) is detailed in [`READINESS_3_PLAN.md`](READINESS_3_PLAN.md).
 
-## 1. Time granularity
+## 1. Time granularity ✅
 
 ### The dangerous half — ✅ done: the gate
 
@@ -397,8 +397,8 @@ A weekly file used to be **accepted and treated as months**: 30 weeks read
 as 30 months, and `SEASONAL_PERIODS = 12` hunting a cycle every **12
 weeks** and calling it annual. No error — just confident, wrong analysis.
 
-`services/ingest.detect_granularity` now detects and rejects anything
-non-monthly, explaining why. The tool knows when it does not know again.
+`services/ingest.detect_granularity` detected this from the start; what
+changed is what happens next (see below) — it no longer rejects, it tags.
 
 **Two rules learned through a failed first attempt:**
 
@@ -412,24 +412,43 @@ non-monthly, explaining why. The tool knows when it does not know again.
    its multiples, not another granularity: weekly with a hole gives gaps of
    7 and 14 — the smallest is the truth.
 
-### The remaining half — actually supporting weekly/daily
+### The remaining half — ✅ done: actually supporting weekly/daily
 
-Needed: derive the seasonal period from the granularity (7 / 52 / 12 / 4)
-instead of the constant 12, and generalise horizons and lead times.
+All five detected granularities (daily/weekly/monthly/quarterly/yearly) are
+now accepted, not just tagged and rejected — `Dataset.granularity`/
+`CustomerSalesDataset.granularity` carry it forward, and `ui/data_source.py::
+active_granularity()` exposes the session's real granularity to every page.
 
-Month-anchored locations — **seven, counted not estimated**:
+Every location in the table below now derives its number from
+`config.SEASONAL_PERIODS_BY_GRANULARITY`/`PERIODS_PER_YEAR_BY_GRANULARITY`/
+`PANDAS_FREQ_BY_GRANULARITY`/`GRANULARITY_DAYS` instead of a constant —
+threaded from the uploaded file through `forecast_product`/`recommend_
+production`/`compute_risk`/`run_batch` down to each model:
 
-| File | Line |
+| File | What changed |
 |---|---|
-| `config.py` | 28 — `SEASONAL_PERIODS = 12` |
-| `services/forecast_engine/statistical.py` | 48 — `freq="MS"` |
-| `services/forecast_engine/prophet_model.py` | 51, 70 — `freq="MS"` |
-| `services/risk_service/factors.py` | 156 — `lead_time_days / 30.0` |
-| `models/forecasting.py` | 27, 95 — `freq='MS'` |
+| `config.py` | `SEASONAL_PERIODS_BY_GRANULARITY` (7/52/12/4/1), `PERIODS_PER_YEAR_BY_GRANULARITY`, `PANDAS_FREQ_BY_GRANULARITY`, `GRANULARITY_DAYS` — the single source both `services/ingest.py` and `services/risk_service` read from |
+| `services/forecast_engine/statistical.py` | `ETSForecaster`/`SARIMAForecaster` take `seasonal_periods`/`freq`; `min_points`/`min_non_zero` are now instance attributes derived from them, not class constants fixed at 12/24 |
+| `services/forecast_engine/prophet_model.py` | Same pattern, plus `weekly_seasonality` enabled only for daily data (a real day-of-week pattern), never for coarser grains |
+| `services/forecast_engine/registry.py` | `default_models(granularity)` builds each model with the right periods/freq |
+| `services/forecast_engine/cache.py` | granularity is part of the cache key — the same series under two granularities is two different results, not one cached under whichever ran first |
+| `services/risk_service/factors.py` | `stock_depletion_risk` converts lead-time days using the real period length (was a fixed 30 always); `seasonality_factor`/`growth_rate` take the real cycle length and periods-per-year (was a fixed 12 always) |
+| `models/forecasting.py` | `freq` parametrised too, default unchanged — this file stays frozen for `ui/dashboard.py`/`tests/test_models.py` per its own docstring |
 
-**Why now:** it is structural, and every feature built on the month
-assumption raises its cost. Without it, the claim "fits all manufacturing"
-is **not honest**: food is weekly, aircraft are yearly.
+**A bug the day-truncation caught**: `_finalize()` collapsed every date to
+the 1st of its month before sorting and gap-detection — harmless when only
+monthly data existed (every date already fell on day 1), but silently wrong
+for weekly/daily data: two weeks in the same month collapsed to the same
+truncated date, corrupting both column ordering and the gap count. Fixed by
+truncating only when `granularity == "monthly"`.
+
+Verified live: a genuinely weekly file (`2025-01-06, 2025-01-13, ...`)
+uploads, reads back "Your file: 2 products × **8 weeks**" (not "months"),
+and the Executive page computes real recommendations from it end to end.
+
+**Why now:** it was structural, and every feature built on the month
+assumption raised its cost. Without it, the claim "fits all manufacturing"
+was **not honest**: food is weekly, aircraft are yearly.
 
 ## 2. Column mapping ✅
 
