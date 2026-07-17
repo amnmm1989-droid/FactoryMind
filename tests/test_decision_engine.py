@@ -20,7 +20,8 @@ RISING = [float(50 + i * 5) for i in range(30)]
 SEASONAL = [100 + 60 * math.sin(i * math.pi / 6) for i in range(36)]
 
 
-def _forecast(values=None, model="Naive", mape=10.0, rmse=5.0) -> ForecastResult:
+def _forecast(values=None, model="Naive", mape=10.0, rmse=5.0,
+              wape=None, fva=None) -> ForecastResult:
     return ForecastResult(
         product_name="منتج",
         model_name=model,
@@ -30,6 +31,8 @@ def _forecast(values=None, model="Naive", mape=10.0, rmse=5.0) -> ForecastResult
         mae=4.0,
         rmse=rmse,
         mape=mape,
+        wape=wape,
+        fva=fva,
     )
 
 
@@ -233,6 +236,29 @@ def test_risk_uses_inventory_when_available():
 
     assert without.risk.stock_depletion_risk is None
     assert with_stock.risk.stock_depletion_risk is not None
+
+
+# ---------------------------------------------------------------------------
+# WAPE وFVA — منقولان من التنبؤ، لا يُحسبان هنا
+# ---------------------------------------------------------------------------
+def test_forecast_wape_and_fva_are_carried_to_the_recommendation():
+    """التوصية لا تحسب WAPE/FVA — تنقلهما كما هما من ForecastResult.
+
+    نفس مبدأ risk: القرار يُبنى على ما يقيسه المحرك، لا على حساب موازٍ
+    قد ينحرف عن مصدره.
+    """
+    rec = recommend_production("منتج", STEADY, _forecast(wape=12.5, fva=3.2))
+
+    assert rec.forecast_wape == 12.5
+    assert rec.forecast_fva == 3.2
+
+
+def test_uncomputed_wape_and_fva_stay_none_not_zero():
+    """تنبؤ لم يُقيَّم (وليس تنبؤاً دقيقاً 0%) يجب ألا يوهم التوصية بذلك."""
+    rec = recommend_production("منتج", STEADY, _forecast(wape=None, fva=None))
+
+    assert rec.forecast_wape is None
+    assert rec.forecast_fva is None
 
 
 # ---------------------------------------------------------------------------

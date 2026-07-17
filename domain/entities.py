@@ -49,6 +49,12 @@ class ForecastResult:
     mae: float | None = None
     rmse: float | None = None
     mape: float | None = None
+    wape: float | None = None
+    # Forecast Value Added over Naive, بمقياس الاختيار نفسه (rmse أو
+    # cumulative_error) — موجب يعني أن الفائز اشترى شيئاً بتعقيده. None حين
+    # لم يُقيَّم Naive أصلاً، لا صفر مصطنع يوهم بمقارنة لم تحدث.
+    # انظر services/forecast_engine/engine.py:_forecast_value_added.
+    fva: float | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
@@ -137,6 +143,11 @@ class ProductionRecommendation:
     expected_demand_change_pct: float
     risk: RiskScore | None = None
     reason_parts: tuple[ReasonPart, ...] = ()
+    # منقولان من ForecastResult وراء هذه التوصية — لا يُحسبان هنا. حقلان لا
+    # جزء من reason_parts لأنهما رقمان يُعرضان كعمود (بجانب الخطورة/الثقة)،
+    # لا جملة سبب.
+    forecast_wape: float | None = None
+    forecast_fva: float | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # تحت هذه النسبة يُعتبر الطلب مستقراً لا متغيّراً

@@ -63,8 +63,9 @@ class ForecastRepository:
                 """
                 INSERT INTO forecasts (
                     product_id, model_name, horizon, forecast_values,
-                    lower_bound, upper_bound, mae, rmse, mape, data_hash
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    lower_bound, upper_bound, mae, rmse, mape, wape, fva,
+                    data_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     product_id,
@@ -76,6 +77,8 @@ class ForecastRepository:
                     best.mae,
                     best.rmse,
                     best.mape,
+                    best.wape,
+                    best.fva,
                     result.data_hash,
                 ),
             )
@@ -89,9 +92,9 @@ class ForecastRepository:
                 conn.execute(
                     """
                     INSERT INTO model_performance (
-                        product_id, model_name, mae, rmse, mape,
+                        product_id, model_name, mae, rmse, mape, wape,
                         training_duration_ms, is_best, data_hash, forecast_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         product_id,
@@ -99,6 +102,7 @@ class ForecastRepository:
                         metrics.mae if metrics else None,
                         metrics.rmse if metrics else None,
                         metrics.mape if metrics else None,
+                        metrics.wape if metrics else None,
                         evaluation.duration_ms,
                         1 if evaluation.model_name == result.best_model_name else 0,
                         result.data_hash,
@@ -182,7 +186,7 @@ class ForecastRepository:
         try:
             rows = conn.execute(
                 """
-                SELECT mp.model_name, mp.mae, mp.rmse, mp.mape,
+                SELECT mp.model_name, mp.mae, mp.rmse, mp.mape, mp.wape,
                        mp.training_duration_ms, mp.is_best, mp.evaluated_at
                 FROM model_performance mp
                 WHERE mp.forecast_id = (

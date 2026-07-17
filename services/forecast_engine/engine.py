@@ -135,6 +135,36 @@ def _run_model(
     )
 
 
+def _forecast_value_added(
+    evaluations: list[ModelEvaluation],
+    winner: ModelEvaluation,
+    metric_name: str,
+) -> float | None:
+    """Forecast Value Added: خطأ Naive ناقص خطأ الفائز، بمقياس الاختيار نفسه.
+
+    موجب = الفائز أفضل من التكرار الساذج فعلاً — تعقيده اشترى شيئاً.
+    صفر أو سالب = لم يشترِ شيئاً؛ الساذج كافٍ. القياس بنفس مقياس الاختيار
+    (rmse للمنتظم، cumulative_error للمتقطّع) — مقارنة الفائز بمقياس
+    والساذج بآخر بلا معنى.
+
+    None حين لا يُقيَّم Naive (لم يُمرَّر ضمن النماذج المستدعاة، أو قصرت
+    السلسلة عن تقييمه) — لا صفر مصطنع يوهم بمقارنة لم تحدث فعلاً. وهذا
+    هو الفارق الذي يجعل الادّعاء الثابت في الـREADME ("النماذج الساذجة
+    تفوز 60%") مقياساً حياً يتراكم مع بيانات كل مستخدم بدل تقرير واحد مجمَّد.
+    """
+    naive = next(
+        (e for e in evaluations if e.model_name == "Naive" and e.metrics is not None),
+        None,
+    )
+    if naive is None or winner.metrics is None:
+        return None
+    if naive.model_name == winner.model_name:
+        return 0.0  # الساذج هو الفائز نفسه — لا قيمة مضافة تُقاس فوق نفسه
+
+    metric = _metric_getter(metric_name)
+    return float(metric(naive.metrics) - metric(winner.metrics))
+
+
 def _select_best(
     evaluations: list[ModelEvaluation], metric_name: str = "rmse"
 ) -> ModelEvaluation:
@@ -205,6 +235,7 @@ def forecast_product(
 
     best = _select_best(evaluations, metric_name)
     metrics = best.metrics
+    fva = _forecast_value_added(evaluations, best, metric_name)
 
     result = ForecastResult(
         product_name=product_name,
@@ -215,6 +246,8 @@ def forecast_product(
         mae=metrics.mae if metrics else None,
         rmse=metrics.rmse if metrics else None,
         mape=metrics.mape if metrics else None,
+        wape=metrics.wape if metrics else None,
+        fva=fva,
     )
 
     logger.info(

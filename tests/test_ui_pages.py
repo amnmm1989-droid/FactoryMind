@@ -15,7 +15,13 @@ import importlib
 
 import pytest
 
-from ui.pages.executive import MIN_ACTIONABLE_UNITS, _format_quantity
+from domain.entities import ProductionRecommendation, RiskLevel, RiskScore
+from ui.pages.executive import (
+    MIN_ACTIONABLE_UNITS,
+    _format_quantity,
+    _format_wape,
+    _to_frame,
+)
 
 PAGE_MODULES = [
     "executive",
@@ -49,6 +55,53 @@ def test_actionable_threshold_excludes_sub_unit_rates():
     assert MIN_ACTIONABLE_UNITS == 0.5
     assert 0.4 < MIN_ACTIONABLE_UNITS  # يُستبعد
     assert 0.6 >= MIN_ACTIONABLE_UNITS  # يُدرَج
+
+
+# ---------------------------------------------------------------------------
+# WAPE — عمود بجانب الثقة، لا يُستبدل بها
+# ---------------------------------------------------------------------------
+def test_wape_formats_as_a_rounded_percentage():
+    assert _format_wape(12.3) == "12%"
+    assert _format_wape(0.4) == "0%"
+
+
+def test_unmeasured_wape_shows_a_dash_not_zero():
+    """منتج بلا تقييم تاريخي (سلسلة قصيرة) ليس دقيقاً 0% — بل غير مقيس.
+    نفس مبدأ None٪ في risk_service: المجهول لا يُعرَض كرقم حقيقي."""
+    assert _format_wape(None) == "—"
+
+
+def _recommendation(product="منتج", wape=None, fva=None) -> ProductionRecommendation:
+    return ProductionRecommendation(
+        product_name=product,
+        recommended_quantity=100.0,
+        reason="اختبار",
+        expected_demand_change_pct=5.0,
+        risk=RiskScore(
+            product_name=product, score=40, demand_volatility=0.3,
+            stock_depletion_risk=None, forecast_accuracy_penalty=0.2,
+            seasonality_factor=0.1, growth_rate=0.05,
+        ),
+        forecast_wape=wape,
+        forecast_fva=fva,
+    )
+
+
+def test_to_frame_carries_the_wape_column():
+    from ui.i18n import t
+
+    frame = _to_frame([_recommendation(wape=8.5)])
+
+    assert t("common.wape") in frame.columns
+    assert frame.iloc[0][t("common.wape")] == "8%"
+
+
+def test_to_frame_shows_a_dash_when_wape_was_never_computed():
+    from ui.i18n import t
+
+    frame = _to_frame([_recommendation(wape=None)])
+
+    assert frame.iloc[0][t("common.wape")] == "—"
 
 
 # ---------------------------------------------------------------------------

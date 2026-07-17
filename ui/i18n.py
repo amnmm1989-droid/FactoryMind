@@ -241,6 +241,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.level": {"ar": "المستوى", "en": "Level"},
     "common.model": {"ar": "النموذج", "en": "Model"},
     "common.confidence": {"ar": "ثقة التقييم", "en": "Assessment confidence"},
+    "common.wape": {"ar": "دقّة WAPE", "en": "WAPE accuracy"},
     "common.demand_change": {"ar": "تغيّر الطلب %", "en": "Demand change %"},
     "common.recommended_qty": {"ar": "الكمية الموصى بها", "en": "Recommended qty"},
     "common.duration_ms": {"ar": "زمن (ms)", "en": "Time (ms)"},
@@ -440,6 +441,14 @@ STRINGS: dict[str, dict[str, str]] = {
               "decision. High risk from a volatile history: worth noticing (a "
               "product dying?) but not an action. Separated so it does not crowd "
               "out what actually needs deciding.",
+    },
+    "exec.fva_summary": {
+        "ar": "📐 على {total} منتجاً بمقارنة صالحة: النموذج المختار تفوّق على "
+              "التكرار الساذج (Naive) في {beat} منها ({pct:.0f}%). الباقي — "
+              "الساذج كافٍ، ولا تعقيد اشترى شيئاً.",
+        "en": "📐 Across {total} products with a valid comparison: the chosen "
+              "model beat the naive baseline in {beat} of them ({pct:.0f}%). "
+              "For the rest, naive was enough — complexity bought nothing.",
     },
     "exec.inventory_caveat": {
         "ar": "⚠️ عامل نفاد المخزون غير محسوب — جدول inventory فارغ حتى "

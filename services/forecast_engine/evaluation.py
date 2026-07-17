@@ -14,6 +14,14 @@
 الحل هنا: MAPE يُحسب على القيم غير الصفرية فقط، ويكون None إن لم توجد.
 None صريح أفضل من رقم كاذب.
 
+WAPE — "الدقة العملية" التي يُعرَض بها الرقم للمستخدم:
+    wape = sum(|actual - pred|) / sum(|actual|)
+المقام مجموع لا متوسط نسب فردية (خلافاً لـ MAPE) — فمنتج بقيمة فعلية صغيرة
+لا يقلب المقارنة. هذا هو المقياس الذي تصفه أدبيات تخطيط الطلب بأنه
+"الافتراضي" للقرار التشغيلي؛ RMSE يبقى معيار الاختيار الداخلي (مبرَّر
+إحصائياً أعلاه)، وWAPE يُعرَض بجانبه لأنه مفهوم بلا شرح رياضي. نفس حماية
+القسمة على صفر التي يحتاجها MAPE.
+
 cumulative_error — ولماذا مقياسان لا واحد:
 
     cumulative_error = |مجموع التنبؤ - مجموع الفعلي| على الأفق
@@ -69,6 +77,7 @@ class ModelMetrics:
     mape: float | None       # None حين تكون كل القيم الحقيقية أصفاراً
     holdout_size: int
     cumulative_error: float = 0.0  # |مجموع التنبؤ - مجموع الفعلي| على الأفق
+    wape: float | None = None      # None حين تكون كل القيم الحقيقية أصفاراً
 
     def is_better_than(self, other: "ModelMetrics | None") -> bool:
         """المقارنة بالـ RMSE.
@@ -101,6 +110,14 @@ def _mape(actual: np.ndarray, predicted: np.ndarray) -> float | None:
     return float(np.mean(np.abs((actual[mask] - predicted[mask]) / actual[mask])) * 100)
 
 
+def _wape(actual: np.ndarray, predicted: np.ndarray) -> float | None:
+    """WAPE = sum(|actual - pred|) / sum(|actual|). None إن كان المجموع صفراً."""
+    denominator = float(np.sum(np.abs(actual)))
+    if denominator == 0:
+        return None
+    return float(np.sum(np.abs(actual - predicted)) / denominator * 100)
+
+
 def compute_metrics(
     actual: Sequence[float], predicted: Sequence[float], holdout_size: int
 ) -> ModelMetrics:
@@ -121,6 +138,7 @@ def compute_metrics(
         cumulative_error=float(
             abs(float(np.sum(predicted_array)) - float(np.sum(actual_array)))
         ),
+        wape=_wape(actual_array, predicted_array),
     )
 
 

@@ -213,6 +213,43 @@ def test_compute_metrics_rejects_mismatched_lengths():
 
 
 # ---------------------------------------------------------------------------
+# WAPE — "الدقة العملية" التي تُعرَض للمستخدم بجانب RMSE الداخلي
+# ---------------------------------------------------------------------------
+def test_wape_is_none_when_every_actual_is_zero():
+    """نفس فخ MAPE بالضبط: القسمة على صفر. None صريح لا رقم كاذب."""
+    metrics = compute_metrics(actual=[0.0, 0.0, 0.0], predicted=[1.0, 2.0, 3.0], holdout_size=3)
+
+    assert metrics.wape is None
+
+
+def test_wape_matches_the_formula():
+    # errors: |8-10|=2, |20-18|=2 -> sum=4. actual sum=|10|+|18|=28. wape=4/28*100
+    metrics = compute_metrics(actual=[10.0, 18.0], predicted=[8.0, 20.0], holdout_size=2)
+
+    assert metrics.wape == pytest.approx(4 / 28 * 100)
+
+
+def test_wape_weights_by_total_demand_not_by_point_count():
+    """الفارق الجوهري عن MAPE: نقطة صغيرة لا تقلب المقارنة.
+
+    نقطتان: واحدة كبيرة مصيبة تماماً (خطأ 0)، وأخرى صغيرة مخطئة بالكامل
+    (توقّع 5 بدل 1 — خطأ نسبي 400%). MAPE يتوسّط النسب فرداً فرداً فتقفز
+    نقطة صغيرة الحسابَ إلى 200% رغم أن الخطأ المطلق كله 4 وحدات من 1001؛
+    WAPE يزن بحجم الطلب الكلي فيبقى قريباً من الصفر — الرقم الصادق هنا.
+    """
+    metrics = compute_metrics(actual=[1.0, 1000.0], predicted=[5.0, 1000.0], holdout_size=2)
+
+    assert metrics.mape == pytest.approx(200.0)           # متوسط 400% و0%
+    assert metrics.wape == pytest.approx(4 / 1001 * 100)  # لا تكاد تُذكر
+
+
+def test_perfect_prediction_gives_zero_wape():
+    metrics = compute_metrics(actual=[10.0, 20.0], predicted=[10.0, 20.0], holdout_size=2)
+
+    assert metrics.wape == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
 # التقييم
 # ---------------------------------------------------------------------------
 def test_holdout_scales_with_series_length():
@@ -414,3 +451,73 @@ def test_engine_returns_a_domain_entity():
 
     assert result.best.product_name == "منتج"
     assert result.best.next_period_value == result.best.forecast_values[0]
+
+
+# ---------------------------------------------------------------------------
+# Forecast Value Added — الفائز مقابل Naive تحديداً، لا "الأفضل بين التسعة"
+# ---------------------------------------------------------------------------
+def test_fva_is_zero_when_naive_wins():
+    """الساذج لا يشتري قيمة مضافة فوق نفسه — الصفر هنا حقيقة لا غياب قياس."""
+
+    class BrokenForecaster(Forecaster):
+        name = "Broken"
+        min_points = 1
+        min_non_zero = 1
+
+        def fit_predict(self, series, steps):
+            raise ModelTrainingError("انفجرت عمداً")
+
+    result = forecast_product(
+        "منتج", SEASONAL, steps=3,
+        models=[BrokenForecaster(), NaiveForecaster()], use_cache=False,
+    )
+
+    assert result.best_model_name == "Naive"
+    assert result.best.fva == 0.0
+
+
+def test_fva_is_positive_when_a_model_beats_naive():
+    """قياس فعلي: SARIMA يهزم Naive بوضوح على سلسلة موسمية غنية (rmse
+    6.6e-12 مقابل 33.3) — الفارق يجب أن يظهر موجباً بمقدار الفرق بالضبط."""
+    result = forecast_product("منتج", SEASONAL, steps=6, use_cache=False)
+
+    naive_eval = next(e for e in result.evaluations if e.model_name == "Naive")
+    winner_eval = next(
+        e for e in result.evaluations if e.model_name == result.best_model_name
+    )
+
+    assert result.best.fva == pytest.approx(
+        naive_eval.metrics.rmse - winner_eval.metrics.rmse
+    )
+    assert result.best.fva > 0
+
+
+def test_fva_is_none_when_naive_was_not_evaluated():
+    """لا صفر مصطنع حين لا مقارنة أصلاً — Naive غير مُدرَج في النماذج الممرَّرة."""
+    result = forecast_product(
+        "منتج", SEASONAL, steps=6,
+        models=[MovingAverageForecaster()], use_cache=False,
+    )
+
+    assert result.best.fva is None
+
+
+def test_fva_uses_the_same_metric_the_winner_was_selected_by():
+    """على سلسلة متقطّعة يُختار بـ cumulative_error — الفارق يجب أن يُقاس به،
+    لا بـ RMSE الذي كان سيُعطي رقماً مختلفاً تماماً."""
+    result = forecast_product("متقطّع", SPARSE, steps=3, use_cache=False)
+
+    assert result.selection_metric == "cumulative_error"
+    if result.best.fva is not None and result.best_model_name != "Naive":
+        naive_eval = next(
+            (e for e in result.evaluations
+             if e.model_name == "Naive" and e.metrics is not None),
+            None,
+        )
+        winner_eval = next(
+            e for e in result.evaluations if e.model_name == result.best_model_name
+        )
+        expected = (
+            naive_eval.metrics.cumulative_error - winner_eval.metrics.cumulative_error
+        )
+        assert result.best.fva == pytest.approx(expected)

@@ -4,6 +4,10 @@
 
 الأعمدة تقابل ProductionRecommendation + RiskScore المدمج عموداً بعمود،
 فالبناء من الصف مباشر بلا طبقة تحويل.
+
+forecast_wape/forecast_fva ليسا عمودين في recommendations — يُقرآن عبر
+LEFT JOIN forecasts (forecast_id) بدل تكرارهما في جدولين. نسختان من نفس
+الرقم تنحرفان؛ الرابط الموجود أصلاً (forecast_id) يكفي.
 """
 from __future__ import annotations
 
@@ -107,6 +111,10 @@ class RecommendationRepository:
 
         risk يُعاد فقط إن كانت الدرجة محفوظة — توصية بلا خطورة محسوبة
         تُرجع risk=None لا RiskScore بأصفار كاذبة.
+
+        forecast_wape/forecast_fva عبر .get() لا [] : الاستعلامات التي لا
+        تُلحق forecasts (لا وجود لها بعد في هذه الجولة) لا تُعيد هذين
+        العمودين أصلاً — غيابهما يعني None لا خطأ.
         """
         record = dict(row)
         risk = None
@@ -127,6 +135,8 @@ class RecommendationRepository:
             reason=record["reason"],
             expected_demand_change_pct=record["expected_demand_change_pct"],
             risk=risk,
+            forecast_wape=record.get("forecast_wape"),
+            forecast_fva=record.get("forecast_fva"),
         )
 
     def latest_with_id_for_product(
@@ -143,9 +153,11 @@ class RecommendationRepository:
         try:
             row = conn.execute(
                 """
-                SELECT r.*, p.name AS product_name
+                SELECT r.*, p.name AS product_name,
+                       f.wape AS forecast_wape, f.fva AS forecast_fva
                 FROM recommendations r
                 JOIN products p ON r.product_id = p.id
+                LEFT JOIN forecasts f ON r.forecast_id = f.id
                 WHERE p.name = ?
                 ORDER BY r.generated_at DESC, r.id DESC
                 LIMIT 1
@@ -173,9 +185,11 @@ class RecommendationRepository:
         try:
             rows = conn.execute(
                 """
-                SELECT r.*, p.name AS product_name
+                SELECT r.*, p.name AS product_name,
+                       f.wape AS forecast_wape, f.fva AS forecast_fva
                 FROM recommendations r
                 JOIN products p ON r.product_id = p.id
+                LEFT JOIN forecasts f ON r.forecast_id = f.id
                 WHERE r.risk_score IS NOT NULL
                   AND r.id = (
                       SELECT r2.id FROM recommendations r2

@@ -135,6 +135,77 @@ def test_forecast_id_links_the_recommendation_to_its_source(rec_repo, recommenda
     assert stored == forecast_id
 
 
+def test_forecast_wape_and_fva_are_readable_via_the_link(rec_repo, product_name):
+    """forecast_wape/forecast_fva ليسا أعمدة في recommendations — يُقرآن عبر
+    forecast_id -> forecasts (LEFT JOIN)، لا نسخة ثانية من نفس الرقم."""
+    from repositories.forecast_repository import ForecastRepository
+    from services.forecast_engine import forecast_product
+    from services.forecast_engine.naive import MovingAverageForecaster, NaiveForecaster
+
+    engine_result = forecast_product(
+        product_name, STEADY, steps=6,
+        models=[NaiveForecaster(), MovingAverageForecaster()], use_cache=False,
+    )
+    forecast_repo = ForecastRepository(db_path=rec_repo.db_path)
+    forecast_id = forecast_repo.save_result(engine_result)
+
+    rec = recommend_production(
+        product_name, STEADY,
+        ForecastResult(
+            product_name=product_name, model_name=engine_result.best_model_name,
+            forecast_values=engine_result.best.forecast_values,
+            lower_bound=engine_result.best.lower_bound,
+            upper_bound=engine_result.best.upper_bound,
+            wape=engine_result.best.wape, fva=engine_result.best.fva,
+        ),
+    )
+    rec_repo.save(rec, forecast_id=forecast_id)
+
+    stored = rec_repo.latest_for_product(product_name)
+
+    assert stored.forecast_wape == pytest.approx(engine_result.best.wape)
+    assert stored.forecast_fva == pytest.approx(engine_result.best.fva)
+
+
+def test_forecast_wape_is_none_without_a_linked_forecast(rec_repo, recommendation, product_name):
+    """توصية بلا forecast_id (اختبارية أو استكشافية) لا تُظهر رقماً مصطنعاً."""
+    rec_repo.save(recommendation)  # forecast_id=None افتراضياً
+
+    stored = rec_repo.latest_for_product(product_name)
+
+    assert stored.forecast_wape is None
+    assert stored.forecast_fva is None
+
+
+def test_highest_risk_also_carries_forecast_wape(rec_repo, product_name):
+    """نفس الرابط في استعلام لوحة التحكم (highest_risk) لا في latest_for_product وحده."""
+    from repositories.forecast_repository import ForecastRepository
+    from services.forecast_engine import forecast_product
+    from services.forecast_engine.naive import NaiveForecaster
+
+    engine_result = forecast_product(
+        product_name, STEADY, steps=6, models=[NaiveForecaster()], use_cache=False,
+    )
+    forecast_id = ForecastRepository(db_path=rec_repo.db_path).save_result(engine_result)
+
+    rec = recommend_production(
+        product_name, STEADY,
+        ForecastResult(
+            product_name=product_name, model_name="Naive",
+            forecast_values=engine_result.best.forecast_values,
+            lower_bound=engine_result.best.lower_bound,
+            upper_bound=engine_result.best.upper_bound,
+            wape=engine_result.best.wape, fva=engine_result.best.fva,
+        ),
+    )
+    rec_repo.save(rec, forecast_id=forecast_id)
+
+    top = rec_repo.highest_risk(limit=50)
+
+    match = next(r for r in top if r.product_name == product_name)
+    assert match.forecast_wape == pytest.approx(engine_result.best.wape)
+
+
 def test_unknown_product_is_rejected(rec_repo, recommendation):
     from dataclasses import replace
 

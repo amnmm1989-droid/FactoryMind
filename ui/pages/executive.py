@@ -69,6 +69,14 @@ def _format_quantity(value: float) -> str:
     return f"{value:,.0f}"
 
 
+def _format_wape(value: float | None) -> str:
+    """WAPE بجانب الثقة: الثقة تقول "على كم عاملاً بُنيت الدرجة؟"،
+    وWAPE يقول "وهل نثق بالرقم نفسه أصلاً؟". em-dash لا صفر حين لم يُحسَب —
+    منتج بلا تقييم تاريخي (سلسلة قصيرة عن أن تُقسَّم تدريباً واختباراً)
+    ليس دقيقاً 0%، بل غير مقيس."""
+    return f"{value:.0f}%" if value is not None else "—"
+
+
 def _to_frame(recommendations) -> pd.DataFrame:
     return pd.DataFrame([
         {
@@ -78,9 +86,28 @@ def _to_frame(recommendations) -> pd.DataFrame:
             t("common.level"): _level_badge(r.risk.level),
             t("common.demand_change"): round(r.expected_demand_change_pct, 1),
             t("common.confidence"): f"{r.risk.confidence:.0%}",
+            t("common.wape"): _format_wape(r.forecast_wape),
         }
         for r in recommendations
     ])
+
+
+def _render_fva_summary(recommendations) -> None:
+    """Forecast Value Added — يحوّل ادّعاء الـREADME الثابت ("النماذج
+    الساذجة تفوز 60%") إلى مقياس حيّ يتغيّر مع بيانات كل مستخدم.
+
+    fva=None يُستبعد لا يُعامَل صفراً: يعني أن Naive لم يُقيَّم أصلاً في
+    هذه الجولة (نماذج مخصَّصة بلا Naive)، لا أن الفائز تعادل معه بالضبط.
+    """
+    valid = [r for r in recommendations if r.forecast_fva is not None]
+    if not valid:
+        return
+    beat_naive = sum(1 for r in valid if r.forecast_fva > 0)
+    st.caption(t(
+        "exec.fva_summary",
+        total=len(valid), beat=beat_naive,
+        pct=(beat_naive / len(valid) * 100) if valid else 0.0,
+    ))
 
 
 def _dataset_signature(products: dict[str, list[float]]) -> str:
@@ -186,6 +213,8 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         t("exec.kpi_total_qty"),
         f"{sum(r.recommended_quantity for r in actionable):,.0f}",
     )
+
+    _render_fva_summary(stored)
 
     st.subheader(t("exec.needs_decision"))
     st.caption(t("exec.needs_decision_help"))

@@ -7,7 +7,7 @@ formulas and references are in
 
 ---
 
-## Phase 0 — Metrics (cheapest, highest credibility)
+## Phase 0 — Metrics (cheapest, highest credibility) ✅
 
 **The problem**: `services/forecast_engine/evaluation.py` does not compute
 WAPE, the actual standard for demand planning. And there is no continuous
@@ -15,23 +15,43 @@ Forecast Value Added tracking.
 
 **Tasks**:
 
-1. Add `wape` to `ModelMetrics` (`evaluation.py`) — formula in the appendix.
-   It does not replace RMSE (which stays the statistically-justified
-   internal selection metric); it is shown to the user as a "practical
-   accuracy" number understandable without a mathematical explanation.
-2. Show WAPE in `ui/pages/executive.py` alongside confidence — the current
-   `RiskScore.confidence` shows 4/5 factors; WAPE answers "and do we trust
-   the number itself?"
-3. **FVA panel**: after each `run_batch`, record a comparison of "the
-   winning model" specifically against `NaiveForecaster` — not the best of
-   the nine. This is one extra number in `model_performance` (the table has
-   existed since Phase 2) that accumulates over time, turning the README's
-   static claim ("60% naive models win") into a live metric that shifts with
-   each user's data.
+1. [x] Add `wape` to `ModelMetrics` (`evaluation.py`) — formula in the
+   appendix. It does not replace RMSE (which stays the
+   statistically-justified internal selection metric); it is shown to the
+   user as a "practical accuracy" number understandable without a
+   mathematical explanation.
+2. [x] Show WAPE in `ui/pages/executive.py` alongside confidence — the
+   current `RiskScore.confidence` shows 4/5 factors; WAPE answers "and do we
+   trust the number itself?"
+3. [x] **FVA panel**: after each batch, compare the winning model
+   specifically against `NaiveForecaster` — not the best of the nine. Stored
+   in `forecasts.fva` (migration 009) and surfaced as a live summary caption
+   on the executive page, turning the README's static claim ("60% naive
+   models win") into a metric that shifts with each user's data.
 
 **Acceptance criterion**: an executive page showing "our actual accuracy
 this month: WAPE X%, and complex models beat the moving average in Y% of
 products" — a sentence no commercial competitor says about itself.
+
+**Delivered.** `domain.entities.ForecastResult` carries `wape` and `fva`;
+`services.forecast_engine.engine._forecast_value_added` computes FVA by the
+same metric the winner was selected with (rmse or cumulative_error) — never
+mixing metrics between the naive baseline and the winner. `None` when Naive
+was never evaluated in that round (no fake zero implying a comparison that
+never happened); `0.0` exactly when Naive itself is the winner (no value
+added over itself, by definition, not by absence of measurement).
+
+Verified live: a fresh catalogue run rendered
+*"Across 26 products with a valid comparison: the chosen model beat the
+naive baseline in 17 of them (65%)"* — a real, session-computed number, not
+a static claim. 4 new tests confirm the FVA arithmetic matches a direct
+recomputation from the underlying evaluations, including the case where
+SARIMA beats Naive by a measured margin (rmse 6.6e-12 vs 33.3) on a
+seasonal series.
+
+`RecommendationRepository` reads `forecast_wape`/`forecast_fva` via a
+`LEFT JOIN forecasts` on the existing `forecast_id` link — not a second copy
+of the same numbers in two tables, which would drift.
 
 **Size**: small. No architectural change — adding a field and a statistical
 comparison on an existing structure.

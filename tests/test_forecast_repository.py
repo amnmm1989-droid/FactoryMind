@@ -60,6 +60,31 @@ def test_saved_forecast_round_trips(forecast_repo, result, product_name):
     assert stored["horizon"] == 6
 
 
+def test_wape_and_fva_round_trip(forecast_repo, result, product_name):
+    """WAPE وFVA يُخزَّنان ويُقرآن دون تحريف — ليسا JSON مثل forecast_values،
+    بل أعمدة حقيقية (migrations/009) لأنهما يُستعلم عنهما فعلاً."""
+    forecast_repo.save_result(result)
+
+    stored = forecast_repo.latest_forecast(product_name)
+
+    assert stored["wape"] == pytest.approx(result.best.wape)
+    assert stored["fva"] == pytest.approx(result.best.fva)
+
+
+def test_model_performance_carries_wape_per_model(forecast_repo, result, product_name):
+    """wape في model_performance لكل نموذج جُرِّب، لا الفائز وحده."""
+    forecast_repo.save_result(result)
+
+    ranking = forecast_repo.model_ranking(product_name)
+
+    by_name = {row["model_name"]: row for row in ranking}
+    for evaluation in result.evaluations:
+        if evaluation.metrics is not None:
+            assert by_name[evaluation.model_name]["wape"] == pytest.approx(
+                evaluation.metrics.wape
+            )
+
+
 def test_save_records_every_model_not_only_the_winner(forecast_repo, result, product_name):
     """جدول model_performance يجيب 'لماذا هذا النموذج؟' — والجواب يحتاج الخاسرين."""
     forecast_repo.save_result(result)

@@ -213,6 +213,8 @@ def recommend_production(
         expected_demand_change_pct=change_pct,
         risk=risk,
         reason_parts=reason_parts,
+        forecast_wape=forecast.wape,
+        forecast_fva=forecast.fva,
     )
 
     logger.info(
