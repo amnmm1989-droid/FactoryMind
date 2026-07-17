@@ -201,7 +201,7 @@ is what preserves the promise.**
 
 ---
 
-## Phase 4 — Scale and robustness (prerequisite for any real mid-sized customer)
+## Phase 4 — Scale and robustness — measurement done ✅
 
 **The problem**: 29 products measured; 30,000 (the reference M5 competition
 size) unmeasured. `services/batch.py` is sequential, with a fresh SQLite
@@ -209,28 +209,61 @@ connection per save.
 
 **Tasks ordered by cost**:
 
-1. **Measure first, don't optimise blind**: create a synthetic catalogue of
-   1,000 then 10,000 products (with the same `scripts/generate_demo_data.py`
-   generator at larger size), and run `run_batch` with the light models.
+1. [x] **Measure first, don't optimise blind**: create a synthetic catalogue
+   of 1,000 then 10,000 products and run `run_batch` with the light models.
    Record the time before any change — this is the same principle the
    project applies everywhere else: measurement before claiming.
-2. **If the time is unacceptable**: parallelism at the product level
-   (`concurrent.futures` or `multiprocessing`) — each product is entirely
-   independent of the others in `batch.py:92`, so parallelism is safe with
-   no coordination.
-3. **One SQLite connection per batch, not per row**: `ForecastRepository`
-   and `RecommendationRepository` open a connection per call — passing a
-   shared connection across the whole batch (instead of row by row) reduces
-   I/O overhead linearly with catalogue size.
-4. **When SQLite is proven the real bottleneck** (not before): DuckDB is a
-   close alternative with no major SQL change, suited to the heavy
-   analytical read loads this project specifically does.
+2. [ ] Parallelism at the product level — **not executed, see decision below**.
+3. [ ] One SQLite connection per batch, not per row — **not executed, see
+   decision below**.
+4. [ ] DuckDB — **not executed, see decision below**.
 
 **Acceptance criterion**: a real, published time figure for a 10,000-product
 catalogue, not an assumption. If it is acceptable (seconds, not minutes),
 **steps 2–4 are never executed** — this is exactly the same lesson as
 `core/app_config.py`, deleted this session: a solution to a problem not yet
 proven is debt, not an asset.
+
+### Measured (`scripts/benchmark_catalogue_scale.py`, synthetic catalogue, 44 months, light models, ~15% dead products skipped exactly as `run_batch` does in production)
+
+| Products | Engine only (no DB) | Full batch (forecast + persist) | DB share of batch time |
+|---|---|---|---|
+| 29 (sanity check) | 0.01s | 0.40s | 98% |
+| 1,000 | 0.27s | 2.29s | 88% |
+| 10,000 | 2.79s | 20.28s | 86% |
+
+**Decision: steps 2–4 are not executed.** 20.28s for 10,000 products is
+seconds, not minutes — the acceptance criterion is met as stated. Building
+parallelism, a shared connection, or a DuckDB migration now would be solving
+a problem the numbers say does not yet exist — the exact debt pattern this
+project deleted once already this session.
+
+**What the measurement actually found, and why it's worth keeping written
+down even though no action follows:**
+
+- **The engine was never the concern, and the numbers confirm it**: ~0.28ms
+  per product, holding constant from 1,000 to 10,000 — perfectly linear, no
+  surprise, nothing to fix.
+- **The database *is* the dominant cost — 86–98% of batch time — exactly the
+  hypothesis in `READINESS_2_GAPS.md` item 7** (a fresh SQLite connection per
+  save in `ForecastRepository`/`RecommendationRepository`). The hypothesis
+  was correct; it is simply not yet expensive enough in absolute terms to
+  justify the fix. A future re-measurement at a catalogue size where it *is*
+  expensive should start at step 3 (shared connection) — cheapest, and it
+  targets the cost that's actually 86%+ of the total, not the 14% engine
+  share step 2's parallelism would attack.
+- **Honest extrapolation, not a new measurement**: linear scaling from the
+  10,000-product data point puts a 30,490-product catalogue (M5's reference
+  size) at roughly 62s of batch time — crossing from "seconds" into "about a
+  minute". This is a projection, not evidence, and is recorded here so a
+  future re-measurement at that size isn't surprised by a number this data
+  already implied. It changes nothing today: the stated acceptance criterion
+  was 10,000, and 10,000 measured at 20s.
+
+`scripts/benchmark_catalogue_scale.py` is committed (not run in CI — it's a
+measurement tool, like `scripts/generate_demo_data.py`, not a correctness
+test) so this number can be reproduced or re-measured as the engine or
+repositories change, rather than re-derived from memory.
 
 ---
 
