@@ -70,6 +70,23 @@ def active_dataset() -> tuple[list[str], dict[str, list[float]], bool]:
     return months, products, False
 
 
+def active_categories() -> dict[str, str]:
+    """فئات المنتجات إن وُجدت — من ملف المستخدم (عمود فئة اختياري اكتُشف
+    عند الرفع) أو من products_meta.category لبيانات العرض المرفقة.
+
+    {} صريحة لا استثناء: أغلب الملفات لن تحمل فئات، وهذا متوقَّع لا نقص.
+    التوفيق الهرمي (services/reconciliation.py) يتعامل مع {} بصمت — لا قسم
+    "حسب الفئة" يظهر أصلاً حين لا توجد فئات.
+    """
+    dataset: Dataset | None = st.session_state.get(SESSION_KEY)
+    if dataset is not None:
+        return dataset.categories
+
+    from utils.data_loader import get_repository
+
+    return get_repository().get_categories()
+
+
 def clear_upload() -> None:
     st.session_state.pop(SESSION_KEY, None)
 

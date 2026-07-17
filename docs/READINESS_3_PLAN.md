@@ -115,9 +115,9 @@ not change.
 
 ---
 
-## Phase 2 — Intelligence (brings the engine to enterprise level)
+## Phase 2 — Intelligence (brings the engine to enterprise level) — 2.a and 2.b done ✅
 
-### 2.a — Level alignment (Hierarchical Reconciliation)
+### 2.a — Level alignment (Hierarchical Reconciliation) ✅
 
 **The problem**: `services/batch.py` forecasts each product independently;
 no guarantee that the sum of a category's product forecasts matches the
@@ -134,7 +134,41 @@ the appendix.
 the category forecast shown on a single executive panel, always,
 arithmetically — not approximately.
 
-### 2.b — New-product handling (Cold Start)
+**Delivered.** The category column turned out to already half-exist:
+`products_meta.category` has been in the schema since Phase 2 (migration
+002), indexed, and never once read or written by any code. `scripts/
+generate_demo_data.py` already knows each product's family at generation
+time (`f"{family} {variant}"`) — so recording it wasn't a guess, it's the
+same fact the product name is built from. It's now written into `data/
+data.json`'s new `"categories"` key and migrated into `products_meta` by
+`SQLiteRepository.migrate_from_json()`; `SQLiteRepository.get_categories()`
+reads it back.
+
+For uploaded files: `services/ingest.py` gained `CATEGORY_HINTS` and an
+optional 4th column in the long layout only — a category column is never
+required and never guessed structurally into existence for wide files (no
+natural place for one). Manual mapping (Phase 1's UI) does not offer a
+category dropdown yet — auto-detection only, a scoping choice made
+explicitly rather than silently, since Phase 1's screen wasn't reopened for
+this.
+
+`services/reconciliation.py::category_totals()` is the whole feature in one
+function: it sums `recommended_quantity` per category. There is no
+independent category-level forecast to reconcile against — Bottom-Up means
+the total *is* the sum, so the acceptance criterion ("always,
+arithmetically") holds by construction, not by later verification. A
+product with no known category is excluded from every total, never folded
+into an invented "other" bucket — same principle as `None ≠ 0` in
+`risk_service` throughout this codebase.
+
+Verified on the real demo catalogue (not a fixture): a "By category"
+section renders with real numbers computed from real recommendations, and
+`tests/test_cold_start_and_reconciliation_ui.py` proves the arithmetic
+holds exactly even after a borrowed estimate (2.b) is added to a category
+mid-session — the total moves by exactly the borrowed quantity, nothing
+approximated.
+
+### 2.b — New-product handling (Cold Start) ✅
 
 **The problem**: `MIN_MONTHS = 3` rejects any newer product — no estimate,
 total absence.
@@ -149,6 +183,50 @@ labelled estimate — not an invented number without a warning.
 
 **Acceptance criterion**: a product one month old is **visible** in every
 report, clearly marked as lacking sufficient history, not silently absent.
+
+**Delivered — but the actual mechanism turned out different from the
+original diagnosis, and that difference matters.** `MIN_MONTHS` was never
+the culprit — it gates the whole *file's* month count, not any single
+product's history. The real mechanism: `services/forecast_engine/engine.py`
+raises `InsufficientDataError` only when a product's series is entirely
+zero (Naive itself needs just one non-zero point, so anything short of
+"never sold a single unit" already gets a recommendation today). And
+`ui/pages/executive.py:_compute_in_session` was catching that error with
+`except AppError: pass` — silent, uncounted, with no trace anywhere.
+
+A harder truth surfaced while building this: **an all-zero series cannot be
+told apart from a genuinely dead product using the data alone** — a
+brand-new, not-yet-launched item and one that's been discontinued for the
+whole window look byte-for-byte identical. The fix does not pretend
+otherwise; the "no sales history" section says exactly this ambiguity out
+loud rather than labelling everything "new".
+
+The visibility fix needed no change to the engine or to `batch.py` at all:
+`ui/pages/executive.py` computes `no_history = set(products) -
+{r.product_name for r in stored}` — a plain diff against whichever
+products got zero recommendation, working identically whether `stored`
+came from the ephemeral session path or `RecommendationRepository.
+highest_risk()` (bumped from a hardcoded `limit=500` to `max(500,
+len(products))`, since the diff needs the whole catalogue, not just the
+top-500 riskiest).
+
+The optional borrow tool is real, not a mock: `services/decision_engine/
+recommender.py::borrow_recommendation()` runs the forecast engine on the
+*source* product's series and returns a `ProductionRecommendation` for the
+*target* name, with `borrowed_from` set and a `ReasonPart("borrowed", …)`
+that renders in both languages ("⚠️ Entirely borrowed from…"). The borrowed
+row carries a 🔗 prefix wherever its product name appears in any table
+afterward — not just in a one-time confirmation toast that scrolls away.
+
+Verified against the real demo catalogue's own dead product
+("Coupling Flexible", category "Coupling") live in a running instance — the
+section, its explanation, and the borrow tool all rendered exactly as
+designed, not just in a fixture. `tests/test_cold_start_and_reconciliation_ui.py`
+drives the full path through `AppTest`: upload a file with a zero-sales row,
+confirm it's listed and absent from recommendations, select a source
+product, click borrow, and confirm it moves into the recommendations table
+with `borrowed_from` set — 5 of its 8 assertions checked to fail against the
+pre-feature code before being called done.
 
 ### 2.c — True probability (depends on the stock file — outside this session)
 

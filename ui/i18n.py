@@ -490,6 +490,52 @@ STRINGS: dict[str, dict[str, str]] = {
               "confidence (4 factors of 5).",
     },
 
+    # ---- بلا تاريخ مبيعات — استعارة نمط منتج مشابه ----
+    "exec.no_history": {
+        "ar": "🆕 بلا تاريخ مبيعات ({count})",
+        "en": "🆕 No sales history ({count})",
+    },
+    "exec.no_history_help": {
+        "ar": "لا مبيعات لهذه المنتجات في البيانات المرفوعة إطلاقاً. لا "
+              "يمكن التمييز من البيانات وحدها بين منتج جديد لم يُطلَق بعد "
+              "ومنتج توقّف تماماً — كلاهما يظهر بنفس الشكل: أصفار كاملة.",
+        "en": "These products have no sales at all in the uploaded data. The "
+              "data alone can't distinguish a genuinely new, not-yet-launched "
+              "product from a discontinued one — both look identical: all "
+              "zeros.",
+    },
+    "exec.borrow_help": {
+        "ar": "إن كان أحدها منتجاً جديداً فعلاً، اختر منتجاً مشابهاً "
+              "قائماً لتُستعار منه توصية أولية — تُوسَم بوضوح أنها مُستعارة "
+              "لا محسوبة. إن كان متوقّفاً، اتركه كما هو — لا إجراء مطلوباً.",
+        "en": "If one of these is genuinely a new product, pick a similar "
+              "existing one to borrow an initial estimate from — clearly "
+              "labelled as borrowed, not computed. If it's discontinued, "
+              "leave it as is — no action needed.",
+    },
+    "exec.borrow_target": {"ar": "المنتج بلا تاريخ", "en": "Product with no history"},
+    "exec.borrow_source": {"ar": "استعارة النمط من", "en": "Estimate from"},
+    "exec.borrow_apply": {"ar": "استعر هذا التقدير", "en": "Borrow this estimate"},
+    "exec.borrow_no_source": {
+        "ar": "لا منتج آخر في الكتالوج يمكن الاستعارة منه.",
+        "en": "No other product in the catalogue to estimate from.",
+    },
+
+    # ---- التوفيق الهرمي — إجمالي كل فئة، Bottom-Up ----
+    "exec.category_totals": {"ar": "📐 حسب الفئة", "en": "📐 By category"},
+    "exec.category_totals_help": {
+        "ar": "إجمالي كل فئة هو مجموع توصيات منتجاتها بالضبط — لا تقريباً، "
+              "ولا تنبؤاً مستقلاً يُصالَح لاحقاً. منتج بلا فئة معروفة "
+              "يُستبعد من كل الإجماليات، لا يُحتسب في فئة مخترعة.",
+        "en": "Each category's total is exactly the sum of its products' "
+              "recommended quantities — not an approximation, and not an "
+              "independently-computed forecast reconciled after the fact. A "
+              "product with no known category is excluded from every total, "
+              "not counted in an invented catch-all.",
+    },
+    "common.category": {"ar": "الفئة", "en": "Category"},
+    "common.product_count": {"ar": "عدد المنتجات", "en": "Products"},
+
     # ---- التنبؤ ----
     "fc.title": {"ar": "🔮 التنبؤ", "en": "🔮 Forecasting"},
     "fc.subtitle": {
@@ -869,6 +915,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "reason.missing_factors": {
         "ar": "عوامل غير محسوبة: {count} من 5",
         "en": "{count} of 5 factors not computed",
+    },
+    "reason.borrowed": {
+        "ar": "⚠️ مُستعار بالكامل من «{source}» — لا تاريخ مبيعات لهذا المنتج",
+        "en": "⚠️ Entirely borrowed from \"{source}\" — this product has no sales history",
     },
 
     # ---- الاتجاه (من models/statistics.py) ----

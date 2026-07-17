@@ -61,3 +61,28 @@ def test_metadata_separates_dead_products(repo, source):
     expected_dead = sum(1 for values in source["products"].values() if sum(values) == 0)
 
     assert repo.get_metadata()["zero_products"] == expected_dead
+
+
+# ---------------------------------------------------------------------------
+# الفئات — products_meta.category، مصدرها data.json["categories"]
+# ---------------------------------------------------------------------------
+def test_categories_match_the_source(repo, source):
+    """لا تخمين هنا: الفئة تُنقَل من JSON كما هي، فتطابقه حرفياً."""
+    assert repo.get_categories() == source["categories"]
+
+
+def test_every_categorized_product_is_a_real_product(repo, source):
+    """لا فئة يتيمة لمنتج غير موجود — الترحيل يمرّ بمنتجات حقيقية فقط."""
+    assert set(repo.get_categories()) <= set(source["products"])
+
+
+def test_uncategorized_products_are_absent_not_null(repo, source):
+    """منتج بلا فئة في المصدر غائب عن get_categories() تماماً — لا يظهر
+    بقيمة None، ولا يُحتسب لاحقاً في فئة مخترعة (services/reconciliation)."""
+    uncategorized = set(source["products"]) - set(source["categories"])
+    if not uncategorized:
+        pytest.skip("كل منتجات بيانات العرض مصنَّفة اليوم")
+
+    categories = repo.get_categories()
+    for product in uncategorized:
+        assert product not in categories

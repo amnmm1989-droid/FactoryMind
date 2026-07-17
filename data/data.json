@@ -1380,5 +1380,36 @@
    0.0,
    0.0
   ]
+ },
+ "categories": {
+  "Hydraulic Pump 50mm": "Hydraulic Pump",
+  "Hydraulic Pump 75mm": "Hydraulic Pump",
+  "Hydraulic Pump 100mm": "Hydraulic Pump",
+  "Safety Valve 1\"": "Safety Valve",
+  "Safety Valve 2\"": "Safety Valve",
+  "Safety Valve 4\"": "Safety Valve",
+  "Electric Motor 1.5kW": "Electric Motor",
+  "Electric Motor 3kW": "Electric Motor",
+  "Electric Motor 7.5kW": "Electric Motor",
+  "Gearbox Ratio 10:1": "Gearbox",
+  "Gearbox Ratio 25:1": "Gearbox",
+  "Gearbox Ratio 50:1": "Gearbox",
+  "Bearing Assembly Type A": "Bearing Assembly",
+  "Bearing Assembly Type B": "Bearing Assembly",
+  "Bearing Assembly Type C": "Bearing Assembly",
+  "Control Panel Basic": "Control Panel",
+  "Control Panel Advanced": "Control Panel",
+  "Control Panel Industrial": "Control Panel",
+  "Conveyor Belt 2m": "Conveyor Belt",
+  "Conveyor Belt 5m": "Conveyor Belt",
+  "Conveyor Belt 10m": "Conveyor Belt",
+  "Filter Cartridge Fine": "Filter Cartridge",
+  "Filter Cartridge Coarse": "Filter Cartridge",
+  "Filter Cartridge HEPA": "Filter Cartridge",
+  "Pressure Sensor 0-10 bar": "Pressure Sensor",
+  "Pressure Sensor 0-100 bar": "Pressure Sensor",
+  "Pressure Sensor 0-250 bar": "Pressure Sensor",
+  "Coupling Rigid": "Coupling",
+  "Coupling Flexible": "Coupling"
  }
 }

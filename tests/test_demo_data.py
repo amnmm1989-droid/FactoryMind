@@ -83,8 +83,10 @@ def test_regenerating_gives_the_same_catalogue(demo):
     sys.path.insert(0, str(Path("scripts").resolve()))
     from generate_demo_data import build_catalogue, month_labels
 
+    products, categories = build_catalogue()
     assert month_labels() == demo["months"]
-    assert build_catalogue() == pytest.approx(demo["products"])
+    assert products == pytest.approx(demo["products"])
+    assert categories == demo["categories"]
 
 
 # ---------------------------------------------------------------------------

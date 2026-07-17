@@ -62,8 +62,15 @@ class SQLiteRepository(DataRepository):
             data = json.load(f)
         months_list = data['months']
         products_dict = data['products']
-        
+        # اختياري: {اسم المنتج: فئته} — لا يُخترَع؛ من مصدر حقيقي واحد
+        # اليوم (scripts/generate_demo_data.py، الذي يعرف تركيب FAMILIES
+        # فعلاً وقت التوليد). ملف JSON بلا هذا المفتاح (بيانات قديمة، أو
+        # اختبارات) يمرّ بلا فئات — لا خطأ.
+        categories = data.get('categories', {})
+
         # 2. حذف البيانات القديمة (إذا وجدت) لإعادة الترحيل النظيف
+        # products_meta لا تُذكر هنا: ON DELETE CASCADE على product_id يمحوها
+        # مع حذف products (PRAGMA foreign_keys=ON مفعَّل في _get_connection).
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM sales")
@@ -103,8 +110,17 @@ class SQLiteRepository(DataRepository):
                         "INSERT INTO sales (product_id, month_id, quantity) VALUES (?, ?, ?)",
                         (product_id, month_id, quantity)
                     )
+
+                # الفئة إن وُجدت — منتج بلا فئة في المصدر يبقى بلا سجل
+                # products_meta أصلاً، لا صفّاً بفئة NULL مُنشأً عبثاً
+                category = categories.get(product_name)
+                if category is not None:
+                    cursor.execute(
+                        "INSERT INTO products_meta (product_id, category) VALUES (?, ?)",
+                        (product_id, category)
+                    )
             conn.commit()
-        
+
         # 5. التحقق من سلامة البيانات
         valid = self._validate_migration(months_list, products_dict)
         if not valid:
@@ -237,6 +253,22 @@ class SQLiteRepository(DataRepository):
                     )
             conn.commit()
     
+    def get_categories(self) -> Dict[str, str]:
+        """{اسم المنتج: فئته} — لمن يملك سجل products_meta.category فعلياً.
+
+        JOIN لا LEFT JOIN: منتج بلا سجل وصفي (أو بفئة NULL) لا يظهر هنا
+        إطلاقاً، فيُستبعد من كل تجميع فئوي بدل أن يظهر بفئة وهمية.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT p.name AS product_name, pm.category
+                FROM products_meta pm
+                JOIN products p ON pm.product_id = p.id
+                WHERE pm.category IS NOT NULL
+            """)
+            return {row['product_name']: row['category'] for row in cursor.fetchall()}
+
     def get_metadata(self) -> Dict[str, Any]:
         """الحصول على معلومات وصفية عن البيانات من قاعدة البيانات"""
         with self._get_connection() as conn:

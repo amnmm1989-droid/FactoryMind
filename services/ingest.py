@@ -67,6 +67,12 @@ PRODUCT_HINTS = (
 MONTH_HINTS = ("month", "date", "period", "الشهر", "التاريخ", "الفترة")
 QUANTITY_HINTS = ("quantity", "qty", "amount", "value", "sales", "الكمية", "العدد", "المبيعات")
 
+# فئة/عائلة المنتج — عمود رابع اختياري، للتوفيق الهرمي (Bottom-Up) فقط.
+# لا يشارك في تحديد الشكل طويل/عريض: ملف بلا هذا العمود يُقرأ بلا فئات،
+# لا يُرفَض. غير مدعوم بعد في شاشة الربط اليدوي (ui/data_source.py) —
+# اكتشاف تلقائي فقط، توسيعاً لاحقاً إن ثبتت الحاجة.
+CATEGORY_HINTS = ("category", "family", "group", "التصنيف", "الفئة", "العائلة")
+
 MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى بأي نموذج
 
 # الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم.
@@ -103,6 +109,11 @@ class Dataset:
     products: dict[str, list[float]]
     start_date: date | None                # مشتقّ من الملف، لا مثبَّت
     warnings: list[Warning_] = field(default_factory=list)
+    # فئة كل منتج، إن وُجد عمود فئة في الملف (شكل طويل فقط، اكتشاف تلقائي).
+    # {} لا تعني فشلاً — تعني أن الملف لا يحمل هذه المعلومة، وهذا شائع
+    # ومتوقَّع. منتج غائب من هذا القاموس يُستبعد من التوفيق الهرمي لا
+    # يُحتسب في فئة مخترعة (services/reconciliation.py).
+    categories: dict[str, str] = field(default_factory=dict)
 
     @property
     def product_count(self) -> int:
@@ -230,14 +241,23 @@ def _detect_layout(frame: pd.DataFrame) -> str:
 
 
 def _from_long(
-    frame: pd.DataFrame, product_column: str, month_column: str, quantity_column: str
-) -> tuple[pd.DataFrame, list[Warning_]]:
+    frame: pd.DataFrame,
+    product_column: str,
+    month_column: str,
+    quantity_column: str,
+    category_column: str | None = None,
+) -> tuple[pd.DataFrame, list[Warning_], dict[str, str]]:
     """محور (منتج × شهر) من ثلاثة أعمدة معلومة الاسم — تخميناً أو يدوياً.
 
     الأعمدة تصل جاهزة لا تُكتشَف هنا: parse_upload يمرّرها من _find_column
     (التخمين)، وparse_upload_with_mapping يمرّرها من اختيار المستخدم
     (شاشة الربط اليدوي). المحور نفسه لا يفرّق بين الحالتين — وهذا مقصود:
     خطأ في التخمين وخطأ في اختيار المستخدم يُعاملان بمعيار واحد.
+
+    category_column اختياري بالكامل — لا يشارك في المحور، ولا يُرفَض
+    غيابه. حين يوجد: أول قيمة غير فارغة لكل منتج تُؤخَذ فئته؛ صفوف لاحقة
+    بفئة مختلفة لنفس المنتج (بيانات متضاربة) لا تُرفَض ولا تُدمَج — تُتجاهَل
+    بصمت القيمة الأولى فقط أصحّ، فالفئة صفة شبه ثابتة للمنتج، لا قيمة شهرية.
     """
     warnings: list[Warning_] = []
     duplicates = int(frame.duplicated(subset=[product_column, month_column]).sum())
@@ -249,7 +269,17 @@ def _from_long(
         index=product_column, columns=month_column,
         values=quantity_column, aggfunc="sum", fill_value=0,
     )
-    return pivoted, warnings
+
+    category_of: dict[str, str] = {}
+    if category_column is not None:
+        for product, category in zip(frame[product_column], frame[category_column]):
+            key = str(product).strip()
+            if key and key not in category_of and pd.notna(category):
+                value = str(category).strip()
+                if value:
+                    category_of[key] = value
+
+    return pivoted, warnings, category_of
 
 
 def _from_wide(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[Warning_]]:
@@ -291,7 +321,9 @@ def guess_column(columns: list[str], role: str) -> str | None:
     return _find_column(columns, hints)
 
 
-def _finalize(pivoted: pd.DataFrame, warnings: list[Warning_]) -> Dataset:
+def _finalize(
+    pivoted: pd.DataFrame, warnings: list[Warning_], categories: dict[str, str] | None = None
+) -> Dataset:
     """من إطار مُحوَّر (فهرس = منتجات، أعمدة = تسميات أشهر) إلى Dataset جاهز.
 
     مشتركة بين مسارَي التخمين التلقائي والربط اليدوي: كلاهما ينتج نفس
@@ -394,11 +426,18 @@ def _finalize(pivoted: pd.DataFrame, warnings: list[Warning_]) -> Dataset:
     if dead:
         warnings.append(Warning_("dead_products", {"count": dead}))
 
+    # حصر الفئات بمنتجات وصلت فعلاً — دفاعي لا حاسم: category_of قد يحمل
+    # اسماً سقط هنا (تسمية فارغة، صفّ "nan") فلا يبقى يتيماً في Dataset.
+    kept_categories = {
+        name: category for name, category in (categories or {}).items() if name in products
+    }
+
     return Dataset(
         months=ordered_labels,
         products=products,
         start_date=dates[0],
         warnings=warnings,
+        categories=kept_categories,
     )
 
 
@@ -422,16 +461,18 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
     layout = _detect_layout(frame)
     if layout == "long":
         columns = [str(c) for c in frame.columns]
-        pivoted, warnings = _from_long(
+        pivoted, warnings, categories = _from_long(
             frame,
             _find_column(columns, PRODUCT_HINTS),
             _find_column(columns, MONTH_HINTS),
             _find_column(columns, QUANTITY_HINTS),
+            _find_column(columns, CATEGORY_HINTS),
         )
     else:
         pivoted, warnings = _from_wide(frame)
+        categories = {}  # لا عمود فئة ممكن هيكلياً في الشكل العريض
 
-    return _finalize(pivoted, warnings)
+    return _finalize(pivoted, warnings, categories)
 
 
 def parse_upload_with_mapping(
@@ -478,8 +519,10 @@ def parse_upload_with_mapping(
             context={"code": "duplicate_mapped_columns"},
         )
 
-    pivoted, warnings = _from_long(frame, product_column, month_column, quantity_column)
-    return _finalize(pivoted, warnings)
+    pivoted, warnings, categories = _from_long(
+        frame, product_column, month_column, quantity_column
+    )
+    return _finalize(pivoted, warnings, categories)
 
 
 def to_csv_template() -> bytes:

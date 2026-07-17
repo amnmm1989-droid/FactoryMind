@@ -128,15 +128,24 @@ def new_product(rng: random.Random, base: float) -> list[float]:
     ]
 
 
-def build_catalogue() -> dict[str, list[float]]:
+def build_catalogue() -> tuple[dict[str, list[float]], dict[str, str]]:
     """كتالوج مُصمَّم ليُظهر كل تصنيف — لا عيّنة عشوائية.
 
     التوزيع مقصود: منتظم كافٍ ليفوز فيه ETS ويُرى الفرق، ومتقطّع كافٍ
     ليفوز فيه Croston، وحالات حدّية (ميت، جديد) تُظهر الرفض الصريح.
+
+    يُعيد الفئات أيضاً (اسم المنتج -> العائلة/family) — لا تخميناً من اسم
+    المنتج لاحقاً، بل نقلاً مباشراً لما تعرفه هذه الدالة فعلاً وقت البناء:
+    كل اسم مبنيّ من family أصلاً (f"{family} {variant}")، فتسجيل الفئة هنا
+    ليس استنتاجاً، هو نفس الحقيقة التي بُني بها الاسم.
     """
     rng = random.Random(SEED)
     products: dict[str, list[float]] = {}
+    category_of: dict[str, str] = {}
     names = [f"{family} {variant}" for family, variants in FAMILIES for variant in variants]
+    family_of_name = {
+        f"{family} {variant}": family for family, variants in FAMILIES for variant in variants
+    }
 
     generators = [
         # (الدالة، الحصة التقريبية)
@@ -160,16 +169,19 @@ def build_catalogue() -> dict[str, list[float]]:
     index = 0
     for generator, count in generators:
         for _ in range(count):
-            products[names[index]] = generator()
+            name = names[index]
+            products[name] = generator()
+            category_of[name] = family_of_name[name]
             index += 1
-    return products
+    return products, category_of
 
 
 def main() -> None:
     root = Path(__file__).resolve().parent.parent
     target = root / "data" / "data.json"
 
-    payload = {"months": month_labels(), "products": build_catalogue()}
+    products, categories = build_catalogue()
+    payload = {"months": month_labels(), "products": products, "categories": categories}
     target.write_text(
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
     )

@@ -93,6 +93,70 @@ def test_long_layout_is_detected_and_pivoted():
 
 
 # ---------------------------------------------------------------------------
+# فئة المنتج — عمود رابع اختياري، للتوفيق الهرمي فقط
+# ---------------------------------------------------------------------------
+def test_a_category_column_is_detected_and_carried_when_present():
+    data = csv(
+        "product,category,month,quantity\n"
+        "A,Pumps,Jan 2024,10\nA,Pumps,Feb 2024,20\nA,Pumps,Mar 2024,30\n"
+        "B,Valves,Jan 2024,5\nB,Valves,Feb 2024,5\nB,Valves,Mar 2024,5\n"
+    )
+
+    dataset = parse_upload(data, "cat.csv")
+
+    assert dataset.categories == {"A": "Pumps", "B": "Valves"}
+    assert dataset.products == {"A": [10.0, 20.0, 30.0], "B": [5.0, 5.0, 5.0]}
+
+
+def test_no_category_column_gives_no_categories_not_an_error():
+    """الغياب متوقَّع — معظم الملفات لن تحمل عمود فئة، ولا ينبغي أن يُرفَض."""
+    dataset = parse_upload(LONG, "sales.csv")
+
+    assert dataset.categories == {}
+
+
+def test_a_wide_file_never_carries_categories():
+    """لا عمود فئة ممكن هيكلياً في الشكل العريض — عمود أول واحد فهرس فقط."""
+    dataset = parse_upload(WIDE, "sales.csv")
+
+    assert dataset.categories == {}
+
+
+def test_the_first_category_value_wins_when_rows_disagree():
+    """الفئة صفة شبه ثابتة للمنتج — تضارب بين الصفوف يُحسم بالأول، لا يُرفَض."""
+    data = csv(
+        "product,category,month,quantity\n"
+        "A,Pumps,Jan 2024,10\nA,PumpsV2,Feb 2024,20\nA,Pumps,Mar 2024,30\n"
+    )
+
+    dataset = parse_upload(data, "cat.csv")
+
+    assert dataset.categories == {"A": "Pumps"}
+
+
+def test_an_empty_category_cell_does_not_produce_an_empty_string_category():
+    data = csv(
+        "product,category,month,quantity\n"
+        "A,,Jan 2024,10\nA,Pumps,Feb 2024,20\nA,Pumps,Mar 2024,30\n"
+    )
+
+    dataset = parse_upload(data, "cat.csv")
+
+    assert dataset.categories == {"A": "Pumps"}
+
+
+def test_manual_mapping_never_carries_categories():
+    """شاشة الربط اليدوي (Phase 1) لا تعرض عموداً رابعاً للفئة اليوم —
+    اكتشاف تلقائي فقط. توسيع مقصود لا سهو، موثَّق في READINESS_3_PLAN.md."""
+    dataset = parse_upload_with_mapping(
+        UNRECOGNIZED, "export.csv",
+        product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
+    )
+
+    assert dataset.categories == {}
+
+
+# ---------------------------------------------------------------------------
 # تصديرات ERP الحقيقية — بأسماء أعمدتها لا بأسمائنا
 # ---------------------------------------------------------------------------
 # المشروع "طبقة تحليل فوق نظامك"، فأسماء أعمدة نظامك هي واجهته الحقيقية.

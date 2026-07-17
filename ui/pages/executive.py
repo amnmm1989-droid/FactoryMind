@@ -22,7 +22,9 @@ from core.runtime_mode import is_hosted
 from domain.entities import RiskLevel
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models, run_batch
-from ui.data_source import active_dataset
+from services.decision_engine import borrow_recommendation
+from services.reconciliation import category_totals
+from ui.data_source import active_categories, active_dataset
 from ui.i18n import t
 
 def _level_badge(level: RiskLevel) -> str:
@@ -80,7 +82,11 @@ def _format_wape(value: float | None) -> str:
 def _to_frame(recommendations) -> pd.DataFrame:
     return pd.DataFrame([
         {
-            t("common.product"): r.product_name,
+            # 🔗 يبقى ملتصقاً بالاسم أينما ظهر المنتج بعد الاستعارة — لا
+            # عمود منفصل قد يُفصَل عن الصف عند الفرز أو التمرير.
+            t("common.product"): (
+                f"🔗 {r.product_name}" if r.borrowed_from else r.product_name
+            ),
             t("common.recommended_qty"): _format_quantity(r.recommended_quantity),
             t("common.risk"): round(r.risk.score),
             t("common.level"): _level_badge(r.risk.level),
@@ -108,6 +114,80 @@ def _render_fva_summary(recommendations) -> None:
         total=len(valid), beat=beat_naive,
         pct=(beat_naive / len(valid) * 100) if valid else 0.0,
     ))
+
+
+def _render_category_totals(categories: dict[str, str], recommendations) -> None:
+    """التوفيق الهرمي (Bottom-Up) — إجمالي كل فئة = مجموع توصياتها بالضبط.
+
+    لا يظهر القسم أصلاً حين لا فئات معروفة — لا تُخترَع فئة "أخرى" لتمتلئ
+    الشاشة. راجع services/reconciliation.py للسبب: لا تنبؤ مستقل للفئة
+    يمكن أن ينحرف عن مجموع منتجاتها، لأنه لا يُحسَب أصلاً.
+    """
+    if not categories:
+        return
+
+    totals = category_totals(categories, recommendations)
+    if not totals:
+        return
+
+    with st.expander(t("exec.category_totals"), expanded=False):
+        st.caption(t("exec.category_totals_help"))
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    t("common.category"): row.category,
+                    t("common.recommended_qty"): _format_quantity(row.total_quantity),
+                    t("common.product_count"): row.product_count,
+                }
+                for row in totals
+            ]),
+            use_container_width=True, hide_index=True,
+        )
+
+
+def _render_no_history_section(
+    no_history: list[str], products: dict[str, list[float]], *, ephemeral: bool
+) -> None:
+    """منتج بلا مبيعات إطلاقاً — مرئي هنا، لا غائباً بصمت.
+
+    العطل الذي يسدّه هذا القسم: منتج جديد ومنتج ميت يتطابقان في البيانات
+    (أصفار كاملة)، وكان كلاهما يُسقَط بصمت من _compute_in_session
+    (`except AppError: pass`) بلا أي ذكر في أي شاشة. لا نميّز الآن بين
+    الحالتين من البيانات وحدها — النص يقول ذلك صراحة — لكن المنتج لم يعد
+    غائباً، والمستخدم يملك خياراً: استعارة تقدير من منتج مشابه إن كان
+    جديداً فعلاً، أو تجاهله إن كان متوقّفاً.
+    """
+    with st.expander(t("exec.no_history", count=len(no_history))):
+        st.caption(t("exec.no_history_help"))
+        for name in no_history[:50]:
+            st.write(f"- {name}")
+        if len(no_history) > 50:
+            st.caption(f"… +{len(no_history) - 50}")
+
+        source_options = sorted(name for name in products if name not in no_history)
+        if not source_options:
+            st.caption(t("exec.borrow_no_source"))
+            return
+
+        st.divider()
+        st.caption(t("exec.borrow_help"))
+        col1, col2 = st.columns(2)
+        # لا key ثابت عمداً: no_history يتقلّص بعد كل استعارة ناجحة، وkey
+        # ثابت يحمل قيمة سابقة قد تغيب عن options الجديدة فترفع Streamlit
+        # استثناءً. بلا key، تُعاد بناء القائمة من options الحالية دائماً.
+        target = col1.selectbox(t("exec.borrow_target"), no_history)
+        source = col2.selectbox(t("exec.borrow_source"), source_options)
+
+        if st.button(t("exec.borrow_apply"), key="_borrow_apply_btn"):
+            borrowed = borrow_recommendation(target, source, products[source])
+            if ephemeral:
+                current = st.session_state.get("session_recommendations", [])
+                current = [r for r in current if r.product_name != target] + [borrowed]
+                current.sort(key=lambda r: r.risk.score if r.risk else 0, reverse=True)
+                st.session_state["session_recommendations"] = current
+            else:
+                RecommendationRepository().save(borrowed)
+            st.rerun()
 
 
 def _dataset_signature(products: dict[str, list[float]]) -> str:
@@ -192,44 +272,59 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         if compute:
             _run_batch_ui(products, full_family)
             st.rerun()
-        stored = RecommendationRepository().highest_risk(limit=500)
+        # الحدّ يغطّي الكتالوج كاملاً لا 500 ثابتة: التقاطع بين products
+        # وأسماء stored أدناه (no_history) يحتاج كل منتج له توصية، لا أعلى
+        # 500 خطورة فقط — وإلا ظهر منتج له توصية فعلية كأنه "بلا تاريخ".
+        stored = RecommendationRepository().highest_risk(limit=max(500, len(products)))
 
-    if not stored:
+    # منتج بلا أي توصية — إما بيانات ميتة (44 صفراً) أو منتج جديد لم يُطلَق
+    # بعد؛ البيانات لا تميّز بينهما، والقسم أدناه يقول ذلك صراحة بدل إخفاء
+    # المنتج تماماً كما كان _compute_in_session يفعل (except AppError: pass).
+    no_history = sorted(set(products) - {r.product_name for r in stored})
+
+    if not stored and not no_history:
         st.info(t("exec.empty"))
         return
 
-    actionable = [
-        r for r in stored if r.recommended_quantity >= MIN_ACTIONABLE_UNITS
-    ]
-    idle = [r for r in stored if r.recommended_quantity < MIN_ACTIONABLE_UNITS]
-    dormant_risky = [r for r in idle if r.risk.level == RiskLevel.HIGH]
-    high_risk_actionable = [r for r in actionable if r.risk.level == RiskLevel.HIGH]
+    if stored:
+        actionable = [
+            r for r in stored if r.recommended_quantity >= MIN_ACTIONABLE_UNITS
+        ]
+        idle = [r for r in stored if r.recommended_quantity < MIN_ACTIONABLE_UNITS]
+        dormant_risky = [r for r in idle if r.risk.level == RiskLevel.HIGH]
+        high_risk_actionable = [r for r in actionable if r.risk.level == RiskLevel.HIGH]
 
-    columns = st.columns(4)
-    columns[0].metric(t("exec.kpi_assessed"), len(stored))
-    columns[1].metric(t("exec.kpi_actionable"), len(actionable))
-    columns[2].metric(t("exec.kpi_high_risk"), len(high_risk_actionable))
-    columns[3].metric(
-        t("exec.kpi_total_qty"),
-        f"{sum(r.recommended_quantity for r in actionable):,.0f}",
-    )
-
-    _render_fva_summary(stored)
-
-    st.subheader(t("exec.needs_decision"))
-    st.caption(t("exec.needs_decision_help"))
-    if actionable:
-        st.dataframe(
-            _to_frame(actionable[:50]), use_container_width=True, hide_index=True
+        columns = st.columns(4)
+        columns[0].metric(t("exec.kpi_assessed"), len(stored))
+        columns[1].metric(t("exec.kpi_actionable"), len(actionable))
+        columns[2].metric(t("exec.kpi_high_risk"), len(high_risk_actionable))
+        columns[3].metric(
+            t("exec.kpi_total_qty"),
+            f"{sum(r.recommended_quantity for r in actionable):,.0f}",
         )
-    else:
-        st.info(t("exec.nothing_actionable"))
 
-    if dormant_risky:
-        with st.expander(t("exec.dormant_risky", count=len(dormant_risky))):
-            st.caption(t("exec.dormant_help", threshold=MIN_ACTIONABLE_UNITS))
+        _render_fva_summary(stored)
+        _render_category_totals(active_categories(), stored)
+
+        st.subheader(t("exec.needs_decision"))
+        st.caption(t("exec.needs_decision_help"))
+        if actionable:
             st.dataframe(
-                _to_frame(dormant_risky[:30]), use_container_width=True, hide_index=True
+                _to_frame(actionable[:50]), use_container_width=True, hide_index=True
             )
+        else:
+            st.info(t("exec.nothing_actionable"))
+
+        if dormant_risky:
+            with st.expander(t("exec.dormant_risky", count=len(dormant_risky))):
+                st.caption(t("exec.dormant_help", threshold=MIN_ACTIONABLE_UNITS))
+                st.dataframe(
+                    _to_frame(dormant_risky[:30]), use_container_width=True, hide_index=True
+                )
+    else:
+        st.info(t("exec.empty"))
+
+    if no_history:
+        _render_no_history_section(no_history, products, ephemeral=ephemeral)
 
     st.caption(t("exec.inventory_caveat"))

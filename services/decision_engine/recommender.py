@@ -136,6 +136,7 @@ _REASON_AR = {
     "historical_error": "خطأ تاريخي {pct:.0f}%",
     "unevaluated": "لم يُقيَّم النموذج (بيانات غير كافية للاختبار)",
     "missing_factors": "عوامل غير محسوبة: {count} من 5",
+    "borrowed": "مُستعار بالكامل من «{source}» — لا تاريخ مبيعات لهذا المنتج",
 }
 _LEVEL_AR = {
     RiskLevel.LOW.value: "خطورة منخفضة",
@@ -222,3 +223,53 @@ def recommend_production(
         product_name, quantity, change_pct, risk.score, risk.level.value, forecast.model_name,
     )
     return recommendation
+
+
+def borrow_recommendation(
+    new_product_name: str,
+    source_product_name: str,
+    source_series: Sequence[float],
+    *,
+    horizon_months: int = 1,
+) -> ProductionRecommendation:
+    """توصية لمنتج بلا تاريخ مبيعات إطلاقاً — مُستعارة بالكامل من منتج آخر.
+
+    ليست تنبؤاً بالمعنى المعتاد: forecast_product لا يملك بيانات
+    new_product_name لأنه لا وجود لسلسلة له في هذا الملف أصلاً (المنتج
+    الميت والمنتج الجديد يتطابقان في البيانات — 44 صفراً — ولا شيء
+    يميّزهما سوى معرفة المستخدم بمصنعه). البديل الصريح: يختار المستخدم
+    منتجاً مشابهاً موجوداً، ونستعير نمط طلبه كاملاً — الكمية، النموذج،
+    الخطورة، كلها من source_product_name — ونقول ذلك بصراحة في السبب،
+    لا نُخفيه داخل رقم يبدو محسوباً من تاريخ المنتج الجديد.
+
+    هذا هو None الصريح مُتحوّلاً إلى تقدير موسوم، لا رقم مخترع بلا تحذير:
+    نفس مبدأ risk_service (عامل مجهول لا يُصفَّر) مطبَّقاً هنا على غياب
+    تاريخ كامل بدل غياب عامل واحد.
+
+    Raises:
+        DecisionEngineError: تنبؤ المنتج المصدر بلا قيم، أو أفق غير صالح
+            — نفس شروط recommend_production تماماً.
+    """
+    from services.forecast_engine import forecast_product
+
+    engine_result = forecast_product(
+        source_product_name, source_series, steps=max(horizon_months, 6), use_cache=False
+    )
+    borrowed = recommend_production(
+        new_product_name, list(source_series), engine_result.best,
+        horizon_months=horizon_months,
+    )
+    reason_parts = borrowed.reason_parts + (
+        ReasonPart("borrowed", {"source": source_product_name}),
+    )
+    return ProductionRecommendation(
+        product_name=new_product_name,
+        recommended_quantity=borrowed.recommended_quantity,
+        reason=_reason_text(reason_parts),
+        expected_demand_change_pct=borrowed.expected_demand_change_pct,
+        risk=borrowed.risk,
+        reason_parts=reason_parts,
+        forecast_wape=borrowed.forecast_wape,
+        forecast_fva=borrowed.forecast_fva,
+        borrowed_from=source_product_name,
+    )

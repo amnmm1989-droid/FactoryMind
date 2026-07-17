@@ -63,3 +63,15 @@ class DataRepository(ABC):
     def get_metadata(self) -> Dict[str, Any]:
         """الحصول على معلومات وصفية عن البيانات (عدد المنتجات، عدد الأشهر، إلخ)"""
         pass
+
+    def get_categories(self) -> Dict[str, str]:
+        """فئة كل منتج، لمن يحمل فئات فعلية لا تخميناً.
+
+        غير مجرَّدة عمداً: قدرة اختيارية لا جزء من العقد الأساسي. الافتراضي
+        {} — منتَج بلا فئة معروفة يُستبعد من كل تجميع فئوي، لا يُحتسب في
+        فئة "أخرى" مخترعة (services/reconciliation.py). SQLiteRepository
+        يُعيد تعريفها من products_meta.category؛ JsonRepository (مسار قديم
+        غير مُستخدَم فعلياً — DATA_SOURCE='sqlite' دائماً) يبقى على هذا
+        الافتراضي بصدق: لا فئات في تلك البنية أصلاً.
+        """
+        return {}

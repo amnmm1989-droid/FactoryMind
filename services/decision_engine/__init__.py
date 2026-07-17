@@ -12,6 +12,6 @@
 
 التوصية تحمل خطورتها ومصدرها معها. لا رقم بلا سياق.
 """
-from .recommender import BASELINE_MONTHS, recommend_production
+from .recommender import BASELINE_MONTHS, borrow_recommendation, recommend_production
 
-__all__ = ["recommend_production", "BASELINE_MONTHS"]
+__all__ = ["recommend_production", "borrow_recommendation", "BASELINE_MONTHS"]

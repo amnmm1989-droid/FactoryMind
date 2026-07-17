@@ -148,6 +148,11 @@ class ProductionRecommendation:
     # لا جملة سبب.
     forecast_wape: float | None = None
     forecast_fva: float | None = None
+    # اسم المنتج الذي استُعير نمطه — None يعني توصية محسوبة من تاريخ هذا
+    # المنتج نفسه كالمعتاد. غير None يعني: لا تاريخ لهذا المنتج أصلاً، وكل
+    # رقم هنا (الكمية، الخطورة، السبب) مُشتقّ من منتج آخر اختاره المستخدم.
+    # راجع services/decision_engine/recommender.py:borrow_recommendation.
+    borrowed_from: str | None = None
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # تحت هذه النسبة يُعتبر الطلب مستقراً لا متغيّراً
