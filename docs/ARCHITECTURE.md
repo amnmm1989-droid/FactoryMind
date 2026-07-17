@@ -52,6 +52,11 @@ app.py
  │                           عامل بلا بيانات = None لا صفر، ويُستبعد
  │                           من الحساب مع إعادة موازنة الباقي.
  └─ ui/
+     ├─ i18n.py               ✅ الترجمة (عربي/إنجليزي). كل نص يراه
+     │                        المستخدم يمرّ منه. الخدمات ترفع *رموزاً*
+     │                        (ReasonPart, Warning_, code) لا نصوصاً —
+     │                        الطبقة التي تحسب لا تقرر لغة العرض.
+     ├─ data_source.py        بيانات الجلسة: ملف المستخدم أو العرض
      ├─ pages/executive.py         (Phase 6)
      ├─ pages/forecasting.py       (Phase 6)
      ├─ pages/production_planning.py (Phase 6)

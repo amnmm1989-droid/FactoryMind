@@ -23,12 +23,10 @@ from domain.entities import RiskLevel
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models, run_batch
 from ui.data_source import active_dataset
+from ui.i18n import t
 
-LEVEL_BADGE = {
-    RiskLevel.LOW: "🟢 منخفضة",
-    RiskLevel.MEDIUM: "🟡 متوسطة",
-    RiskLevel.HIGH: "🔴 عالية",
-}
+def _level_badge(level: RiskLevel) -> str:
+    return t(f"risk.{level.value}")
 
 # أقل كمية تُعتبر إجراءً. الحدّ ليس تجميلياً:
 # Croston/TSB يُنتجان *معدّلاً* (0.4 وحدة/شهر مثلاً)، والتوصية بأفق شهر
@@ -40,7 +38,7 @@ MIN_ACTIONABLE_UNITS = 0.5
 
 
 def _run_batch_ui(products: dict[str, list[float]], full_family: bool) -> None:
-    progress = st.progress(0.0, text="جارٍ الحساب...")
+    progress = st.progress(0.0, text=t("exec.computing"))
 
     def on_progress(done: int, total: int, name: str) -> None:
         progress.progress(done / total, text=f"{done}/{total} — {name[:40]}")
@@ -49,18 +47,15 @@ def _run_batch_ui(products: dict[str, list[float]], full_family: bool) -> None:
     progress.empty()
 
     if report.failure_count:
-        st.warning(
-            f"تم حساب {report.succeeded} من {report.total} في "
-            f"{report.elapsed_seconds:.1f}s. فشل {report.failure_count} — "
-            f"غالباً منتجات بلا مبيعات كافية."
-        )
-        with st.expander("تفاصيل الفشل"):
+        st.warning(t("exec.batch_partial", ok=report.succeeded,
+                     total=report.total, seconds=report.elapsed_seconds,
+                     failed=report.failure_count))
+        with st.expander(t("exec.failure_details")):
             for name, reason in report.failed[:20]:
                 st.write(f"**{name}** — {reason}")
     else:
-        st.success(
-            f"تم حساب {report.succeeded} منتجاً في {report.elapsed_seconds:.1f}s."
-        )
+        st.success(t("exec.batch_done", count=report.succeeded,
+                     seconds=report.elapsed_seconds))
 
 
 def _format_quantity(value: float) -> str:
@@ -77,12 +72,12 @@ def _format_quantity(value: float) -> str:
 def _to_frame(recommendations) -> pd.DataFrame:
     return pd.DataFrame([
         {
-            "المنتج": r.product_name,
-            "الكمية الموصى بها": _format_quantity(r.recommended_quantity),
-            "الخطورة": round(r.risk.score),
-            "المستوى": LEVEL_BADGE[r.risk.level],
-            "تغيّر الطلب %": round(r.expected_demand_change_pct, 1),
-            "ثقة التقييم": f"{r.risk.confidence:.0%}",
+            t("common.product"): r.product_name,
+            t("common.recommended_qty"): _format_quantity(r.recommended_quantity),
+            t("common.risk"): round(r.risk.score),
+            t("common.level"): _level_badge(r.risk.level),
+            t("common.demand_change"): round(r.expected_demand_change_pct, 1),
+            t("common.confidence"): f"{r.risk.confidence:.0%}",
         }
         for r in recommendations
     ])
@@ -116,7 +111,7 @@ def _compute_in_session(products: dict[str, list[float]], full_family: bool) -> 
     from services.forecast_engine import forecast_product
 
     models = fast_models() if not full_family else None
-    progress = st.progress(0.0, text="جارٍ الحساب...")
+    progress = st.progress(0.0, text=t("exec.computing"))
     recommendations = []
     total = len(products)
 
@@ -136,7 +131,7 @@ def _compute_in_session(products: dict[str, list[float]], full_family: bool) -> 
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
-    st.title("📊 النظرة التنفيذية")
+    st.title(t("exec.title"))
 
     _, _, is_user_data = active_dataset()
     # بيانات المستخدم لا تُكتب في القرص أبداً، والوضع المستضاف لا يحفظ شيئاً:
@@ -145,12 +140,12 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     ephemeral = is_user_data or is_hosted()
 
     with st.sidebar:
-        st.header("الحساب")
+        st.header(t("common.compute"))
         full_family = st.checkbox(
-            "كل النماذج التسعة", value=False,
-            help="أدقّ، لكن ~3.3 دقيقة على 185 منتجاً. الخفيفة: ~1 ثانية.",
+            t("common.all_nine_models"), value=False,
+            help=t("common.all_nine_help"),
         )
-        compute = st.button("🔄 حساب الكتالوج", use_container_width=True)
+        compute = st.button(t("exec.recompute"), use_container_width=True)
 
     if ephemeral:
         # بصمة البيانات جزء من مفتاح الـ cache — وليست ترفاً.
@@ -164,10 +159,8 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             )
             st.session_state["session_signature"] = signature
         stored = st.session_state["session_recommendations"]
-        st.caption(
-            "🔒 محسوب في الذاكرة ولا يُحفَظ — "
-            + ("بياناتك ملكك." if is_user_data else "الوضع المستضاف.")
-        )
+        st.caption(t("exec.ephemeral_user" if is_user_data
+                     else "exec.ephemeral_hosted"))
     else:
         if compute:
             _run_batch_ui(products, full_family)
@@ -175,10 +168,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         stored = RecommendationRepository(db_path=DATABASE_PATH).highest_risk(limit=500)
 
     if not stored:
-        st.info(
-            "لا توصيات بعد. اضغط **حساب الكتالوج** في الشريط الجانبي — "
-            "النماذج الخفيفة تُنهي 185 منتجاً في نحو ثانية."
-        )
+        st.info(t("exec.empty"))
         return
 
     actionable = [
@@ -189,39 +179,28 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     high_risk_actionable = [r for r in actionable if r.risk.level == RiskLevel.HIGH]
 
     columns = st.columns(4)
-    columns[0].metric("منتجات مُقيَّمة", len(stored))
-    columns[1].metric("تحتاج إنتاجاً", len(actionable))
-    columns[2].metric("منها عالية الخطورة", len(high_risk_actionable))
+    columns[0].metric(t("exec.kpi_assessed"), len(stored))
+    columns[1].metric(t("exec.kpi_actionable"), len(actionable))
+    columns[2].metric(t("exec.kpi_high_risk"), len(high_risk_actionable))
     columns[3].metric(
-        "إجمالي الكمية الموصى بها",
+        t("exec.kpi_total_qty"),
         f"{sum(r.recommended_quantity for r in actionable):,.0f}",
     )
 
-    st.subheader("يحتاج قراراً — مرتّب بالخطورة")
-    st.caption(
-        "المنتجات التي يوصى بإنتاج كمية منها. الخطورة تحدد الأولوية، "
-        "لا الحاجة نفسها."
-    )
+    st.subheader(t("exec.needs_decision"))
+    st.caption(t("exec.needs_decision_help"))
     if actionable:
         st.dataframe(
             _to_frame(actionable[:50]), use_container_width=True, hide_index=True
         )
     else:
-        st.info("لا منتج يحتاج إنتاجاً حسب التوصيات الحالية.")
+        st.info(t("exec.nothing_actionable"))
 
     if dormant_risky:
-        with st.expander(f"⏸️ خامل لكن عالي الخطورة ({len(dormant_risky)})"):
-            st.caption(
-                f"أقل من {MIN_ACTIONABLE_UNITS} وحدة متوقَّعة الشهر القادم — "
-                "لا قرار إنتاج. خطورتها عالية بسبب تاريخ متذبذب: معلومة "
-                "تستحق النظر (منتج يموت؟) لا إجراءً. فُصلت كي لا تزاحم ما "
-                "يحتاج قراراً فعلياً."
-            )
+        with st.expander(t("exec.dormant_risky", count=len(dormant_risky))):
+            st.caption(t("exec.dormant_help", threshold=MIN_ACTIONABLE_UNITS))
             st.dataframe(
                 _to_frame(dormant_risky[:30]), use_container_width=True, hide_index=True
             )
 
-    st.caption(
-        "⚠️ عامل نفاد المخزون غير محسوب — جدول inventory فارغ حتى Phase 5. "
-        "لذا ثقة التقييم 80% (4 عوامل من 5) لكل المنتجات."
-    )
+    st.caption(t("exec.inventory_caveat"))

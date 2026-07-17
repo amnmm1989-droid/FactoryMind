@@ -17,6 +17,8 @@ from core.exceptions import DataValidationError
 from core.logging_config import get_logger
 from core.runtime_mode import is_hosted
 from services.ingest import Dataset, parse_upload, to_csv_template
+from ui.i18n import error as translate_error
+from ui.i18n import t
 
 logger = get_logger(__name__)
 
@@ -30,18 +32,10 @@ def _privacy_note() -> str:
     والطمأنة عنه؛ محلياً لا خادم أصلاً. لكن الجوهر واحد في الوضعين —
     الملف المرفوع لا يُكتب في قاعدة البيانات إطلاقاً.
     """
-    if is_hosted():
-        return (
-            "🔒 ملفك يُحلَّل في الذاكرة ولا يُحفَظ على الخادم. "
-            "يختفي بإغلاق التبويب، ولا يراه زائر آخر."
-        )
-    return (
-        "🔒 ملفك في ذاكرة الجلسة ولا يُكتب في قاعدة البيانات. "
-        "يختفي بإعادة التشغيل."
-    )
+    return t("data.privacy_hosted") if is_hosted() else t("data.privacy_local")
 
 
-@st.cache_data(show_spinner="تحميل بيانات العرض...")
+@st.cache_data(show_spinner=False)
 def _demo_dataset() -> tuple[list[str], dict[str, list[float]]]:
     """بيانات العرض المرفقة — 185 صنف بنّ.
 
@@ -50,7 +44,9 @@ def _demo_dataset() -> tuple[list[str], dict[str, list[float]]]:
     """
     from utils.data_loader import get_repository
 
-    return get_repository().load_data()
+    return get_repository().load_data()  # spinner معطَّل: النص يُقيَّم قبل
+    # أن تُعرف لغة الجلسة (cache_data يُزخرَف عند الاستيراد)، فيتجمّد
+    # بلغة واحدة. التحميل لحظي على أي حال بعد أول مرة.
 
 
 def active_dataset() -> tuple[list[str], dict[str, list[float]], bool]:
@@ -80,35 +76,33 @@ def render_upload_widget() -> None:
     dataset: Dataset | None = st.session_state.get(SESSION_KEY)
 
     with st.sidebar:
-        st.header("📁 البيانات")
+        st.header(t("data.header"))
 
         if dataset is not None:
-            st.success(
-                f"ملفك: **{dataset.product_count}** منتج × "
-                f"**{dataset.month_count}** شهر"
-            )
+            st.success(t("data.your_file", products=dataset.product_count,
+                         months=dataset.month_count))
             # الطمأنة تُعرَض هنا لا قبل الرفع فقط: بيانات المستخدم محمّلة
             # الآن، وهذه اللحظة بالضبط هي التي يحتاج فيها الجواب على
             # "أين ذهب ملفي؟". عرضها قبل الرفع وحده يجعلها تختفي عند
             # الحاجة إليها.
             st.caption(_privacy_note())
             if dataset.warnings:
-                with st.expander(f"⚠️ ملاحظات على الملف ({len(dataset.warnings)})"):
+                with st.expander(t("data.notes", count=len(dataset.warnings))):
                     for warning in dataset.warnings:
-                        st.write(f"- {warning}")
-            if st.button("العودة لبيانات العرض", use_container_width=True):
+                        st.write(f"- {t('warn.' + warning.code, **warning.params)}")
+            if st.button(t("data.back_to_demo"), use_container_width=True):
                 clear_upload()
                 st.rerun()
             return
 
-        st.caption("بيانات العرض معروضة الآن (185 صنف بنّ). ارفع ملفك لتحليله.")
+        st.caption(t("data.demo_active"))
         uploaded = st.file_uploader(
-            "CSV أو Excel", type=["csv", "xlsx", "xls"],
-            help="عمود للمنتج + عمود لكل شهر. أو ثلاثة أعمدة: منتج/شهر/كمية.",
+            t("data.uploader"), type=["csv", "xlsx", "xls"],
+            help=t("data.uploader_help"),
         )
 
         st.download_button(
-            "⬇ نموذج CSV", data=to_csv_template(),
+            t("data.template"), data=to_csv_template(),
             file_name="factorymind-template.csv", mime="text/csv",
             use_container_width=True,
         )
@@ -119,10 +113,10 @@ def render_upload_widget() -> None:
             try:
                 parsed = parse_upload(uploaded.getvalue(), uploaded.name)
             except DataValidationError as exc:
-                st.error(f"تعذّرت قراءة الملف: {exc.message}")
+                st.error(t("data.read_failed", detail=translate_error(exc)))
                 context = exc.context or {}
                 if context.get("columns"):
-                    st.caption(f"الأعمدة التي وجدتها: {context['columns']}")
+                    st.caption(t("data.columns_found", columns=context["columns"]))
                 return
 
             st.session_state[SESSION_KEY] = parsed

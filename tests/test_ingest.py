@@ -94,7 +94,7 @@ def test_duplicate_rows_are_summed_not_dropped():
     dataset = parse_upload(data, "d.csv")
 
     assert dataset.products["A"][0] == 25.0
-    assert any("مكرّر" in w for w in dataset.warnings)
+    assert any(w.code == "duplicate_rows" for w in dataset.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ def test_unreadable_columns_are_dropped_with_a_warning():
     dataset = parse_upload(data, "w.csv")
 
     assert dataset.month_count == 3
-    assert any("ملاحظات" in w for w in dataset.warnings)
+    assert any(w.code == "dropped_columns" for w in dataset.warnings)
 
 
 def test_gaps_in_the_timeline_are_flagged():
@@ -167,13 +167,13 @@ def test_gaps_in_the_timeline_are_flagged():
 
     dataset = parse_upload(data, "g.csv")
 
-    assert any("فجوات" in w for w in dataset.warnings)
+    assert any(w.code == "timeline_gaps" for w in dataset.warnings)
 
 
 def test_a_continuous_timeline_raises_no_gap_warning():
     dataset = parse_upload(WIDE, "sales.csv")
 
-    assert not any("فجوات" in w for w in dataset.warnings)
+    assert not any(w.code == "timeline_gaps" for w in dataset.warnings)
 
 
 def test_negative_quantities_are_clipped_with_a_warning():
@@ -183,7 +183,7 @@ def test_negative_quantities_are_clipped_with_a_warning():
     dataset = parse_upload(data, "n.csv")
 
     assert dataset.products["A"] == [10.0, 0.0, 3.0]
-    assert any("سالبة" in w for w in dataset.warnings)
+    assert any(w.code == "negatives" for w in dataset.warnings)
 
 
 def test_non_numeric_cells_become_zero_with_a_warning():
@@ -192,7 +192,7 @@ def test_non_numeric_cells_become_zero_with_a_warning():
     dataset = parse_upload(data, "x.csv")
 
     assert dataset.products["A"] == [10.0, 0.0, 3.0]
-    assert any("غير رقمية" in w for w in dataset.warnings)
+    assert any(w.code == "non_numeric" for w in dataset.warnings)
 
 
 def test_products_without_any_sales_are_flagged():
@@ -200,7 +200,7 @@ def test_products_without_any_sales_are_flagged():
 
     dataset = parse_upload(data, "d.csv")
 
-    assert any("بلا أي مبيعات" in w for w in dataset.warnings)
+    assert any(w.code == "dead_products" for w in dataset.warnings)
 
 
 def test_an_excel_bom_does_not_corrupt_the_first_column():
@@ -227,10 +227,40 @@ def test_an_uploaded_dataset_feeds_the_forecast_engine():
     assert len(result.best.forecast_values) == 2
 
 
+def test_forecast_months_continue_past_the_last_month():
+    """انحدار: كانت الدالة تلتفّ إلى بداية السلسلة (`% len(months)`).
+
+    تنبؤ ما بعد "يوليو 2026" كان يُسمّى "ديسمبر 2022" — فتُرسَم نقاط
+    التنبؤ على مواضع تاريخية وتصطدم بها على محور فئوي. الاختبار الوحيد
+    آنذاك كان يفحص الطول، فمرّ الخطأ. كشفه بحثٌ عن نصوص غير مترجَمة.
+    """
+    from services.analytics import prepare_forecast_months
+
+    months = ["مايو 2026", "يونيو 2026", "يوليو 2026"]
+
+    assert prepare_forecast_months(2, months, 3) == ["2026-08", "2026-09", "2026-10"]
+
+
+def test_forecast_months_roll_over_the_year():
+    from services.analytics import prepare_forecast_months
+
+    months = ["نوفمبر 2025", "ديسمبر 2025"]
+
+    assert prepare_forecast_months(1, months, 2) == ["2026-01", "2026-02"]
+
+
+def test_unparseable_last_month_yields_explicit_offsets():
+    """تسمية مخصّصة من ملف مستخدم: "+1" صريحة في أنها إزاحة، بينما
+    تاريخ مخترَع يبدو حقيقة."""
+    from services.analytics import prepare_forecast_months
+
+    assert prepare_forecast_months(0, ["W52"], 2) == ["+1", "+2"]
+
+
 def test_the_template_is_parseable_by_the_parser_that_ships_with_it():
     """نموذج يرفضه محلّله لا يعلّم أحداً شيئاً."""
     dataset = parse_upload(to_csv_template(), "template.csv")
 
     assert isinstance(dataset, Dataset)
     assert dataset.product_count == 2
-    assert dataset.warnings == [] or all("بلا أي مبيعات" not in w for w in dataset.warnings)
+    assert all(w.code != "dead_products" for w in dataset.warnings)

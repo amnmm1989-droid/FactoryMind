@@ -16,17 +16,13 @@ from __future__ import annotations
 import streamlit as st
 
 from ui.dashboard import render_dashboard
+from ui.i18n import t
 from ui.sidebar import render_sidebar
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
     # العنوان كان في app.py قبل Phase 6؛ نُقل هنا كي تبقى الصفحة كما كانت
-    st.title("🔮 نظام تحليل وتنبؤ أوامر التصنيع – الإصدار الاحترافي")
-    st.info(
-        "هذه الصفحة تُشغّل **ETS** دائماً — ترتيبه الثامن من تسعة على هذا "
-        "الكتالوج. لاختيار النموذج بالأدلة استخدم صفحة **التنبؤ**. "
-        "تبقى هنا لتحليلاتها الإحصائية (الارتباط، التوزيع، الموسمية).",
-        icon="ℹ️",
-    )
+    st.title(t("adv.title"))
+    st.info(t("adv.notice"), icon="ℹ️")
     options = render_sidebar(months, sorted(products))
     render_dashboard(months, products, options)

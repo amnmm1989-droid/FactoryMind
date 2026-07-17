@@ -22,30 +22,19 @@ from repositories.forecast_repository import ForecastRepository
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models
 from ui.data_source import active_dataset
+from ui.i18n import error as translate_error
+from ui.i18n import format_months, format_reason, format_recommendation, t
 from services.forecast_engine import classify_demand, forecast_product
 from services.risk_service import FACTOR_WEIGHTS, compute_risk
 
-CLASS_INFO = {
-    "smooth": ("منتظم", "طلب كل شهر بأحجام متماسكة — العائلة الموسمية في مجالها."),
-    "erratic": ("متذبذب", "يحدث غالباً، لكن بأحجام شديدة التقلب."),
-    "intermittent": ("متقطّع", "فجوات كثيرة، أحجام متماسكة — مجال Croston/TSB."),
-    "lumpy": ("متكتّل", "فجوات *و* تقلب — الأصعب على كل النماذج."),
-    "dead": ("بلا مبيعات", "لا طلب قط — لا نموذج ينطبق."),
-}
-
-FACTOR_LABELS = {
-    "demand_volatility": "تقلب الطلب",
-    "stock_depletion_risk": "نفاد المخزون",
-    "forecast_accuracy_penalty": "عدم دقة التنبؤ",
-    "seasonality_factor": "الموسمية",
-    "growth_rate": "معدّل التغيّر",
-}
+def _factor_label(name: str) -> str:
+    return t(f"factor.{name}")
 
 
 def _risk_chart(risk) -> go.Figure:
     """العوامل المعروفة فقط — المجهول لا يُرسم كصفر."""
     known = risk.known_factors
-    labels = [FACTOR_LABELS[name] for name in known]
+    labels = [_factor_label(name) for name in known]
     values = list(known.values())
     colors = ["#d62728" if v >= 70 else "#ff7f0e" if v >= 30 else "#2ca02c"
               for v in values]
@@ -56,118 +45,106 @@ def _risk_chart(risk) -> go.Figure:
         textposition="outside",
     ))
     figure.update_layout(
-        title="مساهمة كل عامل (0-100)", xaxis_range=[0, 110],
+        title=t("pi.factor_chart"), xaxis_range=[0, 110],
         height=280, margin=dict(t=40, b=20, l=10, r=10),
     )
     return figure
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
-    st.title("🧠 ذكاء المنتج")
+    st.title(t("pi.title"))
 
     with st.sidebar:
-        product = st.selectbox("المنتج", sorted(products))
+        product = st.selectbox(t("common.product"), sorted(products))
 
     series = products[product]
     profile = classify_demand(series)
-    label, explanation = CLASS_INFO.get(
-        profile.demand_class.value, (profile.demand_class.value, "")
-    )
+    demand_class = profile.demand_class.value
 
-    st.subheader("تصنيف الطلب")
+    st.subheader(t("pi.classification"))
     columns = st.columns(4)
-    columns[0].metric("التصنيف", label)
-    columns[1].metric("ADI", f"{profile.adi:.2f}",
-                      help="متوسط الفترة بين الطلبات. 1.0 = كل شهر.")
-    columns[2].metric("CV²", f"{profile.cv_squared:.2f}",
-                      help="تقلب أحجام الطلب غير الصفري.")
-    columns[3].metric("أشهر بمبيعات", f"{profile.non_zero_count}/{len(series)}")
-    st.caption(explanation)
+    columns[0].metric(t("pi.class"), t(f"class.{demand_class}"))
+    columns[1].metric("ADI", f"{profile.adi:.2f}", help=t("pi.adi_help"))
+    columns[2].metric("CV²", f"{profile.cv_squared:.2f}", help=t("pi.cv2_help"))
+    columns[3].metric(t("pi.selling_months"), f"{profile.non_zero_count}/{len(series)}")
+    st.caption(t(f"class.{demand_class}.help"))
 
-    if profile.demand_class.value == "dead":
-        st.warning("لا مبيعات لهذا المنتج قط — لا تنبؤ ولا خطورة.")
+    if demand_class == "dead":
+        st.warning(t("pi.dead_product"))
         return
 
     st.plotly_chart(
         go.Figure(go.Scatter(
-            x=months[-len(series):], y=series, mode="lines+markers",
+            x=format_months(months[-len(series):]), y=series, mode="lines+markers",
             line=dict(color="#1f77b4"),
         )).update_layout(
-            title="تاريخ الطلب", height=260, margin=dict(t=40, b=30),
-            xaxis_title="", yaxis_title="الكمية",
+            title=t("pi.history"), height=260, margin=dict(t=40, b=30),
+            xaxis_title="", yaxis_title=t("common.quantity"),
         ),
         use_container_width=True,
     )
 
     try:
-        with st.spinner("حساب الخطورة..."):
+        with st.spinner(t("pi.computing_risk")):
             result = forecast_product(product, series, steps=6, models=fast_models())
             risk = compute_risk(product, series, result.best)
     except AppError as exc:
-        st.error(f"تعذّر التحليل: {exc.message}")
+        st.error(t("pi.analysis_failed", detail=translate_error(exc)))
         return
 
-    st.subheader("تفكيك الخطورة")
+    st.subheader(t("pi.risk_breakdown"))
     columns = st.columns([1, 2])
     with columns[0]:
         badge = {RiskLevel.LOW: "🟢", RiskLevel.MEDIUM: "🟡", RiskLevel.HIGH: "🔴"}
-        st.metric("الدرجة", f"{risk.score:.0f}/100",
-                  delta=f"{badge[risk.level]} {risk.level.value}", delta_color="off")
-        st.metric("ثقة التقييم", f"{risk.confidence:.0%}",
-                  help="نسبة العوامل التي أمكن حسابها.")
+        st.metric(t("pi.score"), f"{risk.score:.0f}/100",
+                  delta=f"{badge[risk.level]} {t('risk.' + risk.level.value)}",
+                  delta_color="off")
+        st.metric(t("common.confidence"), f"{risk.confidence:.0%}",
+                  help=t("pi.confidence_help"))
     with columns[1]:
         st.plotly_chart(_risk_chart(risk), use_container_width=True)
 
     if risk.missing_factors:
         st.info(
-            "**عوامل غير محسوبة:** "
-            + "، ".join(FACTOR_LABELS[name] for name in risk.missing_factors)
-            + ". استُبعدت من الحساب وأُعيدت موازنة الباقي — لم تُعامَل كصفر. "
-            "الصفر يعني *قِسنا ولا خطورة*؛ الغياب يعني *لا نعرف*.",
+            t("pi.missing_factors",
+              names="، ".join(_factor_label(n) for n in risk.missing_factors)),
             icon="ℹ️",
         )
 
-    with st.expander("أوزان العوامل"):
+    with st.expander(t("pi.weights")):
         st.dataframe(
             pd.DataFrame([
-                {"العامل": FACTOR_LABELS[name], "الوزن": f"{weight:.0%}",
-                 "محسوب؟": "نعم" if name in risk.known_factors else "لا"}
+                {t("pi.factor"): _factor_label(name), t("pi.weight"): f"{weight:.0%}",
+                 t("pi.computed"): t("common.yes") if name in risk.known_factors
+                                   else t("common.no")}
                 for name, weight in FACTOR_WEIGHTS.items()
             ]),
             use_container_width=True, hide_index=True,
         )
-        st.caption(
-            "معايرة أولية بلا بيانات تحقّق — تُضبط حين يتراكم "
-            "`production_plans.actual_quantity` مقابل `planned_quantity`."
-        )
+        st.caption(t("pi.weights_caveat"))
 
     # السجل المحفوظ يخصّ بيانات العرض في القاعدة المحلية. منتج مرفوع لا
     # وجود له فيها، والاستعلام عنه يُرجع فراغاً مضلّلاً ("لا سجل" توحي
     # بأن الحساب لم يُشغَّل، بينما التخزين معطَّل أصلاً).
     _, _, is_user_data = active_dataset()
     if is_user_data or is_hosted():
-        st.caption(
-            "🔒 سجل النماذج التاريخي متاح في الوضع المحلي فقط — "
-            "بياناتك لا تُحفَظ. كل ما فوق محسوب لجلستك الآن."
-        )
+        st.caption(t("pi.history_local_only"))
         return
 
-    st.subheader("سجل النماذج المحفوظ")
+    st.subheader(t("pi.stored_history"))
     ranking = ForecastRepository(db_path=DATABASE_PATH).model_ranking(product)
     if not ranking:
-        st.info(
-            "لا سجل محفوظ لهذا المنتج. شغّل الحساب من **النظرة التنفيذية**."
-        )
+        st.info(t("pi.no_history"))
     else:
         st.dataframe(
             pd.DataFrame([
                 {
-                    "النموذج": row["model_name"],
+                    t("common.model"): row["model_name"],
                     "RMSE": round(row["rmse"], 2) if row["rmse"] is not None else None,
                     "MAE": round(row["mae"], 2) if row["mae"] is not None else None,
-                    "الأفضل؟": "★" if row["is_best"] else "",
-                    "زمن (ms)": row["training_duration_ms"],
-                    "التقييم": row["evaluated_at"],
+                    t("pi.is_best"): "★" if row["is_best"] else "",
+                    t("common.duration_ms"): row["training_duration_ms"],
+                    t("pi.evaluated_at"): row["evaluated_at"],
                 }
                 for row in ranking
             ]),
@@ -176,6 +153,6 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     stored = RecommendationRepository(db_path=DATABASE_PATH).latest_for_product(product)
     if stored:
-        st.subheader("آخر توصية محفوظة")
-        st.success(stored.as_message())
-        st.caption(stored.reason)
+        st.subheader(t("pi.last_recommendation"))
+        st.success(format_recommendation(stored))
+        st.caption(format_reason(stored))

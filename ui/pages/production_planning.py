@@ -24,16 +24,15 @@ from core.logging_config import get_logger
 from core.runtime_mode import is_hosted
 from repositories.recommendation_repository import RecommendationRepository
 from ui.data_source import active_dataset
+from ui.i18n import format_month, format_reason, t
 
 logger = get_logger(__name__)
 
-STATUS_LABELS = {
-    "draft": "مسودّة",
-    "approved": "معتمدة",
-    "in_progress": "قيد التنفيذ",
-    "completed": "مكتملة",
-    "cancelled": "ملغاة",
-}
+STATUS_CODES = ("draft", "approved", "in_progress", "completed", "cancelled")
+
+
+def _status_label(code: str) -> str:
+    return t(f"status.{code}")
 
 
 def _connect() -> sqlite3.Connection:
@@ -99,20 +98,19 @@ def _plans() -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
     frame = pd.DataFrame([dict(row) for row in rows])
-    frame["status"] = frame["status"].map(lambda s: STATUS_LABELS.get(s, s))
+    frame["status"] = frame["status"].map(_status_label)
+    frame["month"] = frame["month"].map(format_month)
     return frame.rename(columns={
-        "product": "المنتج", "month": "الشهر",
-        "planned_quantity": "المخطَّط", "actual_quantity": "الفعلي",
-        "status": "الحالة", "notes": "ملاحظات", "updated_at": "آخر تحديث",
+        "product": t("common.product"), "month": t("common.month"),
+        "planned_quantity": t("plan.planned"), "actual_quantity": t("plan.actual"),
+        "status": t("plan.status"), "notes": t("plan.notes_column"),
+        "updated_at": t("plan.updated"),
     })
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
-    st.title("🏭 تخطيط الإنتاج")
-    st.caption(
-        "التوصية اقتراح النظام؛ الخطة قرارك. الفصل بينهما يسمح بقياس "
-        "جودة التوصيات لاحقاً."
-    )
+    st.title(t("plan.title"))
+    st.caption(t("plan.subtitle"))
 
     # الخطط تُكتب في production_plans، ومفتاحها الأجنبي يشير إلى جدول
     # products — الذي يحمل بيانات العرض لا ملف المستخدم. حفظ خطة لمنتج
@@ -120,74 +118,56 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     # عند الضغط على "حفظ".
     _, _, is_user_data = active_dataset()
     if is_user_data or is_hosted():
-        reason = (
-            "بياناتك المرفوعة تعيش في جلستك ولا تُكتب في قاعدة البيانات"
-            if is_user_data
-            else "الوضع المستضاف لا يحفظ شيئاً على الخادم"
-        )
-        st.info(
-            f"**التخطيط متاح في الوضع المحلي فقط.** {reason} — والخطط تحتاج "
-            "تخزيناً دائماً ليكون لها معنى (قياس المخطَّط مقابل الفعلي عبر "
-            "الأشهر).\n\nاستنسخ المستودع وشغّله محلياً لاستخدام هذه الصفحة:",
-            icon="ℹ️",
-        )
+        reason = t("plan.reason_user_data" if is_user_data else "plan.reason_hosted")
+        st.info(t("plan.local_only", reason=reason), icon="ℹ️")
         st.code("git clone https://github.com/amnmm1989-droid/FactoryMind\n"
                 "cd FactoryMind && python migrate.py && streamlit run app.py",
                 language="bash")
-        st.caption(
-            "التنبؤ والخطورة وذكاء المنتج تعمل كاملةً على بياناتك هنا — "
-            "التخزين وحده هو المعطَّل."
-        )
+        st.caption(t("plan.local_only_note"))
         return
 
-    st.warning(
-        "**الكميات لا تخصم المخزون** — جدول `inventory` فارغ حتى Phase 5. "
-        "المعروض هو الطلب المتوقَّع كاملاً، لا الفجوة بينه وبين ما لديك.",
-        icon="⚠️",
-    )
+    st.warning(t("plan.inventory_warning"), icon="⚠️")
 
     repository = RecommendationRepository(db_path=DATABASE_PATH)
     month_options = _months()
 
-    st.subheader("إنشاء خطة")
+    st.subheader(t("plan.create"))
     with st.form("new_plan"):
         columns = st.columns([3, 2])
-        product = columns[0].selectbox("المنتج", sorted(products))
+        product = columns[0].selectbox(t("common.product"), sorted(products))
         month_label = columns[1].selectbox(
-            "الشهر", [name for _, name in month_options]
+            t("common.month"), [name for _, name in month_options],
+            format_func=format_month,
         )
 
         recommendation = repository.latest_for_product(product)
         suggested = round(recommendation.recommended_quantity) if recommendation else 0
         if recommendation:
-            st.caption(f"توصية النظام: **{suggested:,}** — {recommendation.reason}")
+            st.caption(t("plan.system_suggests", quantity=suggested,
+                         reason=format_reason(recommendation)))
         else:
-            st.caption(
-                "لا توصية محفوظة لهذا المنتج. شغّل الحساب من **النظرة التنفيذية**."
-            )
+            st.caption(t("plan.no_recommendation"))
 
         columns = st.columns([2, 2, 4])
         quantity = columns[0].number_input(
-            "الكمية المخطَّطة", min_value=0.0, value=float(suggested), step=10.0
+            t("plan.planned_qty"), min_value=0.0, value=float(suggested), step=10.0
         )
         status = columns[1].selectbox(
-            "الحالة", list(STATUS_LABELS), format_func=lambda s: STATUS_LABELS[s]
+            t("plan.status"), STATUS_CODES, format_func=_status_label
         )
-        notes = columns[2].text_input("ملاحظات (اختياري)")
+        notes = columns[2].text_input(t("plan.notes"))
 
-        if st.form_submit_button("حفظ الخطة", use_container_width=True):
+        if st.form_submit_button(t("plan.save"), use_container_width=True):
             month_id = next(mid for mid, name in month_options if name == month_label)
             _save_plan(product, month_id, quantity, status, notes)
             if recommendation and quantity != suggested:
-                st.info(
-                    f"خالفت التوصية ({suggested:,} → {quantity:,.0f}). "
-                    "الفارق مسجَّل — وهو ما سيقيس جودة التوصيات لاحقاً."
-                )
-            st.success(f"حُفظت خطة {product[:40]} لشهر {month_label}.")
+                st.info(t("plan.overridden", suggested=suggested, actual=quantity))
+            st.success(t("plan.saved", product=product[:40],
+                         month=format_month(month_label)))
 
-    st.subheader("الخطط المسجَّلة")
+    st.subheader(t("plan.existing"))
     frame = _plans()
     if frame.empty:
-        st.info("لا خطط بعد.")
+        st.info(t("plan.none_yet"))
     else:
         st.dataframe(frame, use_container_width=True, hide_index=True)

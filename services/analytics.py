@@ -27,29 +27,56 @@ def compute_basic_stats(series):
     }
 
 def prepare_forecast_months(last_month_idx, months, steps):
-    """توليد أسماء الأشهر المتوقعة"""
-    forecast_months = []
+    """توليد تسميات الأشهر المتوقَّعة، بصيغة ISO (YYYY-MM).
+
+    ⚠️ إصلاح خطأ: كانت الدالة تفعل `months[(last_month_idx + i) % len(months)]`
+    — أي تلتفّ إلى *بداية* السلسلة. تنبؤ ما بعد يوليو 2026 كان يُسمّى
+    "ديسمبر 2022"، فتُرسَم نقاط التنبؤ على مواضع تاريخية وتصطدم بها على
+    محور فئوي. الاختبار الوحيد كان يفحص الطول، فمرّ الخطأ.
+
+    الصيغة ISO لا مترجَمة: هذه طبقة خدمات. ui.i18n.format_month يفهمها
+    ويعرضها باللغة المختارة ("August 2026" / "أغسطس 2026").
+
+    تراجُع آمن: تسمية أخيرة غير مفهومة (ملف مستخدم بتسميات مخصّصة)
+    تُنتج "+1، +2..." — صريحة في أنها إزاحة، لا تاريخ مخترَع.
+    """
+    from services.ingest import parse_month_label
+
+    last_label = months[last_month_idx] if 0 <= last_month_idx < len(months) else None
+    last_date = parse_month_label(last_label) if last_label else None
+
+    if last_date is None:
+        return [f"+{i}" for i in range(1, steps + 1)]
+
+    labels = []
     for i in range(1, steps + 1):
-        next_idx = (last_month_idx + i) % len(months)
-        forecast_months.append(months[next_idx])
-    return forecast_months
+        total = last_date.month - 1 + i
+        labels.append(f"{last_date.year + total // 12}-{total % 12 + 1:02d}")
+    return labels
+
+# مفاتيح ثابتة لا تُترجَم: 'الربع 1' كانت قيمةً *وترتيباً* (groupby +
+# Categorical). ترجمتها هنا كانت ستكسر الفرز وتثبّت العربية في طبقة
+# خدمات لا علاقة لها بالعرض. ui/charts.py يترجم للعرض.
+QUARTER_KEY = "_quarter"
+QUANTITY_KEY = "_qty"
+QUARTER_ORDER = ("q1", "q2", "q3", "q4")
+
 
 def prepare_seasonal_data(selected_months, series):
     """تحضير البيانات للتحليل الموسمي (أرباع السنة)"""
-    df = pd.DataFrame({'الشهر': selected_months, 'الكمية': series})
+    df = pd.DataFrame({QUANTITY_KEY: series})
     n = len(df)
     quarter_size = n // 4
     remainder = n % 4
     quarters = []
     for i in range(4):
         size = quarter_size + (1 if i < remainder else 0)
-        quarters.extend([f'الربع {i+1}'] * size)
+        quarters.extend([QUARTER_ORDER[i]] * size)
     if len(quarters) < n:
-        quarters.extend(['الربع 4'] * (n - len(quarters)))
-    df['الربع'] = quarters[:n]
-    seasonal_avg = df.groupby('الربع')['الكمية'].mean().reset_index()
-    seasonal_avg['الربع'] = pd.Categorical(seasonal_avg['الربع'],
-                                           categories=['الربع 1', 'الربع 2', 'الربع 3', 'الربع 4'],
-                                           ordered=True)
-    seasonal_avg = seasonal_avg.sort_values('الربع')
-    return seasonal_avg
+        quarters.extend([QUARTER_ORDER[3]] * (n - len(quarters)))
+    df[QUARTER_KEY] = quarters[:n]
+    seasonal_avg = df.groupby(QUARTER_KEY)[QUANTITY_KEY].mean().reset_index()
+    seasonal_avg[QUARTER_KEY] = pd.Categorical(
+        seasonal_avg[QUARTER_KEY], categories=list(QUARTER_ORDER), ordered=True
+    )
+    return seasonal_avg.sort_values(QUARTER_KEY)

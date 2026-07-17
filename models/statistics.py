@@ -5,7 +5,9 @@ from scipy import stats
 def trend_analysis(series):
     x = np.arange(len(series))
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, series)
-    trend_direction = "📈 صاعد" if slope > 0 else "📉 هابط" if slope < 0 else "➡️ مستقر"
+    # رمز لا نص: هذه طبقة نماذج، والعرض شأن ui/. النص العربي المضمَّن هنا
+    # سابقاً كان يظهر حرفياً في واجهة إنجليزية — ولا مكان لترجمته.
+    trend_direction = "up" if slope > 0 else "down" if slope < 0 else "flat"
     return {
         'slope': slope,
         'intercept': intercept,

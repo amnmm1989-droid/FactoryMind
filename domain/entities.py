@@ -116,34 +116,61 @@ class RiskScore:
 
 
 @dataclass(frozen=True)
+class ReasonPart:
+    """جزء من نص السبب — كبيانات لا كنص.
+
+    السبب يُبنى في services/decision_engine ويُعرَض في ui/. بناؤه كنص
+    عربي هناك يثبّت اللغة في طبقة لا علاقة لها بالعرض، ويجعل المستخدم
+    الإنجليزي يقرأ عربية داخل واجهته. الخدمة تعرف *ما* تقول؛ الواجهة
+    تعرف *بأي لغة*.
+    """
+    code: str
+    params: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class ProductionRecommendation:
     """توصية إنتاجية قابلة للعرض مباشرة في الـ Dashboard."""
     product_name: str
     recommended_quantity: float
-    reason: str  # مثال: "بسبب ارتفاع الطلب المتوقع بنسبة 18%"
+    reason: str  # نص عربي — للسجلات وللتخزين. العرض عبر reason_parts.
     expected_demand_change_pct: float
     risk: RiskScore | None = None
+    reason_parts: tuple[ReasonPart, ...] = ()
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     # تحت هذه النسبة يُعتبر الطلب مستقراً لا متغيّراً
     STABLE_THRESHOLD_PCT = 0.05
 
-    def as_message(self) -> str:
-        """رسالة التوصية الجاهزة للعرض.
+    @property
+    def message_code(self) -> str:
+        """أي صياغة تنطبق — بلا نص. الواجهة تترجم، والـ domain يقرر.
 
         حالة الاستقرار ليست تفصيلاً تجميلياً: النموذج الفائز على معظم
         منتجات هذا المشروع متوسط متحرك، وهو يتنبأ بحكم تعريفه بأن الشهر
-        القادم كالأشهر الماضية — أي تغيّر ~0%. الصياغة القديمة كانت تقرأ
+        القادم كالأشهر الماضية — أي تغيّر ~0%. صياغة سابقة كانت تقرأ
         الصفر كـ"ارتفاع" وتُخرج "بسبب ارتفاع الطلب المتوقع بنسبة 0.0%".
         """
-        quantity = f"{self.recommended_quantity:,.0f}"
         if abs(self.expected_demand_change_pct) < self.STABLE_THRESHOLD_PCT:
+            return "stable"
+        return "rise" if self.expected_demand_change_pct > 0 else "fall"
+
+    def as_message(self) -> str:
+        """رسالة التوصية بالعربية — للسجلات وللتوافق مع Phase 0.
+
+        ⚠️ ليست مسار العرض. الواجهة تستخدم ui.i18n.format_recommendation
+        الذي يبني الرسالة من message_code باللغة المختارة. هذه تبقى لأن
+        اختبارات Phase 0 تعتمد عليها، ولأن سجلاً بلغة ثابتة أنفع من سجل
+        يتبدّل بلغة من صادف أن فتح الصفحة.
+        """
+        quantity = f"{self.recommended_quantity:,.0f}"
+        if self.message_code == "stable":
             return (
                 f"يوصى بإنتاج {quantity} وحدة من المنتج {self.product_name} "
                 f"في الشهر القادم — الطلب المتوقع مستقر"
             )
 
-        direction = "ارتفاع" if self.expected_demand_change_pct > 0 else "انخفاض"
+        direction = "ارتفاع" if self.message_code == "rise" else "انخفاض"
         return (
             f"يوصى بإنتاج {quantity} وحدة من المنتج "
             f"{self.product_name} في الشهر القادم بسبب {direction} الطلب "

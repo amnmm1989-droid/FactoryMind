@@ -1,11 +1,13 @@
 # ui/export.py
 import streamlit as st
+
+from ui.i18n import t
 import pandas as pd
 from io import BytesIO, StringIO
 
 def render_export_buttons(main_product, selected_months, series, forecast_months, forecast_vals, lower_vals, upper_vals):
     """عرض أزرار تصدير البيانات"""
-    st.subheader("⬇️ تصدير التقارير")
+    st.subheader(t("old.export"))
 
     csv_buffer = StringIO()
     df_export = pd.DataFrame({
@@ -17,7 +19,7 @@ def render_export_buttons(main_product, selected_months, series, forecast_months
 
     col_exp1, col_exp2, col_exp3 = st.columns(3)
     col_exp1.download_button(
-        label="⬇ تحميل CSV (البيانات الفعلية)",
+        label=t("old.download_csv"),
         data=csv_str,
         file_name=f"{main_product.replace(' ', '_')}_data.csv",
         mime="text/csv",
@@ -37,7 +39,7 @@ def render_export_buttons(main_product, selected_months, series, forecast_months
             }).to_excel(writer, sheet_name='التنبؤ', index=False)
         excel_data = excel_buffer.getvalue()
         col_exp2.download_button(
-            label="⬇ تحميل Excel (مع التنبؤ)",
+            label=t("old.download_excel"),
             data=excel_data,
             file_name=f"{main_product.replace(' ', '_')}_forecast.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

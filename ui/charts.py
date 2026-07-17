@@ -1,118 +1,118 @@
 # ui/charts.py
-import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
-import numpy as np
+import plotly.express as px
 
-def create_main_chart(selected_months, series, forecast_months, forecast_vals, lower_vals, upper_vals,
+from services.analytics import QUANTITY_KEY, QUARTER_KEY
+from ui.i18n import format_months, t
+
+# أسماء الأعمدة تُترجَم عند البناء: هذه DataFrames تُنشأ وتُستهلَك داخل
+# الدالة نفسها، فلا حاجة لمفاتيح ثابتة. ما يحتاجها هو ما يعبر حدود
+# الطبقات (services/analytics.py، ui/tables.py).
+
+
+def create_main_chart(selected_months, series, forecast_months, forecast_vals,
+                      lower_vals, upper_vals,
                       sarima_forecast, outliers, main_product, show_confidence):
     """إنشاء الرسم البياني الرئيسي (البيانات الفعلية + التنبؤ)"""
-    df_actual = pd.DataFrame({
-        'الشهر': selected_months,
-        'الكمية': series,
-        'النوع': 'فعلي'
-    })
+    month, quantity, kind = t("common.month"), t("common.quantity"), t("chart.series")
+    display_months = format_months(list(selected_months))
+    # أشهر التنبؤ تصل بصيغة ISO من services/analytics — تُصاغ هنا
+    forecast_months = format_months(list(forecast_months))
 
-    df_forecast = pd.DataFrame({
-        'الشهر': forecast_months,
-        'الكمية': forecast_vals,
-        'النوع': 'تنبؤ ETS'
-    })
-
-    df_all = pd.concat([df_actual, df_forecast])
+    df_all = pd.concat([
+        pd.DataFrame({month: display_months, quantity: series, kind: t("fc.actual")}),
+        pd.DataFrame({month: forecast_months, quantity: forecast_vals,
+                      kind: t("chart.ets_forecast")}),
+    ])
 
     if sarima_forecast is not None:
-        df_sarima = pd.DataFrame({
-            'الشهر': forecast_months,
-            'الكمية': sarima_forecast,
-            'النوع': 'تنبؤ SARIMA'
-        })
-        df_all = pd.concat([df_all, df_sarima])
+        df_all = pd.concat([df_all, pd.DataFrame({
+            month: forecast_months, quantity: sarima_forecast,
+            kind: t("chart.sarima_forecast"),
+        })])
 
-    fig = px.line(df_all, x='الشهر', y='الكمية', color='النوع',
-                  title=f'الاتجاه والتنبؤ - {main_product}',
-                  labels={'الكمية': 'الكمية', 'الشهر': 'الشهر'})
+    fig = px.line(df_all, x=month, y=quantity, color=kind,
+                  title=t("chart.trend_and_forecast", product=main_product))
 
     if outliers:
-        outlier_df = pd.DataFrame({
-            'الشهر': [selected_months[i] for i in outliers],
-            'الكمية': [series[i] for i in outliers]
-        })
-        fig.add_scatter(x=outlier_df['الشهر'], y=outlier_df['الكمية'],
-                        mode='markers', marker=dict(color='red', size=10, symbol='x'),
-                        name='نقاط شاذة')
+        fig.add_scatter(
+            x=[display_months[i] for i in outliers], y=[series[i] for i in outliers],
+            mode='markers', marker=dict(color='red', size=10, symbol='x'),
+            name=t("chart.outliers"),
+        )
 
     if show_confidence and len(forecast_months) > 0:
-        df_upper = pd.DataFrame({'الشهر': forecast_months, 'الكمية': upper_vals})
-        df_lower = pd.DataFrame({'الشهر': forecast_months, 'الكمية': lower_vals})
-        fig.add_scatter(x=df_upper['الشهر'], y=df_upper['الكمية'],
-                        mode='lines', line=dict(dash='dash', color='rgba(250,204,21,0.5)'),
-                        name='حد أعلى 95%')
-        fig.add_scatter(x=df_lower['الشهر'], y=df_lower['الكمية'],
-                        mode='lines', line=dict(dash='dash', color='rgba(250,204,21,0.5)'),
-                        name='حد أدنى 95%')
+        for values, label in ((upper_vals, t("fc.upper")), (lower_vals, t("chart.lower"))):
+            fig.add_scatter(x=forecast_months, y=values, mode='lines',
+                            line=dict(dash='dash', color='rgba(250,204,21,0.5)'),
+                            name=label)
         fig.add_scatter(
-            x=df_upper['الشهر'].tolist() + df_lower['الشهر'].tolist()[::-1],
-            y=df_upper['الكمية'].tolist() + df_lower['الكمية'].tolist()[::-1],
-            fill='toself',
-            fillcolor='rgba(250,204,21,0.2)',
-            line=dict(width=0),
-            showlegend=False,
-            name='فترة الثقة 95%'
+            x=list(forecast_months) + list(forecast_months)[::-1],
+            y=list(upper_vals) + list(lower_vals)[::-1],
+            fill='toself', fillcolor='rgba(250,204,21,0.2)',
+            line=dict(width=0), showlegend=False, name=t("fc.interval"),
         )
 
     fig.update_layout(height=450, margin=dict(l=0, r=0, t=40, b=0))
     return fig
 
+
 def create_comparison_chart(selected_months, all_products_data):
     """إنشاء رسم بياني لمقارنة المنتجات"""
-    df_compare = pd.DataFrame()
-    for p, data in all_products_data.items():
-        temp_df = pd.DataFrame({
-            'الشهر': selected_months,
-            'الكمية': data,
-            'المنتج': p
-        })
-        df_compare = pd.concat([df_compare, temp_df])
+    month, quantity, product = t("common.month"), t("common.quantity"), t("common.product")
+    display_months = format_months(list(selected_months))
 
-    fig = px.line(df_compare, x='الشهر', y='الكمية', color='المنتج',
-                  title='مقارنة الأداء الشهري',
-                  labels={'الكمية': 'الكمية', 'الشهر': 'الشهر'})
+    df_compare = pd.concat([
+        pd.DataFrame({month: display_months, quantity: data, product: name})
+        for name, data in all_products_data.items()
+    ])
+
+    fig = px.line(df_compare, x=month, y=quantity, color=product,
+                  title=t("chart.monthly_comparison"))
     fig.update_layout(height=400)
     return fig
 
+
 def create_correlation_matrix(all_products_data):
     """إنشاء مصفوفة الارتباط"""
-    df_corr = pd.DataFrame(all_products_data)
-    corr_matrix = df_corr.corr()
-    fig = px.imshow(corr_matrix,
-                    text_auto=True,
-                    color_continuous_scale='RdBu_r',
-                    title='مصفوفة الارتباط')
+    corr_matrix = pd.DataFrame(all_products_data).corr()
+    fig = px.imshow(corr_matrix, text_auto=True, color_continuous_scale='RdBu_r',
+                    title=t("old.correlation_title"))
     fig.update_layout(height=500)
     return fig
 
+
 def create_seasonal_chart(seasonal_avg):
-    """إنشاء رسم بياني للتحليل الموسمي"""
-    fig = px.bar(seasonal_avg, x='الربع', y='الكمية',
-                 title='متوسط الكمية حسب الربع',
-                 labels={'الكمية': 'المتوسط', 'الربع': 'الربع'},
-                 color='الكمية', color_continuous_scale='Blues')
+    """إنشاء رسم بياني للتحليل الموسمي.
+
+    الأرباع تصل كرموز (q1..q4) من services/analytics — تُترجَم هنا فقط،
+    بعد أن أدّت دورها في الفرز.
+    """
+    quarter, average = t("chart.quarter"), t("chart.average")
+    frame = pd.DataFrame({
+        quarter: [t(f"chart.{code}") for code in seasonal_avg[QUARTER_KEY]],
+        average: seasonal_avg[QUANTITY_KEY].values,
+    })
+
+    fig = px.bar(frame, x=quarter, y=average, title=t("chart.quarterly_average"),
+                 color=average, color_continuous_scale='Blues')
     fig.update_layout(height=350)
     return fig
 
+
 def create_distribution_charts(series):
     """إنشاء رسوم التوزيع الإحصائي (هيستوجرام، Boxplot، كثافة)"""
-    fig_hist = px.histogram(series, nbins=20, title='مدرج تكراري',
-                            labels={'value': 'الكمية', 'count': 'التكرار'})
+    quantity = t("common.quantity")
+
+    fig_hist = px.histogram(series, nbins=20, title=t("chart.histogram"),
+                            labels={'value': quantity, 'count': t("chart.frequency")})
     fig_hist.update_layout(height=300)
 
-    fig_box = px.box(y=series, title='صندوق الحظائر (Boxplot)',
-                     labels={'y': 'الكمية'})
+    fig_box = px.box(y=series, title=t("chart.boxplot"), labels={'y': quantity})
     fig_box.update_layout(height=300)
 
-    fig_density = px.density_contour(x=series, title='منحنى الكثافة',
-                                     labels={'x': 'الكمية'})
+    fig_density = px.density_contour(x=series, title=t("chart.density"),
+                                     labels={'x': quantity})
     fig_density.update_layout(height=300)
 
     return fig_hist, fig_box, fig_density

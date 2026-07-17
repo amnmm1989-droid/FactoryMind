@@ -27,7 +27,9 @@ def test_trend_analysis():
     trend = trend_analysis(SAMPLE_SERIES)
     assert 'slope' in trend
     assert 'r_squared' in trend
-    assert trend['direction'] in ["📈 صاعد", "📉 هابط", "➡️ مستقر"]
+    # رموز لا نصوص منذ إضافة الإنجليزية: النص المعروض كان يُبنى هنا،
+    # فيظهر حرفياً في واجهة إنجليزية بلا أي مكان لترجمته. العرض في ui/i18n.
+    assert trend['direction'] in ["up", "down", "flat"]
 
 def test_detect_outliers_iqr():
     outliers, lower, upper = detect_outliers_iqr(SAMPLE_SERIES)

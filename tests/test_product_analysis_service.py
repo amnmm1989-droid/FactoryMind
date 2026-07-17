@@ -52,7 +52,7 @@ def test_analyze_product_includes_trend_by_default():
         forecast_steps=6,
     )
     assert isinstance(result.trend, TrendAnalysis)
-    assert result.trend.direction in ["📈 صاعد", "📉 هابط", "➡️ مستقر"]
+    assert result.trend.direction in ["up", "down", "flat"]
 
 
 def test_analyze_product_skips_trend_when_disabled():

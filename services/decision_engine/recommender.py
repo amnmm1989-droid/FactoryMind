@@ -17,6 +17,7 @@ from domain.entities import (
     ForecastResult,
     InventoryStatus,
     ProductionRecommendation,
+    ReasonPart,
     RiskLevel,
     RiskScore,
 )
@@ -80,47 +81,83 @@ def _available_stock(inventory: InventoryStatus | None) -> float | None:
     return max(0.0, inventory.current_stock - inventory.safety_stock)
 
 
-def _build_reason(
+def _build_reason_parts(
     forecast: ForecastResult,
     risk: RiskScore,
     change_pct: float,
     baseline: float,
     available: float | None,
-) -> str:
-    """نص السبب — يجب أن يحمل ما يكفي لمراجعة القرار، لا لتزيينه."""
-    parts: list[str] = []
+) -> tuple[ReasonPart, ...]:
+    """أجزاء السبب كبيانات — يجب أن تحمل ما يكفي لمراجعة القرار، لا لتزيينه.
+
+    رموز لا نصوص: الواجهة تترجمها (ui/i18n.format_reason)، والنص العربي
+    يُشتقّ منها في _reason_text للسجل والتخزين.
+    """
+    parts: list[ReasonPart] = []
 
     if baseline <= 0:
-        parts.append("لا مبيعات في الفترة المرجعية — التوصية من التنبؤ وحده")
+        parts.append(ReasonPart("no_baseline"))
     elif abs(change_pct) < ProductionRecommendation.STABLE_THRESHOLD_PCT:
-        parts.append("الطلب المتوقع مستقر")
+        parts.append(ReasonPart("stable"))
     else:
-        direction = "ارتفاع" if change_pct > 0 else "انخفاض"
-        parts.append(f"{direction} الطلب المتوقع بنسبة {abs(change_pct):.1f}%")
+        parts.append(ReasonPart(
+            "rise" if change_pct > 0 else "fall", {"pct": abs(change_pct)}
+        ))
 
     if available is not None and available > 0:
-        parts.append(f"بعد خصم {available:,.0f} وحدة متاحة في المخزون")
+        parts.append(ReasonPart("stock_deducted", {"units": available}))
 
-    parts.append(f"نموذج التنبؤ: {forecast.model_name}")
+    parts.append(ReasonPart("model", {"name": forecast.model_name}))
 
     # الشفافية عن جودة الأساس: توصية مبنية على تنبؤ غير مُقيَّم أو ضعيف
     # الدقة يجب أن تقول ذلك عن نفسها.
     if forecast.mape is not None:
-        parts.append(f"خطأ تاريخي {forecast.mape:.0f}%")
+        parts.append(ReasonPart("historical_error", {"pct": forecast.mape}))
     elif forecast.rmse is None:
-        parts.append("لم يُقيَّم النموذج (بيانات غير كافية للاختبار)")
+        parts.append(ReasonPart("unevaluated"))
 
-    level_text = {
-        RiskLevel.LOW: "خطورة منخفضة",
-        RiskLevel.MEDIUM: "خطورة متوسطة",
-        RiskLevel.HIGH: "خطورة عالية",
-    }[risk.level]
-    parts.append(f"{level_text} ({risk.score:.0f}/100)")
+    parts.append(ReasonPart(
+        "risk_level", {"level": risk.level.value, "score": risk.score}
+    ))
 
     if risk.missing_factors:
-        parts.append(f"عوامل غير محسوبة: {len(risk.missing_factors)} من 5")
+        parts.append(ReasonPart("missing_factors", {"count": len(risk.missing_factors)}))
 
-    return " | ".join(parts)
+    return tuple(parts)
+
+
+_REASON_AR = {
+    "no_baseline": "لا مبيعات في الفترة المرجعية — التوصية من التنبؤ وحده",
+    "stable": "الطلب المتوقع مستقر",
+    "rise": "ارتفاع الطلب المتوقع بنسبة {pct:.1f}%",
+    "fall": "انخفاض الطلب المتوقع بنسبة {pct:.1f}%",
+    "stock_deducted": "بعد خصم {units:,.0f} وحدة متاحة في المخزون",
+    "model": "نموذج التنبؤ: {name}",
+    "historical_error": "خطأ تاريخي {pct:.0f}%",
+    "unevaluated": "لم يُقيَّم النموذج (بيانات غير كافية للاختبار)",
+    "missing_factors": "عوامل غير محسوبة: {count} من 5",
+}
+_LEVEL_AR = {
+    RiskLevel.LOW.value: "خطورة منخفضة",
+    RiskLevel.MEDIUM.value: "خطورة متوسطة",
+    RiskLevel.HIGH.value: "خطورة عالية",
+}
+
+
+def _reason_text(parts: tuple[ReasonPart, ...]) -> str:
+    """النص العربي للسجل والتخزين.
+
+    ثابت اللغة عمداً: سجل يتبدّل بلغة من صادف أن فتح الصفحة لا يصلح
+    للمراجعة، وصفّ محفوظ في قاعدة البيانات يجب أن يعني الشيء نفسه بعد سنة.
+    """
+    rendered: list[str] = []
+    for part in parts:
+        if part.code == "risk_level":
+            level = _LEVEL_AR[part.params["level"]]
+            rendered.append(f"{level} ({part.params['score']:.0f}/100)")
+        else:
+            rendered.append(_REASON_AR[part.code].format(**part.params))
+    return " | ".join(rendered)
 
 
 def recommend_production(
@@ -168,12 +205,14 @@ def recommend_production(
     baseline = _baseline_demand(series)
     change_pct = _demand_change_pct(float(forecast.forecast_values[0]), baseline)
 
+    reason_parts = _build_reason_parts(forecast, risk, change_pct, baseline, available)
     recommendation = ProductionRecommendation(
         product_name=product_name,
         recommended_quantity=quantity,
-        reason=_build_reason(forecast, risk, change_pct, baseline, available),
+        reason=_reason_text(reason_parts),
         expected_demand_change_pct=change_pct,
         risk=risk,
+        reason_parts=reason_parts,
     )
 
     logger.info(

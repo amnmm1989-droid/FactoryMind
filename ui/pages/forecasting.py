@@ -20,43 +20,39 @@ from core.exceptions import AppError
 from services.batch import fast_models
 from services.decision_engine import recommend_production
 from services.forecast_engine import forecast_product
+from ui.i18n import error as translate_error
+from ui.i18n import format_months, format_reason, format_recommendation, t
 
 # منتج واحد بالنماذج التسعة ~1s — مقبول للحساب الحيّ. الكتالوج كله لا
 # (3.3 دقيقة) — تلك مهمة services/batch.py.
-CLASS_LABELS = {
-    "smooth": "منتظم",
-    "erratic": "متذبذب",
-    "intermittent": "متقطّع",
-    "lumpy": "متكتّل",
-    "dead": "بلا مبيعات",
-}
+
 
 
 def _forecast_chart(months, series, result, forecast_months):
     figure = go.Figure()
     figure.add_trace(go.Scatter(
-        x=months, y=series, name="فعلي", mode="lines+markers",
+        x=months, y=series, name=t("fc.actual"), mode="lines+markers",
         line=dict(color="#1f77b4", width=2),
     ))
 
     best = result.best
     figure.add_trace(go.Scatter(
-        x=forecast_months, y=best.upper_bound, name="حد أعلى 95%",
+        x=forecast_months, y=best.upper_bound, name=t("fc.upper"),
         mode="lines", line=dict(width=0), showlegend=False,
     ))
     figure.add_trace(go.Scatter(
-        x=forecast_months, y=best.lower_bound, name="فترة الثقة 95%",
+        x=forecast_months, y=best.lower_bound, name=t("fc.interval"),
         mode="lines", line=dict(width=0), fill="tonexty",
         fillcolor="rgba(255,165,0,0.20)",
     ))
     figure.add_trace(go.Scatter(
         x=forecast_months, y=best.forecast_values,
-        name=f"تنبؤ {best.model_name}", mode="lines+markers",
+        name=t("fc.forecast_of", model=best.model_name), mode="lines+markers",
         line=dict(color="#ff7f0e", width=2, dash="dash"),
     ))
     figure.update_layout(
-        title=f"الطلب الفعلي والمتوقَّع — {best.model_name}",
-        xaxis_title="الشهر", yaxis_title="الكمية", height=420,
+        title=t("fc.chart_title", model=best.model_name),
+        xaxis_title=t("common.month"), yaxis_title=t("common.quantity"), height=420,
         hovermode="x unified", margin=dict(t=50, b=40),
     )
     return figure
@@ -69,67 +65,61 @@ def _ranking_table(result) -> pd.DataFrame:
     for evaluation in result.ranking():
         metrics = evaluation.metrics
         rows.append({
-            "النموذج": evaluation.model_name,
+            t("common.model"): evaluation.model_name,
             "RMSE" + ("" if by_cumulative else " ★"): round(metrics.rmse, 2),
-            "خطأ تراكمي" + (" ★" if by_cumulative else ""): round(metrics.cumulative_error, 1),
+            t("fc.cumulative_error") + (" ★" if by_cumulative else ""):
+                round(metrics.cumulative_error, 1),
             "MAE": round(metrics.mae, 2),
             "MAPE %": round(metrics.mape, 1) if metrics.mape is not None else None,
-            "زمن (ms)": evaluation.duration_ms,
+            t("common.duration_ms"): evaluation.duration_ms,
         })
     return pd.DataFrame(rows)
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
-    st.title("🔮 التنبؤ")
-    st.caption(
-        "يُشغّل كل النماذج المنطبقة، يقيّمها على بيانات لم ترَها، ويختار الأفضل بالأدلة."
-    )
+    st.title(t("fc.title"))
+    st.caption(t("fc.subtitle"))
 
     with st.sidebar:
-        st.header("إعدادات التنبؤ")
-        product = st.selectbox("المنتج", sorted(products))
-        steps = st.slider("أفق التنبؤ (أشهر)", 1, MAX_FORECAST_STEPS,
+        st.header(t("fc.settings"))
+        product = st.selectbox(t("common.product"), sorted(products))
+        steps = st.slider(t("fc.horizon"), 1, MAX_FORECAST_STEPS,
                           DEFAULT_FORECAST_STEPS)
         full_family = st.checkbox(
-            "كل النماذج التسعة", value=False,
-            help="يضيف ETS/SARIMA/Prophet/XGBoost/RandomForest — أبطأ (~1s).",
+            t("common.all_nine_models"), value=False,
+            help=t("fc.full_family_help"),
         )
 
     series = products[product]
     models = None if full_family else fast_models()
 
     try:
-        with st.spinner("تدريب النماذج وتقييمها..."):
+        with st.spinner(t("fc.training")):
             result = forecast_product(product, series, steps=steps, models=models)
     except AppError as exc:
-        st.error(f"تعذّر التنبؤ: {exc.message}")
-        st.info(
-            "منتج بلا مبيعات كافية لا ينطبق عليه أي نموذج. "
-            "هذا رفض صريح لا عطل — راجع صفحة **ذكاء المنتج** لتصنيف الطلب."
-        )
+        st.error(t("fc.failed", detail=translate_error(exc)))
+        st.info(t("fc.failed_help"))
         return
 
     profile = result.profile
     best = result.best
 
     columns = st.columns(4)
-    columns[0].metric("النموذج الفائز", best.model_name)
-    columns[1].metric("تنبؤ الشهر القادم", f"{best.next_period_value:,.0f}")
-    columns[2].metric("تصنيف الطلب",
-                      CLASS_LABELS.get(profile.demand_class.value, profile.demand_class.value))
+    columns[0].metric(t("fc.winner"), best.model_name)
+    columns[1].metric(t("fc.next_month"), f"{best.next_period_value:,.0f}")
+    columns[2].metric(t("fc.demand_class"), t(f"class.{profile.demand_class.value}"))
     columns[3].metric(
-        "نماذج قُيِّمت", f"{result.evaluated_count}/{len(result.evaluations)}",
-        help="المقيَّم = دُرِّب على جزء من السلسلة واختُبر على الباقي. "
-             "صفر يعني أن السلسلة أقصر من أن تُقسَّم — لا أن النماذج فشلت.",
+        t("fc.evaluated"), f"{result.evaluated_count}/{len(result.evaluations)}",
+        help=t("fc.evaluated_help"),
     )
 
     st.plotly_chart(
-        _forecast_chart(months[-len(series):], series, result,
+        _forecast_chart(format_months(months[-len(series):]), series, result,
                         [f"+{i+1}" for i in range(steps)]),
         use_container_width=True,
     )
 
-    st.subheader("مقارنة النماذج")
+    st.subheader(t("fc.comparison"))
     ranking = result.ranking()
 
     if not ranking:
@@ -137,33 +127,28 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         # بعد اقتطاع النافذة. جدول فارغ هنا يبدو عطلاً؛ وهو ليس كذلك —
         # المحرك اختار بقاعدته المعلنة: بلا أدلة، الأبسط يفوز.
         st.warning(
-            f"**لم يُقيَّم أي نموذج.** السلسلة ({profile.non_zero_count} شهراً "
-            f"بمبيعات من {len(series)}) أقصر من أن تُقسَّم إلى تدريب واختبار.\n\n"
-            f"لذا اختار المحرك **{best.model_name}** بقاعدته المعلنة: بلا دليل "
-            "على أن التعقيد يفيد، يفوز الأبسط. الرقم أعلاه تنبؤ حقيقي، لكن "
-            "**بلا مقياس دقة يسنده** — تعامل معه بحذر.",
+            t("fc.no_evaluation", nonzero=profile.non_zero_count,
+              total=len(series), model=best.model_name),
             icon="⚠️",
         )
     else:
-        metric_note = (
-            "المقياس: **الخطأ التراكمي** — سلسلة متقطّعة، والقرار الإنتاجي "
-            "يستهلك إجمالي الأفق لا دقة كل شهر."
-            if result.selection_metric == "cumulative_error"
-            else "المقياس: **RMSE** — سلسلة منتظمة."
+        metric_note = t(
+            "fc.metric_cumulative" if result.selection_metric == "cumulative_error"
+            else "fc.metric_rmse"
         )
-        st.caption(f"{metric_note} العمود المعلَّم ★ هو ما رُتِّب به.")
+        st.caption(t("fc.metric_marked", note=metric_note))
         st.dataframe(_ranking_table(result), use_container_width=True, hide_index=True)
 
     failures = [e for e in result.evaluations if not e.succeeded]
     if failures:
-        with st.expander(f"نماذج لم تنطبق ({len(failures)})"):
+        with st.expander(t("fc.inapplicable", count=len(failures))):
             for evaluation in failures:
                 st.write(f"**{evaluation.model_name}** — {evaluation.error}")
 
-    st.subheader("التوصية")
+    st.subheader(t("fc.recommendation"))
     try:
         recommendation = recommend_production(product, series, best)
-        st.success(recommendation.as_message())
-        st.caption(recommendation.reason)
+        st.success(format_recommendation(recommendation))
+        st.caption(format_reason(recommendation))
     except AppError as exc:
-        st.warning(f"تعذّرت التوصية: {exc.message}")
+        st.warning(t("fc.rec_failed", detail=translate_error(exc)))

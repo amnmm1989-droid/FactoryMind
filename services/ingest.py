@@ -55,6 +55,19 @@ QUANTITY_HINTS = ("quantity", "qty", "amount", "value", "sales", "الكمية",
 MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى بأي نموذج
 
 
+@dataclass(frozen=True)
+class Warning_:
+    """تحذير كبيانات لا كنص.
+
+    الخدمة تعرف *ما* حدث؛ الواجهة تعرف *بأي لغة* تقوله. خلطهما هنا كان
+    سيثبّت العربية داخل طبقة لا علاقة لها بالعرض — ويجعل المستخدم
+    الإنجليزي يقرأ تحذيرات عربية وسط واجهته.
+    """
+
+    code: str
+    params: dict = field(default_factory=dict)
+
+
 @dataclass
 class Dataset:
     """بيانات جاهزة للمحرّكات + ما يجب أن يعرفه المستخدم عنها."""
@@ -62,7 +75,7 @@ class Dataset:
     months: list[str]                      # التسميات كما يراها المستخدم
     products: dict[str, list[float]]
     start_date: date | None                # مشتقّ من الملف، لا مثبَّت
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Warning_] = field(default_factory=list)
 
     @property
     def product_count(self) -> int:
@@ -111,7 +124,7 @@ def _read_file(content: bytes, filename: str) -> pd.DataFrame:
         raise DataValidationError(
             f"تعذّرت قراءة الملف: {exc}",
             cause=exc,
-            context={"filename": filename},
+            context={"code": "unreadable_file", "filename": filename},
         ) from exc
 
 
@@ -137,17 +150,17 @@ def _detect_layout(frame: pd.DataFrame) -> str:
     return "long" if has_long_shape else "wide"
 
 
-def _from_long(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def _from_long(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[Warning_]]:
     columns = [str(c) for c in frame.columns]
     product_column = _find_column(columns, PRODUCT_HINTS)
     month_column = _find_column(columns, MONTH_HINTS)
     quantity_column = _find_column(columns, QUANTITY_HINTS)
 
-    warnings: list[str] = []
-    duplicates = frame.duplicated(subset=[product_column, month_column]).sum()
+    warnings: list[Warning_] = []
+    duplicates = int(frame.duplicated(subset=[product_column, month_column]).sum())
     if duplicates:
         # الجمع لا الأخذ الأول: صفّان لنفس المنتج/الشهر يعنيان طلبين
-        warnings.append(f"{duplicates} صفاً مكرّراً (منتج+شهر) — جُمعت كمياتها.")
+        warnings.append(Warning_("duplicate_rows", {"count": duplicates}))
 
     pivoted = frame.pivot_table(
         index=product_column, columns=month_column,
@@ -156,11 +169,11 @@ def _from_long(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     return pivoted, warnings
 
 
-def _from_wide(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def _from_wide(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[Warning_]]:
     if frame.shape[1] < 2:
         raise DataValidationError(
             "الملف يحتاج عمود أسماء وعمود شهر واحداً على الأقل",
-            context={"columns": frame.shape[1]},
+            context={"code": "missing_columns", "columns": frame.shape[1]},
         )
     return frame.set_index(frame.columns[0]), []
 
@@ -174,7 +187,9 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
     """
     frame = _read_file(content, filename)
     if frame.empty:
-        raise DataValidationError("الملف فارغ", context={"filename": filename})
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
 
     layout = _detect_layout(frame)
     pivoted, warnings = _from_long(frame) if layout == "long" else _from_wide(frame)
@@ -190,15 +205,17 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
         raise DataValidationError(
             "لم يُفهَم أي عمود كشهر. الأشكال المقبولة: "
             "'يناير 2023'، 'Jan 2023'، '2023-01'.",
-            context={"columns": [label for label, _ in parsed_months][:6]},
+            context={
+                "code": "no_months",
+                "columns": [label for label, _ in parsed_months][:6],
+            },
         )
 
     unreadable = [label for label, parsed in parsed_months if not parsed]
     if unreadable:
-        warnings.append(
-            f"{len(unreadable)} عموداً لم يُفهَم كشهر فأُهمل: "
-            f"{'، '.join(unreadable[:4])}"
-        )
+        warnings.append(Warning_("dropped_columns", {
+            "count": len(unreadable), "names": "، ".join(unreadable[:4]),
+        }))
 
     understood.sort(key=lambda pair: pair[1])
     ordered_labels = [label for label, _ in understood]
@@ -207,31 +224,31 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
     if len(ordered_labels) < MIN_MONTHS:
         raise DataValidationError(
             f"{len(ordered_labels)} شهراً فقط — الحد الأدنى {MIN_MONTHS}.",
-            context={"months": len(ordered_labels)},
+            context={
+                "code": "too_few_months",
+                "months": len(ordered_labels),
+                "minimum": MIN_MONTHS,
+            },
         )
 
     # فجوات زمنية: تسلسل ناقص يُفسد الموسمية بصمت
     dates = [parsed for _, parsed in understood]
     expected = (dates[-1].year - dates[0].year) * 12 + (dates[-1].month - dates[0].month) + 1
     if expected != len(dates):
-        warnings.append(
-            f"فجوات في التسلسل الزمني: {len(dates)} شهراً موجوداً من {expected} "
-            f"بين {dates[0]} و{dates[-1]}. الأشهر الناقصة ليست أصفاراً — هي غياب "
-            "بيانات، والموسمية المحسوبة عليها غير دقيقة."
-        )
+        warnings.append(Warning_("timeline_gaps", {
+            "found": len(dates), "expected": expected,
+            "start": str(dates[0]), "end": str(dates[-1]),
+        }))
 
     numeric = pivoted.apply(pd.to_numeric, errors="coerce")
     non_numeric = int(numeric.isna().sum().sum() - pivoted.isna().sum().sum())
     if non_numeric > 0:
-        warnings.append(f"{non_numeric} خلية غير رقمية عوملت كصفر.")
+        warnings.append(Warning_("non_numeric", {"count": non_numeric}))
     numeric = numeric.fillna(0.0)
 
     negatives = int((numeric < 0).sum().sum())
     if negatives:
-        warnings.append(
-            f"{negatives} قيمة سالبة (مرتجعات؟) — رُفعت إلى صفر. "
-            "المحرّكات تتعامل مع الطلب لا صافي الحركة."
-        )
+        warnings.append(Warning_("negatives", {"count": negatives}))
         numeric = numeric.clip(lower=0)
 
     products: dict[str, list[float]] = {}
@@ -241,13 +258,13 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
             products[label] = [float(v) for v in row.tolist()]
 
     if not products:
-        raise DataValidationError("لا منتجات صالحة في الملف")
+        raise DataValidationError(
+            "لا منتجات صالحة في الملف", context={"code": "no_products"}
+        )
 
     dead = sum(1 for values in products.values() if sum(values) == 0)
     if dead:
-        warnings.append(
-            f"{dead} منتجاً بلا أي مبيعات — لا ينطبق عليها نموذج، وستُرفض صراحةً."
-        )
+        warnings.append(Warning_("dead_products", {"count": dead}))
 
     return Dataset(
         months=ordered_labels,
