@@ -1,129 +1,137 @@
-# MIGRATION_GUIDE_PHASE2.md
+# Database Migrations Guide
 
-## ما تغيّر — وما يعنيه لك عملياً
+## What changed — and what it means in practice
 
-Phase 2 نقلت ملكية بنية قاعدة البيانات من كود بايثون إلى ملفات SQL صريحة.
+Phase 2 moved schema ownership from Python code to explicit SQL files.
 
-**قبل:** `SQLiteRepository.__init__` ينشئ الجداول تلقائياً عند أول استخدام.
-**بعد:** `migrations/` تملك البنية، و`migrate.py` يطبّقها صراحةً.
-
-هذا **تغيير سلوكي** — اقرأ الخطوة الأولى قبل التشغيل.
+**Before:** `SQLiteRepository.__init__` created tables automatically on
+first use.
+**After:** `migrations/` owns the schema, and `migrate.py` applies it
+explicitly.
 
 ---
 
-## 1. خطوة صارت اختيارية
+## 1. A step that became optional
 
 ```bash
 python migrate.py
 ```
 
-آمن للتكرار — شغّله عشر مرات إن أردت، النتيجة واحدة.
+Safe to repeat — run it ten times, same result.
 
-> **تحديث:** كانت هذه الخطوة **إلزامية قبل أول تشغيل**، ولم تعد. `app.py`
-> يستدعي `migrate()` عند الإقلاع، فالاستنساخ النظيف يعمل بـ
-> `streamlit run app.py` وحده.
+> **Update:** this step used to be **mandatory before first run**, and no
+> longer is. `app.py` calls `migrate()` at boot, so a clean clone works
+> with `streamlit run app.py` alone.
 >
-> ولم يكن الإلزام قراراً بل عطلاً: منصّة استضافة تشغّل `streamlit run` وكفى،
-> فكان كل زائر يُطالَب بأمر طرفية على خادم لا يملك فيه طرفية — والاستضافة
-> هدف المشروع الأول. راجع `tests/test_cold_boot.py`.
+> The mandate was never a decision — it was a bug: a hosting platform runs
+> `streamlit run` and nothing else, so every visitor was told to run a
+> terminal command on a server they don't own. And hosting is the
+> project's first goal. See `tests/test_cold_boot.py`.
 >
-> شغّله يدوياً حين تريد بناء القاعدة قبل الإقلاع (نشر، CI، فحص `--status`).
+> Run it manually when you want the database built before boot
+> (deployment, CI, a `--status` check).
 
-**إن فشل التطبيق في بناء القاعدة**، لن تحصل على انهيار غامض بل:
+**If the app fails to build the database**, you get no cryptic crash but a
+`MigrationError` naming the missing tables and the command to run. Today
+that message means the automatic build tried and failed — a read-only
+disk, checksum drift, or a broken migration — not that you skipped a step.
 
-```
-MigrationError: قاعدة البيانات ناقصة 9 جدول. شغّل: python migrate.py
-```
-
-وهي اليوم تعني أن البناء التلقائي حاول وفشل — قرص للقراءة فقط، أو انحراف
-checksum، أو migration معطوب — لا أنك نسيت خطوة.
-
-**قاعدة بياناتك الحالية لن تتأثر.** `001_baseline.sql` يستخدم
-`CREATE TABLE IF NOT EXISTS` ويمرّ فوق الجداول الموجودة دون لمسها؛
-بياناتك تبقى كما هي.
+**An existing database is never touched.** `001_baseline.sql` uses
+`CREATE TABLE IF NOT EXISTS` and passes over existing tables without
+modifying them; your data stays as it is.
 
 ---
 
-## 2. أوامر مفيدة
+## 2. Useful commands
 
 ```bash
-python migrate.py             # تطبيق كل ما هو معلّق
-python migrate.py --status    # عرض الحالة دون تغيير شيء
+python migrate.py             # apply everything pending
+python migrate.py --status    # show state without changing anything
 python migrate.py --db other.db
 ```
 
 ---
 
-## 3. الجداول الستة الجديدة
+## 3. The schema tables
 
-كلها فارغة الآن — تُملأ في المراحل 3-5:
-
-| الجدول | يقابل | يُستخدم في |
+| Table | Maps to | Used by |
 |---|---|---|
-| `products_meta` | — | بيانات وصفية (تصنيف، وحدة، مهلة توريد) |
-| `inventory` | `InventoryStatus` | Phase 5 |
-| `forecasts` | `ForecastResult` | Phase 3 |
-| `model_performance` | — | Phase 3 (اختيار أفضل نموذج) |
-| `recommendations` | `ProductionRecommendation` + `RiskScore` | Phase 4 |
-| `production_plans` | — | Phase 4-5 (قرارات الإنتاج الفعلية) |
+| `months`, `products`, `sales` | catalogue | everything |
+| `products_meta` | — | metadata (category, unit, lead time) |
+| `inventory` | `InventoryStatus` | stock file (roadmap item 3) |
+| `forecasts` | `ForecastResult` | forecast engine |
+| `model_performance` | — | model selection evidence |
+| `recommendations` | `ProductionRecommendation` + `RiskScore` | decision engine |
+| `production_plans` | — | planner decisions; `source_recommendation_id` links each plan to the recommendation the planner saw |
 
-الجداول مصمَّمة لتقابل `domain/entities.py` عموداً بعمود، ليُبنى الكائن
-من الصف مباشرة دون طبقة تحويل.
-
----
-
-## 4. قواعد كتابة migration جديد
-
-**لا تعدّل migration مُطبَّقاً.** المشغّل يخزّن بصمة SHA-256 لكل ملف
-ويرفض التشغيل إن تغيّر:
-
-```
-MigrationError: الـ migration رقم 003_inventory تغيّر بعد تطبيقه —
-قاعدة البيانات لا تعكس محتواه الحالي. أنشئ migration جديداً بدل تعديل المطبَّق.
-```
-
-السبب: قاعدتك لن تُعيد تشغيل migration مطبَّق، فالتعديل يخلق فجوة صامتة
-بين ما في الملفات وما في القاعدة — وهي فجوة تظهر عادةً في الإنتاج، متأخراً.
-
-**للتغيير: أنشئ ملفاً جديداً** بالرقم التالي:
-
-```
-migrations/008_add_supplier_column.sql
-```
-
-النمط إلزامي: `NNN_اسم_بأحرف_صغيرة.sql`. المشغّل يرفض ما يخالفه.
-
-**عند إضافة جدول جديد**، أضف اسمه إلى `REQUIRED_TABLES` في `migrate.py`
-ليشمله تحقق `_verify_schema`.
+Tables mirror `domain/entities.py` column-for-column, so objects build
+straight from rows with no mapping layer.
 
 ---
 
-## 5. الاختبارات
+## 4. Rules for writing a new migration
 
-`tests/conftest.py` يوفّر ثلاث تجهيزات:
+**Never edit an applied migration.** The runner stores a SHA-256 checksum
+of every file and refuses to run if one changed:
 
-| التجهيزة | ماذا تعطيك |
+```
+MigrationError: migration 003_inventory changed after being applied —
+the database no longer reflects its content. Create a new migration
+instead of editing an applied one.
+```
+
+The reason: your database will never re-run an applied migration, so an
+edit creates a silent gap between what the files say and what the database
+is — a gap that typically surfaces in production, late.
+
+**To change something: create a new file** with the next number:
+
+```
+migrations/009_add_supplier_column.sql
+```
+
+The pattern is mandatory: `NNN_lowercase_name.sql`. The runner rejects
+anything else.
+
+**When adding a new table**, add its name to `REQUIRED_TABLES` in
+`migrate.py` so `_verify_schema` covers it.
+
+---
+
+## 5. Tests
+
+`tests/conftest.py` provides three fixtures:
+
+| Fixture | What you get |
 |---|---|
-| `repo` | مستودع جاهز على قاعدة مؤقتة مملوءة من `data.json` |
-| `migrated_db` | مسار قاعدة مؤقتة طُبِّقت عليها الـ migrations |
-| `empty_db` | مسار قاعدة بلا migrations — لاختبار حالات الفشل |
+| `repo` | A ready repository on a temporary database filled from `data.json` |
+| `migrated_db` | Path to a temporary database with all migrations applied |
+| `empty_db` | Path to a database with no migrations — for failure cases |
 
 ```python
 def test_something(repo):
     assert repo.get_products()
 ```
 
-**تغيير مصاحب:** الاختبارات لم تعد تعمل على `data/app.db` الحقيقية.
-كانت تكتب في بياناتك وتعتمد على أن `__init__` ينشئ الجداول؛ الآن كل
-اختبار على قاعدة مؤقتة معزولة.
+Tests never touch the real `data/app.db`.
+
+⚠️ **`migrated_db` is session-scoped and derived tables accumulate.**
+The catalogue (products/months) is never modified by tests, but
+`forecasts`, `recommendations`, and `production_plans` are written across
+the session and nothing cleans them globally. Existing tests survive
+because they only assert on what they just wrote. Any test that asserts on
+a *global* state (an aggregate, an empty table) must clean up what
+concerns it first — see `_clean_slate` in
+`tests/test_production_plan_repository.py`.
 
 ---
 
-## 6. ماذا لو أردت البدء من الصفر؟
+## 6. Starting from scratch
 
 ```bash
-rm data/app.db && python migrate.py
+rm data/app.db
+streamlit run app.py     # the boot rebuilds and refills it automatically
 ```
 
-التطبيق سيعيد تعبئة البيانات من `data/data.json` تلقائياً عند أول تشغيل
-(سلوك `migrate_from_json` القائم — لم يتغيّر في هذه المرحلة).
+The app repopulates from `data/data.json` on first boot
+(`migrate_from_json` behaviour — unchanged).

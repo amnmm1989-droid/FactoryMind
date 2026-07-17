@@ -1,154 +1,160 @@
 # ROADMAP.md
-نظام تحليل وتنبؤ أوامر التصنيع → Manufacturing Decision Support System
+Manufacturing analysis & forecasting — vision, history, and forward plan.
 
 ---
 
-# الرؤية
+# Vision
 
-**طبقة تحليل وتنبؤ فوق أنظمة المصانع القائمة — لا نظاماً بديلاً عنها.**
+**An analysis and forecasting layer on top of the factory's existing systems
+— never a replacement for them.**
 
-المصنع لديه Odoo أو SAP أو ما يشبههما. يُصدِّر منها تقاريره، وهذا المشروع
-يقرأها ويحلّلها ويتنبأ. لا يكتب فيها، ولا يخزّن ما تخزّنه، ولا ينافسها.
+The factory runs Odoo, SAP, or similar. It exports reports; this project
+reads them, analyses them, and forecasts. It does not write to those systems,
+does not store what they store, and does not compete with them.
 
-## الجمهور
+## Audience
 
-| المدير | تقرير ERP | السؤال الذي يجيبه |
+| Manager | ERP report | Question answered |
 |---|---|---|
-| **الإنتاج** | Sales Analysis | كم أُنتج من كل صنف؟ |
-| **المشتريات** | Inventory + Sales | متى أطلب؟ وأي صنف لا يُخطَّط بالتنبؤ أصلاً؟ |
-| **المبيعات** | Sales by Customer | أي عميل ينمو؟ أيّهم ينزف؟ أين يتركّز خطري؟ |
-| **المصنع** | Manufacturing Orders | هل نُنفّذ ما نخطّط؟ |
+| **Production** | Sales Analysis | How much of each product should I make? |
+| **Procurement** | Inventory + Sales | When do I reorder? Which products can't be planned by forecast at all? |
+| **Sales** | Sales by Customer | Which customer grows? Which bleeds? Where is my risk concentrated? |
+| **Plant** | Manufacturing Orders | Are we executing what we plan? |
 
-## خارج النطاق — صراحةً
+## Explicitly out of scope
 
-| البند | لماذا |
+| Item | Why |
 |---|---|
-| **إنشاء الأوامر** | الأداة تحلّل ولا تلتزم. تحليل خاطئ = اقتراح يُرفَض؛ أمر خاطئ = مال مصروف |
-| **OEE والتوقفات** | يحتاج تدفقاً لحظياً من الآلات، لا تصديرة CSV. منتج آخر |
-| **قوائم المواد (BOM)** | كانت لازمة لأوامر الشراء وحدها؛ سقطت بسقوطها |
-| **MOQ / سعر الوحدة / المورّد** | نفس السبب. `products_meta` تحتفظ بـ`lead_time_days` وحده — يحتاجه عامل نفاد المخزون |
-| **الكتابة في ERP عبر API** | صلاحيات + اختلاف إصدارات + خطأ واحد يساوي ضرراً حقيقياً |
+| **Creating orders** | The tool analyses; it does not commit. A wrong analysis is a rejected suggestion; a wrong order is money spent |
+| **OEE and downtime** | Needs a live machine stream, not a CSV export. A different product |
+| **Bills of materials (BOM)** | Was only needed for purchase orders; fell with them |
+| **MOQ / unit cost / supplier** | Same reason. `products_meta` keeps only `lead_time_days` — the stock-depletion factor needs it |
+| **Writing to ERP via API** | Permissions + version drift + one mistake equals real damage |
 
-## المبدأ الحاكم
+## Governing principle
 
-**قيمة الأداة أنها تعرف متى لا تعرف.**
+**The tool's value is that it knows when it does not know.**
 
-هذا ليس شعاراً بل قياس: على هذا الكتالوج، **84%** من الأصناف متقطّع،
-والنماذج الساذجة تفوز في **60%** من أغنى البيانات، وProphet لم يفز **ولا
-مرة من 43**. أداة تدّعي «دقة 95%» تكذب على مستخدمها؛ وأداة تقول «هذا
-الصنف لا يمكن التنبؤ به — لا تخطّط عليه» تعطيه ما لا يجده في غيرها.
+Not a slogan — a measurement: on this catalogue, **84%** of products are
+intermittent, naive models win **60%** of the richest series, and Prophet
+won **zero of 43**. A tool claiming "95% accuracy" lies to its user; a tool
+that says "this product cannot be forecast — don't plan on it" gives them
+something they will not find elsewhere.
 
-كل شاشة جديدة تلتزم بهذا: العوامل غير المحسوبة تُعرَض، والثقة تُذكر،
-والرقم بلا مقياس دقة يُقال عنه ذلك.
+Every new screen honours this: uncomputed factors are shown, confidence is
+stated, and a number without an accuracy measure says so.
 
-## قاعدة التوسّع
+## Expansion rule
 
-**كل ملف جديد يجب أن يجلب سؤالاً جديداً — لا تبويباً جديداً بنفس الأرقام.**
+**Every new file format must bring a new question — not a new tab with the
+same numbers.**
 
-مدير المبيعات الذي يرى شاشة مدير الإنتاج بعنوان مختلف سيغادر. التوسّع في
-*أشكال الملفات* لا في الشاشات.
+A sales manager who sees the production manager's screen under a different
+title will leave. Expansion happens in *file formats*, not in screens.
 
-## Phase 0 — Foundation ✅ (مُنفَّذة في هذا الرد)
-**الهدف:** أساس صلب لا يعتمد عليه شيء آخر لكن كل شيء آخر يعتمد عليه.
-
-- [x] ~~`core/app_config.py`~~ — **حُذفت.** انظر أدناه.
-- [x] `core/logging_config.py` — logging مركزي (console + rotating file)
-- [x] `core/exceptions.py` — تسلسل استثناءات موحّد
-- [x] `domain/entities.py` — هيكل الكائنات (ForecastResult, RiskScore,
-      ProductionRecommendation, InventoryStatus) — بدون منطق أعمال بعد
-- [x] اختبارات وحدة (`tests/test_phase0_foundation.py`)
-
-> **`core/app_config.py` — درس يستحق البقاء مكتوباً.**
->
-> كُتبت طبقةَ إعدادات تحلّ ثلاثة عيوب حقيقية في `config.py`: `os.makedirs()`
-> عند مجرد الاستيراد، ولا دعم لمتغيرات البيئة، و`DATA_SOURCE` مثبَّتة في
-> الكود. وحملت في رأسها خطة دمج من ثلاث خطوات.
->
-> **الخطوة الثانية لم تُنفَّذ قط.** بقيت 23 وحدة تستورد `config` القديم، ولم
-> تستورد الوحدةَ الجديدة إلا اختباراتها. 264 سطراً (كود + اختبارات) تحرس
-> حلاً لم يُطبَّق — والعيوب الثلاثة حيّة كما هي، والوجود يوهم بأنها عولجت.
->
-> وأحد اختباراتها كان `assert not os.path.exists(...) or True` — تعبيرٌ
-> قيمته True دائماً. اختبار اسمه يَعِد بحراسة الآثار الجانبية ولا يحرسها.
->
-> **حُذفت.** `core/runtime_mode.py` أثبت البديل: متغيّر بيئة واحد يُضاف حين
-> تظهر حاجة فعلية، لا طبقةٌ كاملة تُبنى تحسّباً. **الحلّ غير المُطبَّق ليس
-> حلاً — هو دَيْن يتنكّر في هيئة أصل.**
-- [x] لا كسر لأي كود موجود (config.py, app.py, ... تعمل كما هي)
-
-**معيار القبول:** `pytest tests/test_phase0_foundation.py` أخضر بالكامل. ✅ تحقق.
+> **Competitive readiness:** the detailed plan for reaching parity with the
+> world's best forecasting tools lives in
+> [`READINESS_0_INDEX.md`](READINESS_0_INDEX.md) (market map, gap analysis,
+> phased execution plan, formulas). This roadmap stays the capability map by
+> user file format; the two cross-reference each other.
 
 ---
+
+# Completed phases — history and lessons
+
+## Phase 0 — Foundation ✅
+
+**Goal:** a solid base nothing depends on yet, but everything will.
+
+- [x] ~~`core/app_config.py`~~ — **deleted.** See below.
+- [x] `core/logging_config.py` — central logging (console + rotating file)
+- [x] `core/exceptions.py` — unified exception hierarchy
+- [x] `domain/entities.py` — object structure (ForecastResult, RiskScore,
+      ProductionRecommendation, InventoryStatus) — no business logic yet
+- [x] Unit tests (`tests/test_phase0_foundation.py`)
+
+> **`core/app_config.py` — a lesson worth keeping in writing.**
+>
+> A settings layer was written to fix three real flaws in `config.py`:
+> `os.makedirs()` on mere import, no environment-variable support, and
+> `DATA_SOURCE` hardcoded. Its header carried a three-step integration plan.
+>
+> **Step two was never executed.** 23 modules kept importing the old
+> `config`; nothing imported the new module except its own tests. 264 lines
+> (code + tests) guarded a fix that was never applied — the three flaws
+> stayed alive, and the module's existence implied they were handled.
+>
+> One of its tests was `assert not os.path.exists(...) or True` — an
+> expression that is always True. A test whose name promises to guard side
+> effects, and guards nothing.
+>
+> **Deleted.** `core/runtime_mode.py` proved the alternative: one environment
+> variable added when a real need appears, not a whole layer built in
+> anticipation. **An unapplied fix is not an asset — it is debt disguised
+> as one.**
 
 ## Phase 1 — Domain + Service Layer Refactor ✅
-- استخراج منطق `ui/dashboard.py` (compute stats, forecast orchestration)
-  إلى `services/product_analysis_service.py` يُرجع `domain.entities` بدل
-  قواميس خام.
-- تحويل `models/forecasting.py` لرفع `InsufficientDataError` /
-  `ModelTrainingError` بدل ابتلاع الاستثناءات.
-- ربط `core.logging_config` بكل نقاط الفشل الحالية (`except Exception as e`).
-- **لا تغيير على واجهة Streamlit المرئية.**
 
----
+- Extracted the compute logic of `ui/dashboard.py` into
+  `services/product_analysis_service.py`, returning `domain.entities`
+  instead of raw dicts.
+- `models/forecasting.py` now raises `InsufficientDataError` /
+  `ModelTrainingError` instead of swallowing exceptions.
+- `core.logging_config` wired to every failure point.
+- **No visible change to the Streamlit UI.**
 
 ## Phase 2 — DB Schema Extension ✅
-**الهدف:** نقل ملكية بنية القاعدة من كود بايثون إلى migrations صريحة،
-وتجهيز الجداول التي ستحتاجها المراحل 3-5.
 
-- [x] `migrations/001_baseline.sql` — الجداول الثلاثة القائمة
-      (months, products, sales)، منقولة حرفياً من `_init_db()`
-- [x] `migrations/002_products_meta.sql` — بيانات المنتجات الوصفية
-- [x] `migrations/003_inventory.sql` — يقابل `InventoryStatus`
-- [x] `migrations/004_forecasts.sql` — يقابل `ForecastResult`
-- [x] `migrations/005_model_performance.sql` — تقييم النماذج (Phase 3)
-- [x] `migrations/006_recommendations.sql` — يقابل `ProductionRecommendation`
-      مع `RiskScore` مدمجاً (Phase 4)
-- [x] `migrations/007_production_plans.sql` — قرارات الإنتاج الفعلية
-- [x] `migrate.py` — مشغّل idempotent وذرّي، مع كشف تعديل الـ migrations
-      المطبَّقة (checksum) وأمر `--status`
-- [x] `SQLiteRepository._init_db()` **أُزيل** — استُبدل بـ `_verify_schema()`
-      يرفع `MigrationError` مع تعليمات واضحة بدل إنشاء الجداول ضمناً
-- [x] `tests/conftest.py` — الاختبارات على قاعدة مؤقتة، لا على `data/app.db`
-- [x] 19 اختبار (`tests/test_migrations.py`) — **جميعها ناجحة**
+**Goal:** move schema ownership from Python code to explicit migrations, and
+prepare the tables Phases 3–5 would need.
 
-**معيار القبول:** `pytest` أخضر بالكامل (48 اختباراً)، و`python migrate.py`
-يعمل مراراً بلا أثر جانبي، ويرقّي قاعدة بيانات قائمة دون فقدان صف. ✅ تحقق.
+- [x] `migrations/001..007` — baseline (months/products/sales), products_meta,
+      inventory, forecasts, model_performance, recommendations, production_plans
+- [x] `migrate.py` — idempotent and atomic runner, checksum drift detection,
+      `--status` command
+- [x] `SQLiteRepository._init_db()` **removed** — replaced by
+      `_verify_schema()`, which raises `MigrationError` with clear
+      instructions instead of silently creating tables
+- [x] `tests/conftest.py` — tests run on a temporary database, never on
+      `data/app.db`
 
-**تغيير سلوكي:** التطبيق لم يعد ينشئ الجداول تلقائياً — `python migrate.py`
-مطلوب مرة واحدة قبل أول تشغيل. راجع `docs/MIGRATION_GUIDE_PHASE2.md`.
-
----
+**Behavioural note (since updated):** this phase made `python migrate.py`
+mandatory before first run. That mandate later turned out to be a bug — a
+hosting platform runs `streamlit run app.py` and nothing else, so every
+visitor saw an error telling them to run a terminal command on a server they
+don't own. `app.py` now calls `migrate()` at boot (idempotent), and a clean
+clone works with `streamlit run` alone. See `tests/test_cold_boot.py` and
+[`MIGRATION_GUIDE_PHASE2.md`](MIGRATION_GUIDE_PHASE2.md).
 
 ## Phase 3 — Forecast Engine ✅
-**الهدف:** واجهة موحّدة تدرّب عدة نماذج، تقيّمها، وتختار الأفضل بالأدلة.
 
-- [x] `services/forecast_engine/base.py` — عقد `Forecaster` + `ForecastOutput`
-- [x] `naive.py` — **Naive + MovingAverage** (إضافة على الخطة، انظر أدناه)
-- [x] `statistical.py` — ETS + SARIMA (تنفيذ صريح، يفشل بصوت مسموع)
-- [x] `prophet_model.py` — Prophet (استيراد كسول)
-- [x] `tree.py` — XGBoost + RandomForest عبر lag features
-- [x] `evaluation.py` — backtesting + MAE/RMSE/MAPE
-- [x] `cache.py` — تخزين مؤقت بمفتاح hash(product+data+model+horizon)
-- [x] `registry.py` + `engine.py` — الاختيار الآلي
-- [x] `repositories/forecast_repository.py` — الحفظ في جداول Phase 2
-- [x] `migrations/008` — ربط model_performance بجولة التقييم
-- [x] 69 اختباراً (`test_forecast_engine.py` + `test_forecast_repository.py`)
+**Goal:** one interface that trains several models, evaluates them, and picks
+the best by evidence.
 
-**معيار القبول:** `pytest` أخضر بالكامل (117 اختباراً). ✅ تحقق.
+- [x] `services/forecast_engine/` — `base.py` (Forecaster contract),
+      `naive.py` (Naive + MovingAverage), `statistical.py` (ETS + SARIMA),
+      `prophet_model.py`, `tree.py` (XGBoost + RandomForest via lag
+      features), `evaluation.py` (backtesting + MAE/RMSE/MAPE),
+      `cache.py`, `registry.py`, `engine.py`
+- [x] `repositories/forecast_repository.py` + `migrations/008` (links
+      model_performance to its evaluation round)
 
-### إضافتان على الخطة الأصلية — ولماذا
+### Two additions to the original plan — and why
 
-**1. نموذجا أساس (Naive + MovingAverage).** الخطة طلبت 5 نماذج تحتاج
-كلها ≥24 نقطة. لكن وسيط منتجات هذا المشروع **9 أشهر غير صفرية من 44**،
-و39% من كتالوج التحقّق له 1-5 أشهر فقط. بلا أساس، المحرك يفشل على 39% من
-الكتالوج — ولا يوجد مرجع يُقاس عليه هل تستحق النماذج المعقّدة تعقيدها.
+**1. Baseline models (Naive + MovingAverage).** The plan asked for five
+models that all need ≥ 24 points. But the median product here has **9
+non-zero months out of 44**, and 39% of the validation catalogue has only
+1–5 months. Without baselines the engine fails on 39% of the catalogue —
+and there is no reference to measure whether complex models earn their
+complexity.
 
-**2. قياس على النقاط غير الصفرية لا طول السلسلة.** كل منتج له 44 نقطة
-بالضبط، فمعيار الطول وحده يقول إن كل المنتجات صالحة لـ SARIMA. ليست كذلك.
+**2. Eligibility by non-zero points, not series length.** Every product has
+exactly 44 points, so a length criterion says every product qualifies for
+SARIMA. They don't.
 
-### النتيجة القياسية (43 منتجاً لها ≥24 شهراً غير صفري)
+### The measured result (43 products with ≥ 24 non-zero months)
 
-| النموذج | مرات الفوز | متوسط الترتيب |
+| Model | Wins | Mean rank |
 |---|---|---|
 | MovingAverage | 10 | **2.47** |
 | Naive | **16** | 3.05 |
@@ -158,106 +164,88 @@
 | Prophet | **0** | 4.81 |
 | SARIMA | 2 | 5.23 |
 
-**النماذج الساذجة تفوز في 60% من الحالات على أغنى البيانات المتاحة.**
-Prophet لم يفز ولا مرة. هذا ليس عيباً في التنفيذ — إنه ما تقوله البيانات:
-44 نقطة شهرية لا تكفي لتعلّم أنماط معقّدة. القيمة الحقيقية لهذه المرحلة
-هي أن النظام صار **يعرف ذلك ويقيسه**، بدل افتراض أن الأعقد أفضل.
+**Naive models win 60% of cases on the richest data available.** Prophet
+never won. Not an implementation flaw — it is what the data says: 44 monthly
+points cannot support learning complex patterns. The real value of this
+phase is that the system now **knows and measures that**, instead of
+assuming complex means better.
 
-### انحرافات موثّقة
+### Documented deviation
 
-- **الـ cache يخزّن النتيجة لا النموذج.** الخطة طلبت تخليل النموذج
-  (joblib). كائنات Prophet/statsmodels المخلَّلة مرتبطة بإصدار المكتبة —
-  ترقية واحدة تجعل كل ملف قنبلة موقوتة تُحمَّل وتتصرف بصمت بشكل مختلف.
-  تخزين النتيجة يتجنّب التدريب *والتنبؤ*، ويزن كيلوبايتات بدل ميغابايتات.
-
-### غير منجَز بعد (خارج نطاق هذه المرحلة)
-
-- **المحرك غير موصول بـ `ui/dashboard.py`** — الواجهة ما زالت تستدعي
-  `services/product_analysis_service.py` (مسار Phase 1). الوصل في Phase 6.
-- `models/forecasting.py` لم يُمسّ — يبقى لأن الواجهة والاختبارات عليه.
-
----
+- **The cache stores results, not models.** The plan asked for pickled
+  models (joblib). Pickled Prophet/statsmodels objects are bound to library
+  versions — one upgrade turns every file into a time bomb that loads and
+  silently behaves differently. Storing the result skips training *and*
+  prediction, and weighs kilobytes instead of megabytes.
 
 ## Phase 4 — Decision Engine + Risk Scoring ✅
-**الهدف:** تحويل التنبؤ إلى قرار إنتاج، محمّلاً بخطورته ومصدره.
 
-- [x] `services/risk_service/factors.py` — العوامل الخمسة، كلٌ 0-100
-- [x] `services/risk_service/scoring.py` — الجمع الموزون + إعادة الموازنة
-- [x] `services/decision_engine/recommender.py` — التوصية + نص السبب
-- [x] `repositories/recommendation_repository.py` — الحفظ + `highest_risk()`
-- [x] `domain/entities.py` — عوامل `RiskScore` صارت `float | None`
-- [x] 70 اختباراً (`test_risk_service.py` + `test_decision_engine.py`
-      + `test_recommendation_repository.py`)
+- [x] `services/risk_service/factors.py` — five factors, each 0–100
+- [x] `services/risk_service/scoring.py` — weighted sum + re-normalisation
+- [x] `services/decision_engine/recommender.py` — recommendation + reason
+- [x] `repositories/recommendation_repository.py` — persistence + `highest_risk()`
+- [x] `domain/entities.py` — `RiskScore` factors became `float | None`
 
-**معيار القبول:** `pytest` أخضر بالكامل (187 اختباراً). ✅ تحقق.
+### The central decision: `None` is not zero
 
-### القرار المركزي: `None` ليس صفراً
+`stock_depletion_risk` needs the `inventory` table — empty until the stock
+file lands. The easy choice was zero. But:
 
-`stock_depletion_risk` يحتاج جدول `inventory` — وهو فارغ حتى Phase 5.
-الخيار السهل كان إعطاءه صفراً. لكن:
-
-| القيمة | معناها |
+| Value | Meaning |
 |---|---|
-| `0` | قِسنا المخزون، ويغطي الطلب — **آمن** |
-| `None` | لا نعرف كم لديك — **مجهول** |
+| `0` | We measured stock, and it covers demand — **safe** |
+| `None` | We don't know how much you have — **unknown** |
 
-خلطهما يجعل منتجاً مجهول المخزون يتصدّر قائمة الآمنين. لذا: العوامل
-المجهولة تُستبعد من الحساب، وتُعاد موازنة أوزان الباقي لتجمع 1.0 من جديد.
-`RiskScore` يحمل `missing_factors` و`confidence` — الدرجة تقول على أي
-أساس بُنيت بدل أن تخفيه. وأعمدة قاعدة البيانات تقبل NULL فعلاً، فالتمييز
-يعبر التخزين ويعود.
+Conflating them makes a product with unknown stock top the "safest" list.
+So: unknown factors are excluded from the score and the remaining weights
+re-normalise to 1.0. `RiskScore` carries `missing_factors` and `confidence`
+— the score states what it was built on instead of hiding it. Database
+columns accept NULL, so the distinction survives storage round-trips.
 
-### خطأ كشفه التشغيل الحقيقي
+### A bug found by real use, not by tests
 
-أول تشغيل على بيانات فعلية أخرج: **«يوصى بإنتاج 192 وحدة … بسبب ارتفاع
-الطلب المتوقع بنسبة 0.0%»**. صفر ليس ارتفاعاً.
+The first run on real data produced: **"produce 192 units … due to an
+expected demand increase of 0.0%"**. Zero is not an increase.
 
-الرقم كان صحيحاً والعبارة كاذبة: `as_message` في الكيان تقرأ `>= 0`
-كـ"ارتفاع". أُصلح بحالة استقرار صريحة.
+The number was right and the sentence was a lie: `as_message` read `>= 0`
+as "rise". Fixed with an explicit *stable* state.
 
-والسبب البنيوي أعمق: النموذج الفائز على معظم المنتجات `MovingAverage(3)`،
-ومرجع المقارنة أيضاً 3 أشهر — فالتغيّر **صفر حتماً**. هذا ليس عيباً يُخفى
-بتغيير النافذة؛ النموذج *فعلاً* يتنبأ بأن الشهر القادم كالأشهر الماضية.
+The structural cause runs deeper: the winning model on most products is
+`MovingAverage(3)`, and the comparison baseline is also 3 months — so the
+change is **necessarily zero**. That is not a flaw to hide by changing the
+window; the model genuinely predicts that next month looks like recent
+months.
 
-### ملاحظة: الطلب المتقطّع → نُفِّذت (انظر أدناه)
+### Still open
 
-رُصد هنا أولاً بمثال تبيّن لاحقاً أنه **خاطئ** (منتج ظُنّ حيّاً وكان
-نائماً). النتيجة النهائية والتصحيح في قسم الطلب المتقطّع أسفل الوثيقة.
+- **Weights are an initial calibration with no validation data.** They get
+  tuned once `production_plans.actual_quantity` accumulates against
+  `planned_quantity`.
 
-### غير منجَز
+## Intermittent demand — Croston / TSB ✅
 
-- **غير موصول بالواجهة** — الوصل في Phase 6.
-- **الأوزان معايرة أولية بلا بيانات تحقّق.** تُضبط حين يتراكم
-  `production_plans.actual_quantity` مقابل `planned_quantity`.
+**Motivation:** the Syntetos-Boylan-Croston classification of this catalogue:
 
----
-
-## الطلب المتقطّع — Croston / TSB ✅ (خارج ترقيم المراحل)
-**الدافع:** تصنيف Syntetos-Boylan-Croston لهذا الكتالوج:
-
-| التصنيف | العدد | النسبة |
+| Class | Count | Share |
 |---|---|---|
-| متقطّع (intermittent) | 122 | 66% |
-| متكتّل (lumpy) | 34 | 18% |
-| منتظم (smooth) | 26 | **14%** |
-| متذبذب (erratic) | 3 | 2% |
+| Intermittent | 122 | 66% |
+| Lumpy | 34 | 18% |
+| Smooth | 26 | **14%** |
+| Erratic | 3 | 2% |
 
-**84% من المنتجات متقطّعة أو متكتّلة.** النماذج السبعة السابقة كلها
-مصمَّمة للطلب المنتظم — أي لـ 14% من الكتالوج.
+**84% of products are intermittent or lumpy.** The previous seven models are
+all built for smooth demand — i.e. for 14% of the catalogue.
 
 - [x] `intermittent.py` — `classify_demand` (ADI/CV²) + Croston + TSB
-- [x] Croston مع تصحيح Syntetos-Boylan للتحيّز (افتراضي)
-- [x] TSB — يحدّث احتمال الطلب كل فترة، فيلاحظ التقادم
-- [x] `cumulative_error` في `ModelMetrics` + اختيار المقياس بحسب التصنيف
-- [x] 32 اختباراً (`test_intermittent.py`)
+- [x] Croston with the Syntetos-Boylan bias correction (default)
+- [x] TSB — updates demand probability every period, so it notices obsolescence
+- [x] `cumulative_error` in `ModelMetrics` + metric selection by demand class
 
-**معيار القبول:** `pytest` أخضر (219 اختباراً). ✅ تحقق.
+### Results — no gloss
 
-### النتائج — بلا تجميل
+On 46 **live** intermittent products (sold within the last 6 months):
 
-على 46 منتجاً متقطّعاً **حيّاً** (بيع في آخر 6 أشهر):
-
-| النموذج | فوز | متوسط الترتيب |
+| Model | Wins | Mean rank |
 |---|---|---|
 | MovingAverage | 8 | **3.05** |
 | Naive | 12 | 3.48 |
@@ -269,247 +257,267 @@ Prophet لم يفز ولا مرة. هذا ليس عيباً في التنفيذ 
 | ETS | 1 | 5.45 |
 | Prophet | 0 | 5.65 |
 
-Croston + TSB يفوزان بـ 13 من 46 (28%) — **حضور معتبر، لا ثورة**.
-الأساس ما زال يتصدّر. البيانات صعبة، والنماذج لا تخلق إشارة غير موجودة.
+Croston + TSB win 13 of 46 (28%) — **a real presence, not a revolution**.
+Baselines still lead. The data is hard, and models do not create signal
+that isn't there.
 
-### تصحيح مُسجَّل — الدافع الأصلي كان خاطئاً
+### A recorded correction — the original motivation was wrong
 
-بُنيت هذه المرحلة على ملاحظة من Phase 4: "منتج باع في 22 من 44 شهراً
-يحصل على توصية «أنتج 0»، لأن RMSE يكافئ التنبؤ بالصفر على السلاسل
-المتقطّعة".
+This work was built on a Phase 4 observation: "a product that sold in 22 of
+44 months gets a 'produce 0' recommendation, because RMSE rewards
+predicting zero on intermittent series."
 
-**كلا الجزأين خطأ:**
+**Both halves were wrong:**
 
-1. **المنتج لم يكن حيّاً.** آخر 8 أشهر أصفار — نائم فعلاً، و«أنتج 0»
-   هو الجواب الصحيح. القراءة الأصلية نظرت إلى "22/44" وافترضت النشاط.
+1. **The product was not alive.** Its last 8 months were zeros — genuinely
+   dormant, and "produce 0" was the right answer. The original reading saw
+   "22/44" and assumed activity.
+2. **RMSE does not reward zero.** Squared error is minimised by predicting
+   *the mean*. Zero wins only when the mean is zero — i.e. when the product
+   is dormant, where zero is correct. A test written to confirm the claim
+   failed, exposing it.
 
-2. **RMSE لا يكافئ الصفر.** الخطأ التربيعي يُصغَّر بالتنبؤ *بالمتوسط*.
-   الصفر يفوز فقط حين يكون المتوسط صفراً — أي حين يكون المنتج نائماً،
-   وعندها هو الصحيح. كشفه اختبار كُتب ليؤكّد العكس ففشل.
+`test_rmse_does_not_reward_predicting_zero` and
+`test_zero_is_rmse_optimal_only_when_demand_really_is_zero` remain to keep
+the misleading intuition from returning.
 
-الاختباران `test_rmse_does_not_reward_predicting_zero` و
-`test_zero_is_rmse_optimal_only_when_demand_really_is_zero` باقيان
-ليمنعا عودة الحدس المضلّل.
+**What stayed true regardless:** 84% of the catalogue is intermittent,
+intermittent-demand methods fit it, and they win 28% of cases. The work
+earned its place — just not for the reason it started with.
 
-**ما بقي صحيحاً رغم ذلك:** 84% من الكتالوج متقطّع فعلاً، وطرق الطلب
-المتقطّع تناسبه، وهي تفوز في 28% من الحالات. المرحلة تستحق وجودها —
-لكن لا بالسبب الذي بدأت به.
+### `cumulative_error` — weak evidence, limited effect
 
-### `cumulative_error` — مبرر ضعيف، أثر محدود
+After the original motivation collapsed, a decision-driven one remained:
+if you produce for a whole horizon, your surplus or shortfall is exactly
+|sum(forecast) − sum(actual)|, not per-month accuracy.
 
-بعد سقوط المبرر الأصلي، بقي مبرر قراري: من ينتج لأفق كامل، فائضه أو
-عجزه هو |مجموع التنبؤ - مجموع الفعلي| بالضبط، لا دقة كل شهر.
+Strict measurement (three-way split — selection on one window, judgment on
+a window that never entered selection):
+- The two metrics agree on **30 of 34** (88%)
+- When they disagreed: cumulative was better **4 of 4**
+- Mean final RMSE: 121.0 (selected by RMSE) vs **114.8** (by cumulative)
 
-قياس صارم (تقسيم ثلاثي — اختيار على نافذة، حكم على نافذة لم تدخل الاختيار):
-- المقياسان يتفقان في **30 من 34** (88%)
-- حين اختلفا: التراكمي أفضل **4 من 4**
-- متوسط RMSE النهائي: 121.0 (بـRMSE) مقابل **114.8** (بالتراكمي)
+**n=4 is weak evidence** (~6% chance of coincidence). The change stays
+because its decision rationale stands on its own and its effect is limited
+— **not because the numbers settled it**. Re-measure as data accumulates.
 
-**n=4 دليل ضعيف** (احتمال الصدفة ~6%). التغيير باقٍ لأن مبرره القراري
-قائم وأثره محدود، **لا لأن الأرقام حسمته**. يُعاد القياس حين تتراكم بيانات.
+⚠️ `cumulative_error` measures **bias, not accuracy**: opposite errors
+cancel. It is therefore restricted to intermittent series; RMSE remains for
+smooth ones.
 
-⚠️ `cumulative_error` مقياس **تحيّز لا دقة**: أخطاء متعاكسة تُلغي بعضها.
-لذا يقتصر على السلاسل المتقطّعة؛ RMSE يبقى للمنتظمة.
+## Phase 6 — Dashboard for the production manager ✅
 
----
+**Goal:** wire the engines to the UI. Before this phase, Phases 3–4 were
+code guarded by tests that no user ever saw.
 
-## Phase 5 — Inventory Module → أُعيد تعريفها
-انظر **الخطة الأمامية** في نهاية الوثيقة. المخزون لم يعد وحدة مستقلة بل
-**ملف يُرفَع** (رصيد من ERP)، وحساب نقطة إعادة الطلب صار تحليلاً لمدير
-المشتريات لا وحدة خدمة قائمة بذاتها.
+- [x] `app.py` — an `st.navigation` shell with five pages, computing nothing
+- [x] `ui/pages/executive.py` — "what needs my attention?"
+- [x] `ui/pages/forecasting.py` — Phase 3 engine + model comparison
+- [x] `ui/pages/production_planning.py` — system suggestion → human decision
+- [x] `ui/pages/product_intelligence.py` — classification + risk breakdown
+- [x] `ui/pages/advanced_analytics.py` — the original page, behaviour unchanged
+- [x] `services/batch.py` — whole-catalogue computation and persistence
 
-## Phase 6 — Dashboard إعادة تصميم لمدير الإنتاج ✅
-**الهدف:** وصل المحرّكات بالواجهة. قبل هذه المرحلة كانت Phase 3-4 كوداً
-يحرسه 219 اختباراً ولا يراه مستخدم.
+### Batch, not compute-on-load — a measurement settled the design
 
-- [x] `app.py` — قشرة `st.navigation` بخمس صفحات، لا تحسب شيئاً
-- [x] `ui/pages/executive.py` — "ما الذي يحتاج انتباهي؟"
-- [x] `ui/pages/forecasting.py` — محرك Phase 3 موصولاً + مقارنة النماذج
-- [x] `ui/pages/production_planning.py` — توصية النظام ← قرار الإنسان
-- [x] `ui/pages/product_intelligence.py` — التصنيف + تفكيك الخطورة
-- [x] `ui/pages/advanced_analytics.py` — الصفحة الأصلية، بلا تغيير سلوكي
-- [x] `services/batch.py` — حساب الكتالوج وحفظه
-- [x] 32 اختباراً (`test_batch.py` + `test_ui_pages.py`)
-
-**معيار القبول:** `pytest` أخضر (251 اختباراً)، والصفحات الخمس تُصيَّر بلا
-استثناء (`driver.mjs pages`). ✅ تحقق.
-
-### دفعة لا حساب عند الطلب — قياس حسم التصميم
-
-| النماذج | كتالوج كامل |
+| Models | Full catalogue |
 |---|---|
-| الخفيفة (4) | **0.7 ثانية** |
-| الكاملة (9) | **3.3 دقيقة** |
+| Light (4) | **under a second** |
+| Full (9) | **3.3 minutes** |
 
-صفحة تنفيذية تُشغّل التسعة عند كل تحميل ميتة. لهذا وُجد جدولا
-`forecasts` و`recommendations` منذ Phase 2: `services/batch.py` يملؤهما،
-والصفحات تقرأ فوراً. الوضع الكامل يبقى خياراً صريحاً للمستخدم.
+An executive page that runs all nine on every load is dead on arrival. This
+is why `forecasts` and `recommendations` have existed since Phase 2:
+`services/batch.py` fills them, pages read instantly. The full family stays
+an explicit user choice.
 
-### قرار كشفته البيانات: الخطورة وحدها شاشة عديمة الفائدة
+### A decision the data forced: risk alone makes a useless screen
 
-أول تشغيل: أعلى 5 منتجات خطورة **كلها توصيتها "أنتج 0"** — منتجات ميتة
-بتاريخ متذبذب. الخطورة عالية، والإجراء المطلوب: لا شيء.
+First run: the top-5 riskiest products **all recommended "produce 0"** —
+dead products with volatile history. High risk, zero required action.
 
-لذا الشاشة الأساسية **ما يحتاج إنتاجاً** مرتّباً بالخطورة، والخطرون
-الخاملون في قسم مطوي منفصل. الرقم الذي يثبت القرار: **صفر** من المنتجات
-الـ 83 التي تحتاج إنتاجاً عالية الخطورة — خلطهم كان سيدفن ما يحتاج قراراً.
+So the primary screen is **what needs production** (quantity > 0) ordered
+by risk, and risky-but-dormant products sit in a separate collapsed
+section. The number that proves the decision: **zero** of the 83 products
+needing production were high-risk — mixing them would have buried what
+needs a decision.
 
-### ثلاثة أخطاء وجدها التشغيل لا الاختبارات
+### Three bugs found by running, not by tests
 
-1. **`st.Page` تتصادم على المسار.** كل ما يُرجعه `_page()` اسمه `run`،
-   وStreamlit يشتقّ المسار من اسم الدالة → `StreamlitAPIException`.
-   الحل: `url_path` صريح لكل صفحة.
+1. **`st.Page` path collision.** Every closure `_page()` returns is named
+   `run`, and Streamlit derives the URL from the function name →
+   `StreamlitAPIException`. Fix: explicit `url_path` per page.
+2. **"Produce 0" inside a table called "needs a decision".** Croston/TSB
+   produce fractional *rates* (0.4 units/month) and `round()` displayed
+   them as zero. Fix: `MIN_ACTIONABLE_UNITS = 0.5` threshold + one-decimal
+   display for small values.
+3. **An empty comparison table** on a product with 4 sales months: no model
+   could be evaluated (the series is too short to split into train and
+   test). Documented engine behaviour (no evidence → simplest wins), but it
+   looked like a defect. Fix: an explicit notice instead of the empty table.
 
-2. **"أنتج 0" داخل جدول "يحتاج قراراً".** Croston/TSB يُنتجان *معدّلات*
-   كسرية (0.4 وحدة/شهر)، و`round()` كان يعرضها صفراً. الحل: عتبة
-   `MIN_ACTIONABLE_UNITS = 0.5` + عرض بمنزلة عشرية للقيم الصغيرة.
+### The default page is served at the root
 
-3. **جدول مقارنة فارغ** على منتج بـ 4 أشهر مبيعات: لا نموذج أمكن تقييمه
-   (السلسلة أقصر من أن تُقسَّم تدريباً واختباراً). سلوك موثّق للمحرك
-   (بلا أدلة → الأبسط يفوز) لكنه بدا عطلاً. الحل: تحذير صريح بدل الجدول.
+`st.Page(default=True)` is served at `/`, not at its own `url_path`.
+Recorded in the run skill's driver.
 
-### الصفحة الافتراضية تُخدَّم على الجذر
+### Later hardening (post-Phase 6, all shipped)
 
-`st.Page(default=True)` تُخدَّم على `/` لا على `url_path` الخاص بها.
-زيارة `/executive` "تعمل" لكن Streamlit يسجّل
-`The page that you have requested does not seem to exist` ويتراجع إلى
-الرئيسية — التي هي نفسها. مسجَّل في `driver.mjs`.
-
-### غير منجَز
-
-- **الكميات لا تخصم المخزون** — `inventory` فارغ حتى Phase 5. محرك القرار
-  يخصم المخزون المتاح حين يُمرَّر إليه؛ ولا شيء يُمرَّر بعد. الصفحة تقول
-  ذلك صراحةً، وثقة كل تقييم 80% (4 عوامل من 5).
+- **Cold boot**: `app.py` builds the database at startup; a clean clone
+  works with `streamlit run` alone. Six tests in `tests/test_cold_boot.py`
+  all fail on the pre-fix code.
+- **Frozen paths**: repositories used `db_path: str = DATABASE_PATH` —
+  a Python default evaluated once at import and frozen forever. That made
+  the boot path untestable, which is exactly why the cold-boot bug survived.
+  Now every repository resolves its path at call time
+  (`repositories.base.resolve_db_path`), with structural guards.
+- **Plan ↔ recommendation link**: `production_plans.source_recommendation_id`
+  existed since migration 007 — with a foreign key and a comment explaining
+  it is the *reason* the two tables are separate — and nothing ever wrote
+  it. The planning page held its own SQL and omitted it, so the question
+  the table was built to answer ("how often are our recommendations
+  followed?") was unanswerable. `ProductionPlanRepository` now owns the
+  table, writes the link, and `adherence()` answers the question.
+  `test_the_page_holds_no_sql` keeps UI pages out of the SQL business.
 
 ---
 
-# الخطة الأمامية
+# Forward plan
 
-مرتّبة بالرافعة لا بالتسلسل. البند 1 يسبق غيره لأن كل ما بعده يُبنى فوق
-افتراضه.
+Ordered by leverage, not by forced sequence. Item 1 precedes the others
+because everything after it is built on its assumption.
 
-## 1. الحبيبة الزمنية
+> The competitive dimension of each item (metrics, hierarchy, cold start,
+> accounts, scale) is detailed in [`READINESS_3_PLAN.md`](READINESS_3_PLAN.md).
 
-### الشقّ الخطر — ✅ مُنجَز: البوابة
+## 1. Time granularity
 
-كان ملف أسبوعي **يُقبل ويُعامَل كأشهر**: 30 أسبوعاً تُقرأ 30 شهراً،
-و`SEASONAL_PERIODS = 12` يبحث عن دورة كل **12 أسبوعاً** ويسمّيها سنوية.
-لا خطأ يظهر — فقط تحليل واثق وخاطئ. والتحذير الوحيد (`timeline_gaps`)
-مضلّل: لا فجوات أصلاً.
+### The dangerous half — ✅ done: the gate
 
-`services/ingest.detect_granularity` يكشفها الآن ويرفض ما ليس شهرياً،
-شارحاً السبب. الأداة عادت تعرف متى لا تعرف.
+A weekly file used to be **accepted and treated as months**: 30 weeks read
+as 30 months, and `SEASONAL_PERIODS = 12` hunting a cycle every **12
+weeks** and calling it annual. No error — just confident, wrong analysis.
 
-**قاعدتان تعلّمناهما بمحاولة فاشلة:**
+`services/ingest.detect_granularity` now detects and rejects anything
+non-monthly, explaining why. The tool knows when it does not know again.
 
-1. **التسمية بلا يوم لا يمكن أن تكون أدق من شهر.** "يناير 2024" شهري
-   بحكم بنيته مهما تباعد عن جاره. أول تنفيذ صنّف الفوارق (المنوال) فرفض
-   بيانات شهرية بفجوات (يناير/يونيو/ديسمبر → فوارق 152 و183 → "ربعي")
-   — و84% من هذا الكتالوج متقطّع، أي يُصدَّر بأشهر ناقصة. **الرفض الكاذب
-   عطل أيضاً، أعلى صوتاً فقط.**
-2. **مع يوم صريح، الفارق الأصغر هو الحبيبة.** الفجوات مضاعفات لها لا
-   حبيبة أخرى: أسبوعي بفجوة فوارقه 7 و14 — والأصغر هو الحقيقة.
+**Two rules learned through a failed first attempt:**
 
-### الشقّ الباقي — دعم الأسبوعي/اليومي فعلياً
+1. **A label without a day cannot be finer than a month.** "January 2024"
+   is monthly by construction however far it sits from its neighbour. The
+   first implementation classified gaps (mode) and rejected monthly data
+   with holes (Jan/Jun/Dec → gaps of 152 and 183 days → "quarterly") — and
+   84% of this catalogue is intermittent, i.e. exported with missing
+   months. **A false rejection is also a defect — just a louder one.**
+2. **With explicit days, the smallest gap is the granularity.** Gaps are
+   its multiples, not another granularity: weekly with a hole gives gaps of
+   7 and 14 — the smallest is the truth.
 
-المطلوب: اشتقاق الدورة الموسمية من الحبيبة (7 / 52 / 12 / 4) بدل الثابت
-12، وتعميم الأفق والمهل.
+### The remaining half — actually supporting weekly/daily
 
-المواضع المثبَّتة على الشهر — **سبعة**، مُحصاة لا مُقدَّرة:
+Needed: derive the seasonal period from the granularity (7 / 52 / 12 / 4)
+instead of the constant 12, and generalise horizons and lead times.
 
-| الملف | السطر |
+Month-anchored locations — **seven, counted not estimated**:
+
+| File | Line |
 |---|---|
 | `config.py` | 28 — `SEASONAL_PERIODS = 12` |
 | `services/forecast_engine/statistical.py` | 48 — `freq="MS"` |
-| `services/forecast_engine/prophet_model.py` | 51، 70 — `freq="MS"` |
+| `services/forecast_engine/prophet_model.py` | 51, 70 — `freq="MS"` |
 | `services/risk_service/factors.py` | 156 — `lead_time_days / 30.0` |
-| `models/forecasting.py` | 27، 95 — `freq='MS'` |
+| `models/forecasting.py` | 27, 95 — `freq='MS'` |
 
-**لماذا الآن:** إصلاح بنيوي، وكل ميزة تُبنى فوق افتراض الشهر تزيد كلفته.
-وبدونه، ادّعاء "يناسب جميع مجالات التصنيع" **غير صادق**: الأغذية أسبوعية،
-والطائرات سنوية.
+**Why now:** it is structural, and every feature built on the month
+assumption raises its cost. Without it, the claim "fits all manufacturing"
+is **not honest**: food is weekly, aircraft are yearly.
 
-## 2. ربط الأعمدة 🔴
+## 2. Column mapping 🔴
 
-**العطل — مقيس:** تصديرة SAP تُرفض لأن عمودها `Material` لا `Product`.
-تصديرات Odoo تمرّ (بما فيها الأسماء التقنية `product_id/name`)، لكن
-التلميحات في `services/ingest.py` تخمين — والتخمين يفشل عند **العميل الأول
-لا عندك**.
+**Measured defect:** hint lists in `services/ingest.py` are guesses — and a
+guess fails at **the first customer, not at your desk** (it failed on a
+long-format SAP export this very week; one missing word, misleading error).
 
-المطلوب: شاشة تعرض أعمدة الملف وتسأل "أيها المنتج؟ أيها التاريخ؟"، مع
-اقتراح مبني على التلميحات الحالية. كل شكل ملف جديد بعد ذلك يضاعف احتمال
-الرفض بدونها.
+Needed: a screen that shows the file's actual columns and asks "which is
+the product? the date? the quantity?", pre-filled from the current hints.
+Every new file format doubles the odds of rejection without it.
 
-## 3. ملف المخزون — لمدير المشتريات
+## 3. Stock file — for the procurement manager
 
-عمودان من ERP: `المنتج، الرصيد الحالي`.
+Two ERP columns: `product, current stock`.
 
-يفتح:
-- **الإنتاج**: "أنتج 240" ← **"أنتج 190، لديك 50"**
-- **المشتريات**: تغطية المخزون، وتوقيت إعادة الطلب
-- **الثقة 80% ← 100%**: عامل نفاد المخزون هو الخامس غير المحسوب اليوم
+Unlocks:
+- **Production**: "produce 240" → **"produce 190, you have 50"**
+- **Procurement**: stock coverage and reorder timing
+- **Confidence 80% → 100%**: stock depletion is the fifth, uncomputed factor
 
-`inventory` جاهز منذ Phase 2، و`stock_depletion_risk` مكتوب وينتظر بياناته.
+`inventory` has been ready since Phase 2; `stock_depletion_risk` is written
+and waiting for its data.
 
-## 4. ملف الإنتاج الفعلي — لمدير المصنع
+## 4. Actual production file — for the plant manager
 
-نفس شكل ملف المبيعات: `المنتج، الشهر، الكمية المنتَجة` (تقرير أوامر
-التصنيع من ERP).
+Same shape as the sales file: `product, month, produced quantity`
+(manufacturing orders report from the ERP).
 
-يفتح:
-- **المصنع**: المخطَّط مقابل الفعلي — التزام الخطة
-- **معايرة النظام لنفسه**: `production_plans.actual_quantity` موجود منذ
-  Phase 2 وفارغ. ملؤه يسمح بضبط أوزان الخطورة التي وُثِّقت كـ"معايرة أولية
-  بلا بيانات تحقّق"
+Unlocks:
+- **Plant**: planned vs actual — plan adherence
+- **The system calibrating itself**: `production_plans.actual_quantity` has
+  existed since Phase 2, empty. Filling it lets us tune the risk weights
+  documented as "initial calibration with no validation data".
 
-**النظام يبدأ بتقييم نفسه بدل الادّعاء.**
+**The system starts grading itself instead of claiming.**
 
-> **نصف هذا صار متاحاً.** السؤال الأول — "كم مرة تُتَّبع توصياتنا؟" — كان
-> يحتاج `source_recommendation_id` لا ملفاً جديداً. العمود موجود في 007 منذ
-> البداية بمفتاح أجنبي وتعليق يشرح أنه سبب فصل الجدولين، **ولم يكتبه شيء
-> قط**: كانت صفحة التخطيط تكتب SQL بنفسها وتُغفله، فيبقى NULL أبداً.
->
-> حُفظ الفصل شكلاً ومُحي معنى — والخرق المعماري هو ما أخفاه: استعلامٌ كتبه
-> من يفكّر في الشاشة لا في الجدول، بلا عقد ولا اختبار. الآن يملكه
-> `ProductionPlanRepository` ويُجيب `adherence()`.
->
-> **يبقى السؤال الثاني** — "هل النتائج أفضل حين تُتَّبع؟" — وهو وحده ما
-> ينتظر `actual_quantity` من هذا الملف.
+> **Half of this became available early.** The first question — "how often
+> are recommendations followed?" — needed `source_recommendation_id`, not a
+> new file. The column existed since 007 and nothing wrote it (see the
+> hardening notes above). `ProductionPlanRepository.adherence()` answers it
+> now. **The second question** — "are outcomes better when they are
+> followed?" — is the one that still waits for `actual_quantity` from this
+> file.
 
-## 5. بُعد العميل — لمدير المبيعات
+## 5. Customer dimension — for the sales manager
 
-`المنتج، العميل، الشهر، الكمية` (Sales by Customer من ERP). بُعد ثالث —
-`services/ingest.py` يقرأ بُعدين اليوم.
+`product, customer, month, quantity` (Sales by Customer). A third dimension
+— `services/ingest.py` reads two today.
 
-يفتح تحليلاً لا يوجد في بقية الصفحات: تركّز الخطر ("40% من مبيعاتك من
-عميلين")، عملاء ينزفون، ونمو حسب العميل.
+Unlocks analysis that exists on no other page: risk concentration ("40% of
+your sales come from two customers"), bleeding customers, growth by
+customer.
 
-**تحليل فقط — لا إنشاء.** مدير المبيعات يستقبل الطلبات ولا يُنشئها.
+**Analysis only — no order creation.** The sales manager receives orders;
+he does not place them.
 
 ---
 
-## توتّر معماري يجب حسمه
+## An architectural tension to resolve
 
-**المراقبة تحتاج تخزيناً؛ والوضع المستضاف لا يخزّن شيئاً — عمداً.**
+**Monitoring needs storage; hosted mode stores nothing — deliberately.**
 
-مقارنة "ما تغيّر منذ الشهر الماضي" تتطلب حفظ الماضي. لكن نسخة واحدة تخدم
-كل الزوّار و`app.db` ملف مشترك، فالحفظ يعني تسريب بيانات زائر لآخر (انظر
-`core/runtime_mode.py`).
+"What changed since last month?" requires saving last month. But one
+instance serves all visitors and `app.db` is a shared file, so persistence
+means one visitor's data leaking to the next (see `core/runtime_mode.py`).
 
-**القرار الحالي:** المراقبة عبر الزمن **حصرية بالوضع المحلي**. المستضاف
-يبقى "حلّل ملفك الآن". مقبول — بشرط أن يُقال صراحةً في الواجهة لا أن
-يُكتشَف.
+**Current decision:** monitoring over time is **local-mode only**. Hosted
+stays "analyse your file now". Acceptable — provided the UI says it
+explicitly rather than letting users discover it.
 
-## الاختبارات — مستمرة لا مرحلة
+If user accounts ever land (READINESS Phase 3), this decision must be
+revisited *by re-scoping the promise, not breaking it*: a planner's account
+and name are one thing; their sales file is another. Keeping those separate
+is what preserves the privacy guarantee.
 
-كانت "Phase 8" في الخطة القديمة. لا مرحلة تُعتبر منتهية بلا اختبارات
-خضراء، وهذا سلوك دائم لا بند يُنجَز.
+## Tests — continuous, not a phase
 
-**الرصيد لا يُكتب هنا.** كان مكتوباً «354» وبقي بينما صارت الحقيقة 369 —
-فقرأه مراجِعٌ خارجيّ ونقله. رقمٌ يصف الكود ولا يُشتَقّ منه يتقادم بصمت،
-وهو **نفس صنف العطل** الذي جعل الشريط الجانبي يصف بياناتٍ استُبدلت.
-العدد الحيّ في [سجلّ CI](https://github.com/amnmm1989-droid/FactoryMind/actions/workflows/ci.yml).
+No phase is complete without a green suite; that is standing behaviour, not
+a checkbox.
 
-منذ 2026-07-17 تُشغَّل الحزمة آلياً على كل دفعة إلى `main` وكل PR
-(`.github/workflows/ci.yml`، على `requirements.lock.txt` لا الفضفاض).
-قبل ذلك كانت تُشغَّل يدوياً فقط: اختبارات بلا مشغّل تساوي صفر اختبار.
+**The count is not written here.** It once said "354" while the truth was
+369 — an external reviewer copied the wrong number because he trusted this
+document. A number that describes the code without being derived from it
+goes stale silently — the same defect class as a sidebar describing data
+that had been replaced. The live count is in the
+[CI log](https://github.com/amnmm1989-droid/FactoryMind/actions/workflows/ci.yml).
+
+Since 2026-07-17 the suite runs automatically on every push to `main` and
+every PR (`.github/workflows/ci.yml`, against `requirements.lock.txt`, not
+the loose file). Before that it ran only by hand: a suite without a runner
+equals zero tests.

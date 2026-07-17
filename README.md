@@ -1,164 +1,183 @@
-# 🔮 FactoryMind — تحليل وتنبؤ لبيانات التصنيع
+# 🔮 FactoryMind — Analysis & Forecasting for Manufacturing Data
 
 [![CI](https://github.com/amnmm1989-droid/FactoryMind/actions/workflows/ci.yml/badge.svg)](https://github.com/amnmm1989-droid/FactoryMind/actions/workflows/ci.yml)
 
-**أداة مجانية ومفتوحة تقرأ تقارير نظامك وتحلّلها.**
+**A free, open tool that reads your ERP exports and analyses them.**
 
-مصنعك لديه Odoo أو SAP أو ما يشبههما. صدّر منه تقريراً، ارفعه هنا، واعرف
-خلال ثانية: **أي أصنافك قابل للتنبؤ أصلاً، وكم تُنتج من كلٍّ منها.**
+Your factory runs Odoo, SAP, or something like them. Export a report, upload
+it here, and within a second know: **which of your products are forecastable
+at all, and how much to produce of each.**
 
-FactoryMind **طبقة تحليل فوق نظامك — لا بديل عنه**. لا يكتب فيه، ولا يخزّن
-ما يخزّنه، ولا ينافسه.
+FactoryMind is **an analysis layer on top of your system — not a replacement
+for it**. It never writes to your ERP, never stores what your ERP stores, and
+never competes with it.
 
-الواجهة **بالعربية والإنجليزية** — زر التبديل أعلى الشريط الجانبي،
-واللغة تُحفَظ في الرابط (`?lang=ar`) فتنجو من إعادة التحميل وتُشارَك كما هي.
+The interface is **bilingual (English / Arabic)** — the switcher sits at the
+top of the sidebar, and the language persists in the URL (`?lang=ar`), so it
+survives reloads and can be shared as-is.
 
-## لمن؟
+## Who is it for?
 
-| المدير | يرفع | يعرف |
+| Manager | Uploads | Learns |
 |---|---|---|
-| **الإنتاج** | تقرير المبيعات | كم يُنتج من كل صنف |
-| **المشتريات** | المبيعات + المخزون | متى يطلب، وأي صنف لا يُخطَّط بالتنبؤ |
-| **المبيعات** | المبيعات حسب العميل | أي عميل ينمو، أيّهم ينزف |
-| **المصنع** | أوامر التصنيع | هل نُنفّذ ما نخطّط |
+| **Production** | Sales report | How much to produce of each product |
+| **Procurement** | Sales + stock | When to reorder, and which products can't be planned by forecast |
+| **Sales** | Sales by customer | Which customers grow, which bleed |
+| **Plant** | Manufacturing orders | Whether execution matches the plan |
 
-اليوم **مدير الإنتاج مخدوم بالكامل**؛ البقية تحتاج ملفات لم تُدعَم بعد —
-انظر [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Today **the production manager is fully served**; the rest need file formats
+not yet supported — see [`docs/ROADMAP.md`](docs/ROADMAP.md) and the
+competitive readiness plan in [`docs/READINESS_0_INDEX.md`](docs/READINESS_0_INDEX.md).
 
-## ما لا تفعله — صراحةً
+## What it explicitly does NOT do
 
-- **لا تُنشئ أوامر.** تحلّل وتتنبأ؛ القرار والتنفيذ في نظامك.
-- **لا تقرأ من ERP مباشرةً.** أنت تُصدِّر، وهي تقرأ الملف.
-- **لا تراقب الآلات.** لا OEE ولا توقفات — تلك تحتاج تدفقاً لحظياً لا تصديرة.
+- **It does not create orders.** It analyses and forecasts; decision and
+  execution stay in your system.
+- **It does not read from your ERP directly.** You export, it reads the file.
+- **It does not monitor machines.** No OEE, no downtime — those need a live
+  data stream, not a CSV export.
 
-## ما الذي يميّزها؟ الصدق
+## What makes it different: honesty
 
-معظم أدوات التنبؤ تعدك بـ«دقة 95%». هذه تقول لك متى **لا** يفيدك التنبؤ.
+Most forecasting tools promise "95% accuracy". This one tells you when
+forecasting will **not** help you.
 
-على بيانات هذا المشروع نفسه، شغّلنا تسعة نماذج (ETS، SARIMA، Prophet،
-XGBoost، RandomForest، Croston، TSB، وأساسين ساذجين) على 43 سلسلة غنية
-بالبيانات وقِسنا النتيجة:
+On this project's own validation catalogue, we ran nine models (ETS, SARIMA,
+Prophet, XGBoost, RandomForest, Croston, TSB, and two naive baselines) across
+43 data-rich series and measured the outcome:
 
-| النموذج | مرات الفوز |
+| Model | Wins |
 |---|---|
-| متوسط متحرك بسيط | 10 |
-| **آخر قيمة مكرّرة (Naive)** | **16** |
+| Simple moving average | 10 |
+| **Last value repeated (Naive)** | **16** |
 | Prophet | **0** |
 | ETS | 1 |
 
-**النماذج الساذجة تفوز في 60% من الحالات.** ليس عيباً في التنفيذ — 44 نقطة
-شهرية لا تحمل إشارة تكفي نماذج معقّدة. الأداة تقيس ذلك وتقوله لك بدل أن
-تبيعك وهماً.
+**Naive models win in 60% of cases.** That is not an implementation flaw —
+44 monthly points simply do not carry enough signal for complex models. The
+tool measures this and tells you, instead of selling an illusion.
 
-وتصنيف الكتالوج (بمعياري ADI/CV² المعياريين) يجيب السؤال الأهم:
+And the catalogue classification (using the standard ADI/CV² criteria)
+answers the most important question:
 
-> «هذه الأصناف منتظمة — خطّط لها بالتنبؤ.
-> وهذه متقطّعة — توقّف عن محاولة التنبؤ، اعتمد مخزون أمان.
-> وهذه ميتة — احذفها من التخطيط.»
+> "These products are smooth — plan them by forecast.
+> These are intermittent — stop trying to forecast them, hold safety stock.
+> These are dead — drop them from planning."
 
-**هذا لا يقدّمه Excel، ولا يقوله بائعو البرامج.**
+**Excel does not offer this, and software vendors do not say it.**
 
-## ⚠️ حدود معروفة
+This is the industry practice known as **Forecast Value Added (FVA)** —
+measuring every model against a naive baseline instead of assuming complexity
+buys accuracy. FactoryMind practices it by construction.
 
-أداة تقول لك متى لا تثق بها يجب أن تبدأ بنفسها:
+## ⚠️ Known limits
 
-- **البيانات الشهرية فقط.** ملف أسبوعي أو يومي **يُرفَض صراحةً** مع شرح
-  السبب — لا يُقبَل ويُساء تفسيره. جمّع بياناتك شهرياً في نظامك ثم صدّرها.
-  (دعم الأسبوعي/اليومي هو البند الأول في خارطة الطريق.)
-- **الأعمدة تُخمَّن بالاسم.** تُقرأ تصديرات Odoo (`product_id`) وSAP
-  (`Material`) وأسماء التصنيع الشائعة (`Part Number`)، بالعربية والإنجليزية.
-  والشكل **العريض** (عمود أسماء + أعمدة أشهر) يمرّ مهما كان اسم عموده الأول.
-  لكن الشكل **الطويل** باسم عمود خارج هذه القائمة لا يُفهَم، والرسالة حينها
-  تشكو من الأشهر لا من العمود. **لا تُضاف تلميحات بالتخمين** — أرسل تصديرةً
-  حقيقية يُضَف اسمها. شاشة ربط الأعمدة تبقى الحلّ العام.
-- **عامل نفاد المخزون غير محسوب** — لا ملف مخزون بعد. لذا ثقة كل تقييم 80%
-  (4 عوامل من 5)، والأداة تقول ذلك في كل شاشة.
-- **أوزان الخطورة معايرة أولية** بلا بيانات تحقّق. تُضبط حين يُرفَع الإنتاج
-  الفعلي ويُقارَن بالمخطَّط.
+A tool that tells you when not to trust it should start with itself:
 
-## 🔒 بياناتك
+- **Monthly data only.** A weekly or daily file is **explicitly rejected**
+  with an explanation — never silently accepted and misread. Aggregate to
+  months in your ERP, then export. (Weekly/daily support is the first item
+  on the roadmap.)
+- **Columns are guessed by name.** Odoo exports (`product_id`), SAP exports
+  (`Material`), and common manufacturing names (`Part Number`) are read, in
+  Arabic and English. The **wide** layout (name column + month columns)
+  passes regardless of what its first column is called. But a **long** layout
+  with a column name outside the known list is not understood — and the error
+  message blames the months, not the column. **No hints are added by
+  guesswork** — send a real export and its name gets added. A visual
+  column-mapping screen remains the general fix (roadmap).
+- **The stock-depletion factor is not computed** — there is no stock file
+  yet. Every assessment therefore shows 80% confidence (4 factors of 5), and
+  the tool says so on every screen.
+- **Risk weights are an initial calibration** with no validation data. They
+  get tuned once actual production is uploaded and compared with plans.
 
-الملف الذي ترفعه **يُحلَّل في الذاكرة ولا يُكتب في قاعدة البيانات إطلاقاً**.
-يختفي بإغلاق التبويب. بيانات مبيعاتك سرّ تجاري، والأداة مبنية على ذلك.
+## 🔒 Your data
+
+The file you upload is **analysed in memory and never written to the
+database**. It disappears when the tab closes. Your sales data is a trade
+secret, and the tool is built on that assumption.
 
 ---
 
-## 🚀 التشغيل
+## 🚀 Running it
 
 ```bash
-# 1. البيئة
+# 1. Environment
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.lock.txt      # الإصدارات المُختبَرة بالضبط
+pip install -r requirements.lock.txt      # the exact tested versions
 
-# 2. قاعدة البيانات (مرة واحدة — آمن للتكرار)
-python migrate.py
-
-# 3. التطبيق
+# 2. Run
 streamlit run app.py
 ```
 
-الخطوة 2 إلزامية: بنية القاعدة مملوكة لـ `migrations/`، والتطبيق يتحقق
-منها ولا ينشئها. تخطّيها يعطي رسالة واضحة تطلب تشغيلها.
+That's it. The app builds its database on first boot (`migrate()` is called
+at startup — idempotent and atomic). Useful extras:
 
 ```bash
-python migrate.py --status    # ما هو مطبَّق وما هو معلّق
-pytest                        # الحزمة كاملة
+python migrate.py --status    # what's applied, what's pending
+pytest                        # the full suite
 ```
 
-الشارة أعلاه تُشغَّل على كل دفعة إلى `main` وكل PR
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). العدد ليس مكتوباً
-هنا عمداً: **رقم يُكتب باليد يتقادم بصمت** — كان مكتوباً «354» بينما الحقيقة
-369، فنقل مراجِعٌ الرقمَ الخطأ لأنه صدّق هذا الملف. الراية الخضراء تُقاس.
+The badge above runs on every push to `main` and every PR
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). The test count is
+deliberately not written here: **a hand-written number goes stale silently** —
+it once said "354" while the truth was 369, and an external reviewer copied
+the wrong number because he trusted this file. The green badge is measured.
 
-### وضعان
+### Two modes
 
-| | **محلي** (افتراضي) | **مستضاف** |
+| | **Local** (default) | **Hosted** |
 |---|---|---|
-| التشغيل | `streamlit run app.py` | `FACTORYMIND_MODE=hosted streamlit run app.py` |
-| النتائج | تُحفَظ في `data/app.db` | **لا حفظ إطلاقاً** |
-| تخطيط الإنتاج | ✅ متاح | ❌ يحتاج تخزيناً دائماً |
-| ملفك المرفوع | في الذاكرة فقط | في الذاكرة فقط |
+| Run | `streamlit run app.py` | `FACTORYMIND_MODE=hosted streamlit run app.py` |
+| Results | Saved to `data/app.db` | **Nothing is ever saved** |
+| Production planning | ✅ Available | ❌ Needs persistent storage |
+| Your uploaded file | Memory only | Memory only |
 
-**لماذا لا حفظ في المستضاف؟** نسخة واحدة تخدم كل الزوّار، و`app.db` ملف
-مشترك — أول زائر يرفع مبيعاته يكتبها، والثاني يراها. تسريب حتمي معمارياً،
-لا احتمال.
+**Why no persistence when hosted?** One instance serves every visitor and
+`app.db` is a shared file — the first visitor who uploads sales would write
+them, and the second would read them. A leak by architecture, not by chance.
 
-وهو ممكن أصلاً لأن النماذج الخفيفة تُنهي كتالوجاً كاملاً في **أقل من ثانية**: لا
-حاجة لتخزين نتيجة تُحسب أسرع من قراءتها.
+It works at all because the light models finish a full catalogue in **under
+a second**: there is no need to store a result that recomputes faster than
+it loads.
 
-### الاستضافة المجانية
+### Free hosting
 
-يعمل على [Streamlit Community Cloud](https://streamlit.io/cloud): اربط
-المستودع واضبط `FACTORYMIND_MODE=hosted`. البصمة المقيسة **297 MB** ذاكرة
-— ضمن حدّ الـ 1GB المجاني.
+Runs on [Streamlit Community Cloud](https://streamlit.io/cloud): connect the
+repository and set `FACTORYMIND_MODE=hosted`. Measured footprint: **297 MB**
+of memory — inside the free 1 GB limit.
 
 ---
 
-## 📁 هيكل المشروع
+## 📁 Project structure
 
 ```
-app.py                 نقطة الدخول (composition root)
-config.py              الإعدادات — مصدر واحد، تُقرأ عند النداء لا الاستيراد
-migrate.py             مشغّل الـ migrations — idempotent وذرّي
+app.py                 Entry point (composition root; boots the DB, routes 5 pages)
+config.py              Settings — single source, read at call time not import time
+migrate.py             Migration runner — idempotent and atomic, checksum drift detection
 
-core/                  الأساس: إعدادات، logging، استثناءات، وضع التشغيل
-domain/entities.py     كائنات Domain نقية — العقد بين الطبقات
-migrations/            NNN_*.sql — المالك الوحيد لبنية قاعدة البيانات
-repositories/          طبقة الوصول للبيانات (JSON | SQLite عبر factory)
+core/                  Foundation: logging, exceptions, runtime mode
+domain/entities.py     Pure domain objects — the contract between layers
+migrations/            NNN_*.sql — sole owner of the database schema
+repositories/          Data access (products/sales, forecasts, recommendations, plans)
 services/
-  ingest.py            قراءة ملف المستخدم (CSV/Excel) والتحقق منه
-  forecast_engine/     9 نماذج + تصنيف الطلب + اختيار بالأدلة
-  risk_service/        خطورة 0-100 من خمسة عوامل
-  decision_engine/     تنبؤ ← توصية إنتاج
-  batch.py             حساب الكتالوج كاملاً
-models/                النماذج الإحصائية الأصلية (ETS، SARIMA، الاتجاه)
+  ingest.py            Reads and validates the user's file (CSV/Excel)
+  forecast_engine/     9 models + demand classification + evidence-based selection
+  risk_service/        0–100 risk from five factors (unknown = None, never 0)
+  decision_engine/     Forecast → production recommendation
+  batch.py             Whole-catalogue computation
+models/                Original statistical models (ETS, SARIMA, trend)
 ui/
-  pages/               الصفحات الخمس
-  data_source.py       بيانات الجلسة: ملف المستخدم أو العرض
-data/                  data.json (عيّنة) + app.db (مُولَّدة، غير مُتتبَّعة)
-docs/                  ARCHITECTURE، ROADMAP، أدلة المراحل
-tests/                 pytest
+  pages/               The five pages
+  data_source.py       Session data: user upload or bundled demo
+  i18n.py              Every user-visible string, in both languages
+data/                  data.json (synthetic demo) + app.db (generated, untracked)
+docs/                  ARCHITECTURE, ROADMAP, READINESS plan, migration guide
+tests/                 pytest — run by CI on every push
 ```
 
-راجع [`docs/ROADMAP.md`](docs/ROADMAP.md) لخطة التطوير،
-و[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) للمعمارية.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the development plan,
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the architecture, and
+[`docs/READINESS_0_INDEX.md`](docs/READINESS_0_INDEX.md) for the plan to
+compete with the world's best forecasting tools.
