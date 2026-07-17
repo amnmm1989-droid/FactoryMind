@@ -12,7 +12,15 @@ from datetime import date
 import pytest
 
 from core.exceptions import DataValidationError
-from services.ingest import Dataset, parse_month_label, parse_upload, to_csv_template
+from services.ingest import (
+    Dataset,
+    guess_column,
+    parse_month_label,
+    parse_upload,
+    parse_upload_with_mapping,
+    read_columns,
+    to_csv_template,
+)
 
 
 def csv(text: str) -> bytes:
@@ -125,6 +133,118 @@ def test_a_wide_export_ignores_the_first_column_name():
     dataset = parse_upload(data, "sap.csv")
 
     assert dataset.products == {"PUMP-01": [10.0, 12.0, 9.0]}
+
+
+# ---------------------------------------------------------------------------
+# ربط الأعمدة يدوياً — حين يفشل التخمين تماماً
+# ---------------------------------------------------------------------------
+# لا كل تصديرة تحمل أسماء أعمدة نعرفها، ولن نضيف تلميحاً بالتخمين (راجع
+# تعليق PRODUCT_HINTS في services/ingest.py). هذه الأعمدة مصطنعة عمداً —
+# لا تطابق أي تلميح حالي — لإثبات أن المستخدم يستطيع إنقاذ ملفه بنفسه
+# حين يفشل كل تخمين، لا حين يفشل تخمين بعينه فقط.
+UNRECOGNIZED = csv(
+    "Ident,Zeitraum,Betrag\n"
+    "PUMP-01,2024-01,10\nPUMP-01,2024-02,12\n"
+    "PUMP-01,2024-03,9\nPUMP-01,2024-04,11\n"
+)
+
+
+def test_automatic_parsing_fails_on_truly_unknown_column_names():
+    """الحالة التي تحتاج ربطاً يدوياً: لا تخمين ينجح، ولا وهم بأنه نجح."""
+    with pytest.raises(DataValidationError) as caught:
+        parse_upload(UNRECOGNIZED, "export.csv")
+
+    assert caught.value.context["code"] == "no_months"
+
+
+def test_read_columns_exposes_the_files_actual_headers():
+    """ما تعرضه شاشة الربط: أعمدة الملف كما هي، لا قائمة تلميحاتنا."""
+    assert read_columns(UNRECOGNIZED, "export.csv") == ["Ident", "Zeitraum", "Betrag"]
+
+
+def test_read_columns_rejects_an_empty_file_like_parse_upload_does():
+    with pytest.raises(DataValidationError, match="فارغ"):
+        read_columns(csv("p,m\n"), "e.csv")
+
+
+@pytest.mark.parametrize(
+    "role, expected",
+    [("product", "product_id"), ("month", "date"), ("quantity", "qty")],
+)
+def test_guess_column_matches_known_hints(role, expected):
+    columns = ["product_id", "date", "qty"]
+    assert guess_column(columns, role) == expected
+
+
+def test_guess_column_returns_none_for_unrecognized_names():
+    """لا تخمين قسري — عمود لا يطابق أي تلميح يُترك للمستخدم صراحةً."""
+    columns = ["Ident", "Zeitraum", "Betrag"]
+    assert guess_column(columns, "product") is None
+    assert guess_column(columns, "month") is None
+    assert guess_column(columns, "quantity") is None
+
+
+def test_manual_mapping_rescues_what_automatic_parsing_rejected():
+    """الإثبات المحوري: نفس الملف الذي رفضه parse_upload يُقبل عبر
+    parse_upload_with_mapping بمجرد أن يسمّي المستخدم أعمدته الثلاثة."""
+    dataset = parse_upload_with_mapping(
+        UNRECOGNIZED, "export.csv",
+        product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
+    )
+
+    assert dataset.products == {"PUMP-01": [10.0, 12.0, 9.0, 11.0]}
+
+
+def test_manual_mapping_still_runs_the_granularity_gate():
+    """الربط اليدوي لا يتجاوز بوابات الجودة — يُعاد استخدام _finalize نفسه
+    لا نسخة أخف منه."""
+    weekly = csv(
+        "Ident,Zeitraum,Betrag\n"
+        "X,2024-01-01,1\nX,2024-01-08,2\nX,2024-01-15,3\nX,2024-01-22,4\n"
+    )
+
+    with pytest.raises(DataValidationError, match="weekly"):
+        parse_upload_with_mapping(
+            weekly, "w.csv",
+            product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
+        )
+
+
+def test_manual_mapping_still_flags_duplicate_rows():
+    data = csv(
+        "Ident,Zeitraum,Betrag\n"
+        "A,Jan 2024,10\nA,Jan 2024,15\nA,Feb 2024,20\nA,Mar 2024,5\n"
+    )
+
+    dataset = parse_upload_with_mapping(
+        data, "d.csv",
+        product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
+    )
+
+    assert dataset.products["A"][0] == 25.0
+    assert any(w.code == "duplicate_rows" for w in dataset.warnings)
+
+
+def test_manual_mapping_rejects_a_column_that_does_not_exist():
+    with pytest.raises(DataValidationError) as caught:
+        parse_upload_with_mapping(
+            UNRECOGNIZED, "export.csv",
+            product_column="لا وجود له", month_column="Zeitraum",
+            quantity_column="Betrag",
+        )
+
+    assert caught.value.context["code"] == "unknown_mapped_column"
+
+
+def test_manual_mapping_rejects_the_same_column_for_two_roles():
+    """عمود واحد لا يصلح لدورين — لا محور له معنى."""
+    with pytest.raises(DataValidationError) as caught:
+        parse_upload_with_mapping(
+            UNRECOGNIZED, "export.csv",
+            product_column="Ident", month_column="Ident", quantity_column="Betrag",
+        )
+
+    assert caught.value.context["code"] == "duplicate_mapped_columns"
 
 
 def test_duplicate_rows_are_summed_not_dropped():

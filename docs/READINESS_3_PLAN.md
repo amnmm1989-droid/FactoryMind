@@ -58,23 +58,23 @@ comparison on an existing structure.
 
 ---
 
-## Phase 1 — Connection (opens every untested export)
+## Phase 1 — Connection (opens every untested export) — task 1 done ✅
 
 **The problem**: `PRODUCT_HINTS`/`MONTH_HINTS`/`QUANTITY_HINTS` in
 `services/ingest.py` is a guess list that grows by accident, not by design.
 
 **Tasks**:
 
-1. **Visible column-mapping screen**: when `_detect_layout` fails (finds no
-   hint for a column), the file is not rejected — its actual columns are
+1. [x] **Visible column-mapping screen**: when `_detect_layout` fails (finds
+   no hint for a column), the file is not rejected — its actual columns are
    shown to the user with dropdowns: "which column is the product? the
    month? the quantity?" This turns every unknown export from a full
    rejection into a second of user work, with no code touched.
-2. **Expanding hints by evidence, not by guessing**: any column name added
-   from now on needs a real export to prove it (the same constraint placed
-   this week after the German SAP column guessing error) — it stays, it is
-   not relaxed.
-3. **Downloadable template with customisable columns**: `to_csv_template()`
+2. [ ] **Expanding hints by evidence, not by guessing**: any column name
+   added from now on needs a real export to prove it (the same constraint
+   placed this week after the German SAP column guessing error) — it stays,
+   it is not relaxed.
+3. [ ] **Downloadable template with customisable columns**: `to_csv_template()`
    currently shows fixed names; offering it downloadable with common source
    system columns (SAP/Odoo) as an option reduces the need for manual
    mapping in the first place.
@@ -82,6 +82,32 @@ comparison on an existing structure.
 **Acceptance criterion**: any CSV with Arabic or English or German columns,
 long or wide, is read either automatically or by a three-click manual
 mapping — no silent rejection.
+
+**Task 1 delivered.** `services/ingest.py` gained `read_columns()` (exposes a
+file's real headers, no analysis), `guess_column()` (the existing hint logic,
+exposed to pre-fill the dropdowns — never forces a guess), and
+`parse_upload_with_mapping()` (parses the long layout from user-chosen
+columns instead of detected ones, sharing every downstream check — the
+granularity gate, duplicate-row summing, warnings — via the same `_finalize`
+helper `parse_upload()` now also calls, so a manually-mapped file is held to
+exactly the same standard as an automatically-detected one).
+
+The screen appears specifically when parsing fails with `code="no_months"`
+and the file has at least 3 columns — the signature of a long-format file
+whose column names weren't recognised (rather than a genuinely malformed
+one, where showing a mapping screen would mislead). Widget keys are scoped
+to the upload's `file_id`, so a second, different file never inherits stale
+selections from the first.
+
+Verified two ways: unit tests on the new `ingest.py` functions (including a
+direct before/after pair — the same unrecognised-column file that
+`parse_upload` rejects is accepted by `parse_upload_with_mapping` once the
+user names its columns), and `tests/test_column_mapping_ui.py`, which drives
+the actual running `app.py` through Streamlit's `AppTest` — uploading a real
+file, reading the rendered dropdown options, selecting values, clicking the
+button, and asserting the resulting session state — not a function called
+in isolation. Confirmed the harder way too: 5 of 7 UI tests were checked to
+actually fail against the pre-feature code before this was called done.
 
 **Size**: medium. The visible screen needs extra session state in
 `ui/data_source.py`, but the reading logic (`_from_long`/`_from_wide`) does

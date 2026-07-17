@@ -431,15 +431,20 @@ Month-anchored locations — **seven, counted not estimated**:
 assumption raises its cost. Without it, the claim "fits all manufacturing"
 is **not honest**: food is weekly, aircraft are yearly.
 
-## 2. Column mapping 🔴
+## 2. Column mapping ✅
 
 **Measured defect:** hint lists in `services/ingest.py` are guesses — and a
 guess fails at **the first customer, not at your desk** (it failed on a
 long-format SAP export this very week; one missing word, misleading error).
 
-Needed: a screen that shows the file's actual columns and asks "which is
-the product? the date? the quantity?", pre-filled from the current hints.
-Every new file format doubles the odds of rejection without it.
+**Done:** a screen that shows the file's actual columns and asks "which is
+the product? the month? the quantity?", pre-filled from the current hints
+where they match. Triggers specifically when parsing fails with
+`code="no_months"` on a file with at least 3 columns — the signature of an
+unrecognised long format, not a genuinely malformed file. Every new file
+format no longer doubles the odds of rejection: it doubles the odds of a
+three-click recovery instead. See `READINESS_3_PLAN.md` Phase 1 for the
+implementation detail and its tests.
 
 ## 3. Stock file — for the procurement manager
 

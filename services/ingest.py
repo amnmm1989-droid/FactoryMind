@@ -229,12 +229,16 @@ def _detect_layout(frame: pd.DataFrame) -> str:
     return "long" if has_long_shape else "wide"
 
 
-def _from_long(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[Warning_]]:
-    columns = [str(c) for c in frame.columns]
-    product_column = _find_column(columns, PRODUCT_HINTS)
-    month_column = _find_column(columns, MONTH_HINTS)
-    quantity_column = _find_column(columns, QUANTITY_HINTS)
+def _from_long(
+    frame: pd.DataFrame, product_column: str, month_column: str, quantity_column: str
+) -> tuple[pd.DataFrame, list[Warning_]]:
+    """محور (منتج × شهر) من ثلاثة أعمدة معلومة الاسم — تخميناً أو يدوياً.
 
+    الأعمدة تصل جاهزة لا تُكتشَف هنا: parse_upload يمرّرها من _find_column
+    (التخمين)، وparse_upload_with_mapping يمرّرها من اختيار المستخدم
+    (شاشة الربط اليدوي). المحور نفسه لا يفرّق بين الحالتين — وهذا مقصود:
+    خطأ في التخمين وخطأ في اختيار المستخدم يُعاملان بمعيار واحد.
+    """
     warnings: list[Warning_] = []
     duplicates = int(frame.duplicated(subset=[product_column, month_column]).sum())
     if duplicates:
@@ -257,22 +261,43 @@ def _from_wide(frame: pd.DataFrame) -> tuple[pd.DataFrame, list[Warning_]]:
     return frame.set_index(frame.columns[0]), []
 
 
-def parse_upload(content: bytes, filename: str) -> Dataset:
-    """قراءة ملف مرفوع وتحويله إلى Dataset.
+def read_columns(content: bytes, filename: str) -> list[str]:
+    """أعمدة الملف الفعلية — بلا تحليل. لشاشة ربط الأعمدة اليدوي حين يفشل
+    التخمين: تعرض للمستخدم ما في ملفه فعلاً، لا قائمة تلميحات لا تعنيه.
 
     Raises:
-        DataValidationError: ملف غير مقروء، أو بلا أشهر مفهومة، أو بلا
-            منتجات — أي حالة لا يُنتج معها المحرك شيئاً ذا معنى.
+        DataValidationError: نفس أخطاء _read_file (unreadable_file, empty_file).
     """
     frame = _read_file(content, filename)
     if frame.empty:
         raise DataValidationError(
             "الملف فارغ", context={"code": "empty_file", "filename": filename}
         )
+    return [str(c) for c in frame.columns]
 
-    layout = _detect_layout(frame)
-    pivoted, warnings = _from_long(frame) if layout == "long" else _from_wide(frame)
 
+def guess_column(columns: list[str], role: str) -> str | None:
+    """أفضل تخمين لعمود بدور معيّن — لتعبئة شاشة الربط اليدوي مسبقاً.
+
+    role: "product" | "month" | "quantity". يستخدم نفس تلميحات التخمين
+    التلقائي (PRODUCT_HINTS إلخ) — تخمين أفضل من لا شيء، لكنه يبقى تخميناً
+    يُعرض على المستخدم لا يُفرَض عليه؛ الشاشة تسمح بتغييره بنقرة.
+    """
+    hints = {
+        "product": PRODUCT_HINTS,
+        "month": MONTH_HINTS,
+        "quantity": QUANTITY_HINTS,
+    }[role]
+    return _find_column(columns, hints)
+
+
+def _finalize(pivoted: pd.DataFrame, warnings: list[Warning_]) -> Dataset:
+    """من إطار مُحوَّر (فهرس = منتجات، أعمدة = تسميات أشهر) إلى Dataset جاهز.
+
+    مشتركة بين مسارَي التخمين التلقائي والربط اليدوي: كلاهما ينتج نفس
+    الشكل بعد _from_long/_from_wide، وبوابة الحبيبة والترتيب والتحذيرات
+    لا تفرّق بين مصدر الأعمدة — فلا يجوز أن تتكرر.
+    """
     # التواريخ كاملةً أولاً: الحبيبة تُقاس منها، وقصّ اليوم يمحوها.
     parsed_full: list[tuple[str, date | None]] = [
         (str(column), parse_full_date(column)) for column in pivoted.columns
@@ -375,6 +400,86 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
         start_date=dates[0],
         warnings=warnings,
     )
+
+
+def parse_upload(content: bytes, filename: str) -> Dataset:
+    """قراءة ملف مرفوع وتحويله إلى Dataset — الأعمدة تُخمَّن بالاسم.
+
+    Raises:
+        DataValidationError: ملف غير مقروء، أو بلا أشهر مفهومة، أو بلا
+            منتجات — أي حالة لا يُنتج معها المحرك شيئاً ذا معنى.
+            code="no_months" تحديداً يعني: التخمين فشل في تحديد الأعمدة
+            (شكل طويل بأسماء غير معروفة) أو تسميات الأشهر نفسها غير
+            مفهومة (شكل عريض برؤوس أعمدة غريبة). كلاهما قابل للإنقاذ عبر
+            parse_upload_with_mapping إن كفى عدد الأعمدة.
+    """
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    layout = _detect_layout(frame)
+    if layout == "long":
+        columns = [str(c) for c in frame.columns]
+        pivoted, warnings = _from_long(
+            frame,
+            _find_column(columns, PRODUCT_HINTS),
+            _find_column(columns, MONTH_HINTS),
+            _find_column(columns, QUANTITY_HINTS),
+        )
+    else:
+        pivoted, warnings = _from_wide(frame)
+
+    return _finalize(pivoted, warnings)
+
+
+def parse_upload_with_mapping(
+    content: bytes,
+    filename: str,
+    *,
+    product_column: str,
+    month_column: str,
+    quantity_column: str,
+) -> Dataset:
+    """كـ parse_upload، لكن بأعمدة اختارها المستخدم يدوياً بدل التخمين.
+
+    الطريق حين تفشل PRODUCT_HINTS/MONTH_HINTS/QUANTITY_HINTS في التقاط
+    عمود حقيقي — المستخدم يعرف ملفه أفضل من أي قائمة تلميحات مهما اتّسعت،
+    وتوسيع القائمة بالتخمين محفوظ الرفض (راجع تعليق PRODUCT_HINTS أعلاه).
+    يفترض الشكل الطويل صراحة — لا معنى لربط ثلاثة أدوار على ملف عريض.
+
+    Raises:
+        DataValidationError: عمود مختار غير موجود في الملف، أو تكرار
+            نفس العمود لأكثر من دور، أو ما يرفضه _finalize (حبيبة غير
+            مدعومة، أشهر قليلة، منتجات فارغة).
+    """
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    columns = [str(c) for c in frame.columns]
+    chosen = {
+        "product": product_column,
+        "month": month_column,
+        "quantity": quantity_column,
+    }
+    for role, column in chosen.items():
+        if column not in columns:
+            raise DataValidationError(
+                f"العمود المختار لـ{role} غير موجود في الملف: {column}",
+                context={"code": "unknown_mapped_column", "role": role, "column": column},
+            )
+    if len(set(chosen.values())) < 3:
+        raise DataValidationError(
+            "اختر ثلاثة أعمدة مختلفة — نفس العمود لا يصلح لدورين",
+            context={"code": "duplicate_mapped_columns"},
+        )
+
+    pivoted, warnings = _from_long(frame, product_column, month_column, quantity_column)
+    return _finalize(pivoted, warnings)
 
 
 def to_csv_template() -> bytes:

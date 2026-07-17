@@ -16,7 +16,14 @@ import streamlit as st
 from core.exceptions import DataValidationError
 from core.logging_config import get_logger
 from core.runtime_mode import is_hosted
-from services.ingest import Dataset, parse_upload, to_csv_template
+from services.ingest import (
+    Dataset,
+    guess_column,
+    parse_upload,
+    parse_upload_with_mapping,
+    read_columns,
+    to_csv_template,
+)
 from ui.i18n import error as translate_error
 from ui.i18n import t
 
@@ -65,6 +72,79 @@ def active_dataset() -> tuple[list[str], dict[str, list[float]], bool]:
 
 def clear_upload() -> None:
     st.session_state.pop(SESSION_KEY, None)
+
+
+def _render_column_mapping(uploaded) -> None:
+    """شاشة ربط الأعمدة اليدوي — حين يفشل تخمين services.ingest.
+
+    السيناريو الذي وُجدت لأجله: تصديرة SAP الطويلة بعمود Material لا
+    Product — PRODUCT_HINTS لم تلتقطه، فسقط الملف إلى الشكل العريض وردّ
+    "لم يُفهَم أي عمود كشهر": رسالة تصف عرَضاً (Period ليس تاريخاً) لا
+    السبب الحقيقي (لم يُتعرَّف على عمود المنتج). بدل الرفض التام، تُعرض
+    أعمدة الملف الفعلية ويختار المستخدم أدوارها — ثلاث نقرات بدل رفض.
+
+    مفاتيح الودجت مربوطة بـ uploaded.file_id لا ثابتة: ملف جديد يحمل
+    file_id جديداً، فتبدأ القوائم فارغة لا بقيم ملف سابق قد لا تكون من
+    خياراته أصلاً.
+    """
+    try:
+        columns = read_columns(uploaded.getvalue(), uploaded.name)
+    except DataValidationError:
+        return  # الملف نفسه غير مقروء — لا فائدة من عرض أعمدة لا وجود لها
+
+    if len(columns) < 3:
+        return  # لا يكفي عدد الأعمدة لثلاثة أدوار مختلفة
+
+    with st.expander(t("data.map_columns"), expanded=True):
+        st.caption(t("data.map_columns_help"))
+
+        placeholder = t("data.map_choose")
+        options = [placeholder] + columns
+
+        def _index(role: str) -> int:
+            guess = guess_column(columns, role)
+            return options.index(guess) if guess in options else 0
+
+        suffix = uploaded.file_id
+        product_col = st.selectbox(
+            t("data.map_product"), options, index=_index("product"),
+            key=f"_map_product_{suffix}",
+        )
+        month_col = st.selectbox(
+            t("data.map_month"), options, index=_index("month"),
+            key=f"_map_month_{suffix}",
+        )
+        quantity_col = st.selectbox(
+            t("data.map_quantity"), options, index=_index("quantity"),
+            key=f"_map_quantity_{suffix}",
+        )
+
+        chosen = {product_col, month_col, quantity_col}
+        none_chosen = placeholder in chosen
+        ready = not none_chosen and len(chosen) == 3
+
+        if st.button(t("data.map_apply"), disabled=not ready, use_container_width=True):
+            try:
+                parsed = parse_upload_with_mapping(
+                    uploaded.getvalue(), uploaded.name,
+                    product_column=product_col, month_column=month_col,
+                    quantity_column=quantity_col,
+                )
+            except DataValidationError as exc:
+                st.error(t("data.read_failed", detail=translate_error(exc)))
+                return
+
+            st.session_state[SESSION_KEY] = parsed
+            logger.info(
+                "Upload accepted via manual column mapping | products=%d | months=%d",
+                parsed.product_count, parsed.month_count,
+            )
+            st.rerun()
+
+        if none_chosen:
+            st.caption(t("data.map_incomplete"))
+        elif not ready:
+            st.caption(t("data.map_duplicate"))
 
 
 def render_upload_widget() -> None:
@@ -117,6 +197,12 @@ def render_upload_widget() -> None:
                 context = exc.context or {}
                 if context.get("columns"):
                     st.caption(t("data.columns_found", columns=context["columns"]))
+                # no_months تحديداً: قد يعني تخميناً فاشلاً على شكل طويل
+                # (عمود المنتج/الشهر/الكمية بأسماء غير معروفة)، لا رفضاً
+                # نهائياً. أخطاء أخرى (ملف فارغ، غير مقروء) لا يفيدها ربط
+                # أعمدة لا وجود لها فعلياً.
+                if context.get("code") == "no_months":
+                    _render_column_mapping(uploaded)
                 return
 
             st.session_state[SESSION_KEY] = parsed

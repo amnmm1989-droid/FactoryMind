@@ -330,6 +330,30 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "الأعمدة التي وجدتها: {columns}",
         "en": "Columns found: {columns}",
     },
+    "data.map_columns": {
+        "ar": "🔗 ربط الأعمدة يدوياً",
+        "en": "🔗 Map columns manually",
+    },
+    "data.map_columns_help": {
+        "ar": "لم نتعرّف على أعمدة ملفك تلقائياً. اختر أيّ عمود هو أيّ —"
+              " إن كان ملفك بشكل «صفّ لكل منتج/شهر».",
+        "en": "We couldn't recognise your file's columns automatically. "
+              "Pick which column is which — if your file has one row per "
+              "product/month record.",
+    },
+    "data.map_choose": {"ar": "— اختر —", "en": "— choose —"},
+    "data.map_product": {"ar": "عمود المنتج", "en": "Product column"},
+    "data.map_month": {"ar": "عمود الشهر", "en": "Month column"},
+    "data.map_quantity": {"ar": "عمود الكمية", "en": "Quantity column"},
+    "data.map_apply": {"ar": "استخدم هذا الربط", "en": "Use this mapping"},
+    "data.map_incomplete": {
+        "ar": "اختر الأعمدة الثلاثة كلها للمتابعة.",
+        "en": "Pick all three columns to continue.",
+    },
+    "data.map_duplicate": {
+        "ar": "لا يصلح العمود نفسه لدورين — اختر ثلاثة أعمدة مختلفة.",
+        "en": "The same column can't serve two roles — pick three different columns.",
+    },
 
     # ---- أخطاء الرفع (من services/ingest.py عبر code) ----
     "error.unreadable_file": {
@@ -380,6 +404,14 @@ STRINGS: dict[str, dict[str, str]] = {
     "error.missing_columns": {
         "ar": "الملف يحتاج عمود أسماء وعمود شهر واحداً على الأقل.",
         "en": "The file needs a name column and at least one month column.",
+    },
+    "error.unknown_mapped_column": {
+        "ar": "العمود المختار غير موجود في الملف: {column}",
+        "en": "The chosen column doesn't exist in the file: {column}",
+    },
+    "error.duplicate_mapped_columns": {
+        "ar": "اختر ثلاثة أعمدة مختلفة — العمود نفسه لا يصلح لدورين.",
+        "en": "Pick three different columns — the same column can't serve two roles.",
     },
 
     # ---- النظرة التنفيذية ----
