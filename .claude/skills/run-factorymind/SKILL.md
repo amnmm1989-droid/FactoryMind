@@ -46,7 +46,7 @@ Prophet و XGBoost يُدرَّبان فعلاً.
 
 ```bash
 # كل النماذج التسعة على منتج بعينه
-./.venv/bin/python .claude/skills/run-factorymind/smoke.py --product "Rwanda" --steps 3
+./.venv/bin/python .claude/skills/run-factorymind/smoke.py --product "Gearbox" --steps 3
 ```
 
 مخرجات حقيقية (`--fast`):
@@ -57,14 +57,14 @@ Prophet و XGBoost يُدرَّبان فعلاً.
 ▸ المنتج: Hydraulic Pump 50mm
   نقاط: 44 | غير صفرية: 44 | تصنيف: smooth (ADI=1.00)
   المقياس: rmse | الفائز: TSB
-  النموذج             RMSE (*)       تراكمي
-  TSB                    62.85         34.0
-  Croston                64.51         93.8
-  MovingAverage          66.29        131.0
-  Naive                 110.31        545.0
+  النموذج           RMSE (*)       تراكمي
+  TSB                  32.21         82.1
+  MovingAverage        35.17        118.0
+  Naive                36.53        132.0
+  Croston              36.83        135.0
 
-  يوصى بإنتاج 201 وحدة ... بسبب ارتفاع الطلب المتوقع بنسبة 4.8%
-  خطورة: 35/100 (medium) | ثقة: 80% | مجهول: 1
+  يوصى بإنتاج 181 وحدة من المنتج Hydraulic Pump 50mm ... بنسبة 4.4%
+  خطورة: 29/100 (low) | ثقة: 80% | مجهول: 1
 ✓ فحوص السلامة نجحت
 ```
 
