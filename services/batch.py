@@ -20,6 +20,7 @@ from typing import Callable, Sequence
 
 from core.exceptions import AppError
 from core.logging_config import get_logger
+from domain.entities import InventoryStatus
 from repositories.forecast_repository import ForecastRepository
 from repositories.recommendation_repository import RecommendationRepository
 from services.decision_engine import recommend_production
@@ -66,6 +67,7 @@ def run_batch(
     steps: int = 6,
     use_fast_models: bool = True,
     db_path: str | None = None,
+    inventory: dict[str, InventoryStatus] | None = None,
     on_progress: Callable[[int, int, str], None] | None = None,
 ) -> BatchReport:
     """حساب وحفظ تنبؤ + توصية لكل منتج.
@@ -74,6 +76,9 @@ def run_batch(
         on_progress: يُستدعى بـ (المُنجَز، الإجمالي، اسم المنتج) بعد كل منتج.
         use_fast_models: True (افتراضي) = 4 نماذج، ~لحظي. False = 9 نماذج،
             دقائق على كتالوج كامل.
+        inventory: {اسم المنتج: InventoryStatus}، إن وُجد ملف مخزون مرفوع.
+            منتج غائب عن القاموس (أو القاموس None كله) يمرّ بلا مخزون —
+            نفس الوضع الافتراضي قبل هذه الميزة، لا خطأ.
 
     منتج يفشل لا يُسقط الدفعة — يُسجَّل في report.failed ويستمر الباقي.
     منتج بلا مبيعات قط يفشل بـ InsufficientDataError، وهذا متوقَّع لا عطل.
@@ -95,7 +100,10 @@ def run_batch(
                 name, series, steps=steps, models=models, use_cache=True
             )
             forecast_id = forecast_repo.save_result(result)
-            recommendation = recommend_production(name, list(series), result.best)
+            product_inventory = inventory.get(name) if inventory else None
+            recommendation = recommend_production(
+                name, list(series), result.best, product_inventory
+            )
             recommendation_repo.save(recommendation, forecast_id=forecast_id)
             report.succeeded += 1
         except AppError as exc:

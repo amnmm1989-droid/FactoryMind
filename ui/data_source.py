@@ -16,12 +16,17 @@ import streamlit as st
 from core.exceptions import DataValidationError
 from core.logging_config import get_logger
 from core.runtime_mode import is_hosted
+from domain.entities import InventoryStatus
 from services.ingest import (
     Dataset,
+    StockSnapshot,
     guess_column,
+    parse_stock_upload,
+    parse_stock_upload_with_mapping,
     parse_upload,
     parse_upload_with_mapping,
     read_columns,
+    stock_csv_template,
     to_csv_template,
 )
 from ui.i18n import error as translate_error
@@ -30,6 +35,7 @@ from ui.i18n import t
 logger = get_logger(__name__)
 
 SESSION_KEY = "uploaded_dataset"
+SESSION_KEY_STOCK = "uploaded_stock"
 
 
 def _privacy_note() -> str:
@@ -89,6 +95,32 @@ def active_categories() -> dict[str, str]:
 
 def clear_upload() -> None:
     st.session_state.pop(SESSION_KEY, None)
+
+
+def active_inventory() -> dict[str, InventoryStatus] | None:
+    """مخزون الجلسة الحالية، إن رُفع ملف مخزون. None لا {} — لا يوجد ملف
+    يعني لا نعرف، لا نعرف صفراً لكل منتج (نفس مبدأ None٪ في risk_service).
+
+    ملف المخزون عمودان فقط (منتج + مخزون حالي)، فبقية حقول InventoryStatus
+    (minimum_stock, safety_stock, reorder_point, lead_time_days) صفر
+    افتراضياً — حدّ معروف موثَّق في docs/READINESS_3_PLAN.md، لا خطأ صامت:
+    stock_depletion_risk يُحسب من current_stock وحدها حين تغيب البقية.
+    """
+    snapshot: StockSnapshot | None = st.session_state.get(SESSION_KEY_STOCK)
+    if snapshot is None:
+        return None
+    return {
+        name: InventoryStatus(
+            product_name=name, current_stock=level,
+            minimum_stock=0.0, safety_stock=0.0,
+            reorder_point=0.0, lead_time_days=0,
+        )
+        for name, level in snapshot.levels.items()
+    }
+
+
+def clear_stock_upload() -> None:
+    st.session_state.pop(SESSION_KEY_STOCK, None)
 
 
 def _render_column_mapping(uploaded) -> None:
@@ -164,6 +196,118 @@ def _render_column_mapping(uploaded) -> None:
             st.caption(t("data.map_duplicate"))
 
 
+def _render_stock_column_mapping(uploaded) -> None:
+    """نظير _render_column_mapping لملف المخزون — دورين لا ثلاثة."""
+    try:
+        columns = read_columns(uploaded.getvalue(), uploaded.name)
+    except DataValidationError:
+        return
+
+    if len(columns) < 2:
+        return
+
+    with st.expander(t("stock.map_columns"), expanded=True):
+        st.caption(t("stock.map_columns_help"))
+
+        placeholder = t("data.map_choose")
+        options = [placeholder] + columns
+
+        def _index(role: str) -> int:
+            guess = guess_column(columns, role)
+            return options.index(guess) if guess in options else 0
+
+        suffix = uploaded.file_id
+        product_col = st.selectbox(
+            t("data.map_product"), options, index=_index("product"),
+            key=f"_map_stock_product_{suffix}",
+        )
+        stock_col = st.selectbox(
+            t("stock.map_stock"), options, index=_index("stock"),
+            key=f"_map_stock_stock_{suffix}",
+        )
+
+        chosen = {product_col, stock_col}
+        none_chosen = placeholder in chosen
+        ready = not none_chosen and len(chosen) == 2
+
+        if st.button(t("data.map_apply"), disabled=not ready,
+                     use_container_width=True, key=f"_map_stock_apply_{suffix}"):
+            try:
+                parsed = parse_stock_upload_with_mapping(
+                    uploaded.getvalue(), uploaded.name,
+                    product_column=product_col, stock_column=stock_col,
+                )
+            except DataValidationError as exc:
+                st.error(t("stock.read_failed", detail=translate_error(exc)))
+                return
+
+            st.session_state[SESSION_KEY_STOCK] = parsed
+            logger.info(
+                "Stock upload accepted via manual column mapping | products=%d",
+                len(parsed.levels),
+            )
+            st.rerun()
+
+        if none_chosen:
+            st.caption(t("data.map_incomplete"))
+        elif not ready:
+            st.caption(t("data.map_duplicate"))
+
+
+def _render_stock_widget() -> None:
+    """أداة رفع ملف المخزون — تُتابع أداة رفع المبيعات في نفس الشريط.
+
+    مستقلة عنها كلياً: مخزون أو بلا مخزون لا يمنع رفع مبيعات أو العكس،
+    والوضعان يتعايشان — أحدهما يخصّ الطلب والآخر ما هو متاح لتغطيته.
+    """
+    snapshot: StockSnapshot | None = st.session_state.get(SESSION_KEY_STOCK)
+
+    st.divider()
+    st.subheader(t("stock.header"))
+
+    if snapshot is not None:
+        st.success(t("stock.loaded", count=len(snapshot.levels)))
+        if snapshot.warnings:
+            with st.expander(t("data.notes", count=len(snapshot.warnings))):
+                for warning in snapshot.warnings:
+                    st.write(f"- {t('warn.' + warning.code, **warning.params)}")
+        if st.button(t("stock.clear"), use_container_width=True):
+            clear_stock_upload()
+            st.rerun()
+        return
+
+    st.caption(t("stock.none_active"))
+    uploaded = st.file_uploader(
+        t("stock.uploader"), type=["csv", "xlsx", "xls"],
+        help=t("stock.uploader_help"), key="_stock_uploader",
+    )
+
+    st.download_button(
+        t("stock.template"), data=stock_csv_template(),
+        file_name="factorymind-stock-template.csv", mime="text/csv",
+        use_container_width=True,
+    )
+
+    if uploaded is not None:
+        try:
+            parsed = parse_stock_upload(uploaded.getvalue(), uploaded.name)
+        except DataValidationError as exc:
+            st.error(t("stock.read_failed", detail=translate_error(exc)))
+            context = exc.context or {}
+            if context.get("columns"):
+                st.caption(t("data.columns_found", columns=context["columns"]))
+            if context.get("code") == "no_stock_columns":
+                _render_stock_column_mapping(uploaded)
+            return
+
+        st.session_state[SESSION_KEY_STOCK] = parsed
+        logger.info(
+            "Stock upload accepted | products=%d | warnings=%d",
+            len(parsed.levels), len(parsed.warnings),
+        )
+        st.rerun()
+
+
 def render_upload_widget() -> None:
     """أداة الرفع — تُعرض في الشريط الجانبي لكل صفحة.
 
@@ -190,6 +334,7 @@ def render_upload_widget() -> None:
             if st.button(t("data.back_to_demo"), use_container_width=True):
                 clear_upload()
                 st.rerun()
+            _render_stock_widget()
             return
 
         st.caption(t("data.demo_active"))
@@ -220,6 +365,7 @@ def render_upload_widget() -> None:
                 # أعمدة لا وجود لها فعلياً.
                 if context.get("code") == "no_months":
                     _render_column_mapping(uploaded)
+                _render_stock_widget()
                 return
 
             st.session_state[SESSION_KEY] = parsed
@@ -228,3 +374,5 @@ def render_upload_widget() -> None:
                 parsed.product_count, parsed.month_count, len(parsed.warnings),
             )
             st.rerun()
+
+        _render_stock_widget()

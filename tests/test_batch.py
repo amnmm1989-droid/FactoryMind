@@ -11,6 +11,7 @@ import math
 
 import pytest
 
+from domain.entities import InventoryStatus
 from repositories.forecast_repository import ForecastRepository
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models, run_batch
@@ -140,3 +141,51 @@ def test_rerun_leaves_one_recommendation_per_product_on_top(catalogue, migrated_
 
     names = [r.product_name for r in top]
     assert len(names) == len(set(names))
+
+
+# ---------------------------------------------------------------------------
+# المخزون — Roadmap item 3: التوصية تخصم المخزون المتاح حين يُمرَّر إليها
+# ---------------------------------------------------------------------------
+def test_inventory_reduces_the_recommended_quantity(catalogue, migrated_db):
+    """بلا مخزون: الكمية = الطلب المتوقَّع كاملاً. بمخزون: الكمية أقل بمقدار
+    المخزون المتاح — نفس الحساب الذي recommend_production ينفّذه أصلاً
+    (services/decision_engine/recommender.py::_available_stock)، والدفعة
+    كانت تمرّ عليه None دائماً قبل هذه الميزة.
+    """
+    steady_product = list(catalogue)[0]
+
+    without_stock = run_batch(catalogue, db_path=migrated_db)
+    baseline = RecommendationRepository(db_path=migrated_db).latest_for_product(
+        steady_product
+    )
+    assert without_stock.succeeded == 2
+
+    inventory = {steady_product: InventoryStatus(
+        product_name=steady_product, current_stock=20.0,
+        minimum_stock=0.0, safety_stock=0.0, reorder_point=0.0, lead_time_days=0,
+    )}
+    run_batch(catalogue, db_path=migrated_db, inventory=inventory)
+    with_stock = RecommendationRepository(db_path=migrated_db).latest_for_product(
+        steady_product
+    )
+
+    assert with_stock.recommended_quantity == pytest.approx(
+        baseline.recommended_quantity - 20.0
+    )
+
+
+def test_a_product_missing_from_the_inventory_dict_passes_with_none(
+    catalogue, migrated_db
+):
+    """قاموس مخزون لا يغطي كل الكتالوج — منتج غائب عنه يمرّ بلا مخزون،
+    لا صفراً ولا فشلاً. ملف مخزون جزئي (بعض المنتجات فقط) واقع متوقَّع."""
+    steady_product = list(catalogue)[0]
+    other_product = list(catalogue)[1]
+
+    inventory = {other_product: InventoryStatus(
+        product_name=other_product, current_stock=5.0,
+        minimum_stock=0.0, safety_stock=0.0, reorder_point=0.0, lead_time_days=0,
+    )}
+    report = run_batch(catalogue, db_path=migrated_db, inventory=inventory)
+
+    assert report.succeeded == 2

@@ -15,9 +15,13 @@ ProductionPlanRepository الاستعلامات، ويكتب الرابط، وي
 ⚠️ حدّ باقٍ: "هل النتائج أفضل حين تُتَّبع؟" يحتاج actual_quantity — يُملأ
 بعد التنفيذ الفعلي، ولا شيء يملؤه بعد (بند الإنتاج الفعلي في الخارطة).
 
-⚠️ حدّ معروف: الكميات هنا لا تخصم المخزون، لأن جدول inventory فارغ حتى
-Phase 5. محرك القرار يخصم المخزون المتاح حين يُمرَّر إليه — ولا شيء
-يُمرَّر بعد. المعروض هو الطلب المتوقَّع كاملاً.
+الكميات تخصم المخزون المتاح الآن حين يرفع المستخدم ملف مخزون (عمودان:
+منتج + مخزون حالي، عبر ui/data_source.py::active_inventory) — قبل هذا
+كانت تُعرض الطلب المتوقَّع كاملاً دوماً لأن لا شيء كان يُمرَّر لمحرك
+القرار. ⚠️ حدّ باقٍ حتى الآن: الملف يحمل الرصيد فقط، لا مهلة التوريد أو
+تذبذبها؛ فمخزون الأمان (safety_stock) ونقطة إعادة الطلب (reorder_point)
+يبقيان صفراً افتراضياً، ولا حساب احتمالية حقيقية (appendix، Safety stock)
+ممكناً بلا تلك البيانات.
 """
 from __future__ import annotations
 
@@ -31,7 +35,7 @@ from repositories.production_plan_repository import (
     ProductionPlanRepository,
 )
 from repositories.recommendation_repository import RecommendationRepository
-from ui.data_source import active_dataset
+from ui.data_source import active_dataset, active_inventory
 from ui.i18n import format_month, format_reason, t
 
 logger = get_logger(__name__)
@@ -114,7 +118,10 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         st.caption(t("plan.local_only_note"))
         return
 
-    st.warning(t("plan.inventory_warning"), icon="⚠️")
+    if active_inventory():
+        st.caption(t("plan.inventory_active"))
+    else:
+        st.warning(t("plan.inventory_warning"), icon="⚠️")
 
     recommendations = RecommendationRepository()
     plans = ProductionPlanRepository()

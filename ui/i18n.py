@@ -355,6 +355,42 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "The same column can't serve two roles — pick three different columns.",
     },
 
+    # ---- ملف المخزون (اختياري، يتبع أداة رفع المبيعات في الشريط) ----
+    "stock.header": {"ar": "📦 المخزون", "en": "📦 Stock"},
+    "stock.none_active": {
+        "ar": "لا ملف مخزون مرفوع — الكميات المقترحة تعرض الطلب المتوقَّع "
+              "كاملاً، وعامل نفاد المخزون غير محسوب.",
+        "en": "No stock file uploaded — suggested quantities show full "
+              "expected demand, and stock-depletion risk is not computed.",
+    },
+    "stock.uploader": {"ar": "CSV أو Excel", "en": "CSV or Excel"},
+    "stock.uploader_help": {
+        "ar": "عمودان: اسم المنتج، والمخزون الحالي.",
+        "en": "Two columns: product name, and current stock.",
+    },
+    "stock.template": {"ar": "⬇ نموذج CSV", "en": "⬇ CSV template"},
+    "stock.loaded": {
+        "ar": "مخزون **{count}** منتج محمَّل — الكميات المقترحة تخصمه، "
+              "وعامل نفاد المخزون محسوب الآن.",
+        "en": "Stock for **{count}** products loaded — suggested quantities "
+              "net it off, and stock-depletion risk is now computed.",
+    },
+    "stock.clear": {"ar": "إزالة ملف المخزون", "en": "Remove stock file"},
+    "stock.read_failed": {
+        "ar": "تعذّرت قراءة ملف المخزون: {detail}",
+        "en": "Could not read the stock file: {detail}",
+    },
+    "stock.map_columns": {
+        "ar": "🔗 ربط الأعمدة يدوياً", "en": "🔗 Map columns manually",
+    },
+    "stock.map_columns_help": {
+        "ar": "لم نتعرّف على أعمدة ملفك تلقائياً. اختر أيّ عمود هو المنتج، "
+              "وأيّ عمود هو المخزون.",
+        "en": "We couldn't recognise your file's columns automatically. "
+              "Pick which column is the product, and which is the stock level.",
+    },
+    "stock.map_stock": {"ar": "عمود المخزون", "en": "Stock column"},
+
     # ---- أخطاء الرفع (من services/ingest.py عبر code) ----
     "error.unreadable_file": {
         "ar": "تعذّرت قراءة الملف — تأكّد أنه CSV أو Excel صالح.",
@@ -366,6 +402,11 @@ STRINGS: dict[str, dict[str, str]] = {
               "'يناير 2023'، 'Jan 2023'، '2023-01'.",
         "en": "No column was understood as a month. Accepted formats: "
               "'Jan 2023', 'January 2023', '2023-01'.",
+    },
+    "error.no_stock_columns": {
+        "ar": "لم يُفهَم عمود المنتج أو عمود المخزون في هذا الملف.",
+        "en": "Could not recognise the product column or the stock column "
+              "in this file.",
     },
     "error.too_few_months": {
         "ar": "{months} شهراً فقط — الحد الأدنى {minimum}.",
@@ -483,11 +524,19 @@ STRINGS: dict[str, dict[str, str]] = {
               "For the rest, naive was enough — complexity bought nothing.",
     },
     "exec.inventory_caveat": {
-        "ar": "⚠️ عامل نفاد المخزون غير محسوب — جدول inventory فارغ حتى "
-              "Phase 5. لذا ثقة التقييم 80% (4 عوامل من 5) لكل المنتجات.",
-        "en": "⚠️ Stock-depletion risk is not computed — the inventory table is "
-              "empty until Phase 5. That is why every product shows 80% "
-              "confidence (4 factors of 5).",
+        "ar": "⚠️ عامل نفاد المخزون غير محسوب — لا ملف مخزون مرفوع. لذا "
+              "ثقة التقييم 80% (4 عوامل من 5) لكل المنتجات. ارفع ملف "
+              "المخزون من الشريط الجانبي لتفعيله.",
+        "en": "⚠️ Stock-depletion risk is not computed — no stock file "
+              "uploaded. That is why every product shows 80% confidence "
+              "(4 factors of 5). Upload a stock file from the sidebar to "
+              "enable it.",
+    },
+    "exec.inventory_active": {
+        "ar": "📦 عامل نفاد المخزون محسوب من ملف المخزون المرفوع لهذه "
+              "الجلسة — الكميات المعروضة تخصم المخزون المتاح.",
+        "en": "📦 Stock-depletion risk is computed from this session's "
+              "uploaded stock file — quantities shown net off available stock.",
     },
 
     # ---- بلا تاريخ مبيعات — استعارة نمط منتج مشابه ----
@@ -649,11 +698,19 @@ STRINGS: dict[str, dict[str, str]] = {
               "data here — only storage is disabled.",
     },
     "plan.inventory_warning": {
-        "ar": "**الكميات لا تخصم المخزون** — جدول `inventory` فارغ حتى Phase 5. "
-              "المعروض هو الطلب المتوقَّع كاملاً، لا الفجوة بينه وبين ما لديك.",
-        "en": "**Quantities do not net off inventory** — the `inventory` table is "
-              "empty until Phase 5. What you see is full expected demand, not the "
-              "gap between it and your stock.",
+        "ar": "**الكميات لا تخصم المخزون** — لا ملف مخزون مرفوع لهذه الجلسة. "
+              "المعروض هو الطلب المتوقَّع كاملاً، لا الفجوة بينه وبين ما لديك. "
+              "ارفع ملف المخزون من الشريط الجانبي لتفعيل الخصم.",
+        "en": "**Quantities do not net off stock** — no stock file uploaded "
+              "for this session. What you see is full expected demand, not "
+              "the gap between it and what you have. Upload a stock file "
+              "from the sidebar to enable netting.",
+    },
+    "plan.inventory_active": {
+        "ar": "📦 **الكميات تخصم المخزون المتاح** من ملف المخزون المرفوع "
+              "لهذه الجلسة.",
+        "en": "📦 **Quantities net off available stock** from this "
+              "session's uploaded stock file.",
     },
     "plan.create": {"ar": "إنشاء خطة", "en": "Create a plan"},
     "plan.system_suggests": {
@@ -976,6 +1033,12 @@ STRINGS: dict[str, dict[str, str]] = {
     "warn.duplicate_rows": {
         "ar": "{count} صفاً مكرّراً (منتج+شهر) — جُمعت كمياتها.",
         "en": "{count} duplicate rows (product+month) — their quantities were summed.",
+    },
+    "warn.stock_duplicate_rows": {
+        "ar": "{count} صفاً مكرّراً لنفس المنتج — جُمع مخزونها (مستودعات "
+              "متعددة، غالباً).",
+        "en": "{count} duplicate rows for the same product — their stock was "
+              "summed (likely multiple warehouses).",
     },
     "warn.dropped_columns": {
         "ar": "{count} عموداً لم يُفهَم كشهر فأُهمل: {names}",

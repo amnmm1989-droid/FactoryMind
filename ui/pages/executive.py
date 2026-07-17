@@ -19,12 +19,12 @@ import streamlit as st
 
 
 from core.runtime_mode import is_hosted
-from domain.entities import RiskLevel
+from domain.entities import InventoryStatus, RiskLevel
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models, run_batch
 from services.decision_engine import borrow_recommendation
 from services.reconciliation import category_totals
-from ui.data_source import active_categories, active_dataset
+from ui.data_source import active_categories, active_dataset, active_inventory
 from ui.i18n import t
 
 def _level_badge(level: RiskLevel) -> str:
@@ -39,13 +39,19 @@ def _level_badge(level: RiskLevel) -> str:
 MIN_ACTIONABLE_UNITS = 0.5
 
 
-def _run_batch_ui(products: dict[str, list[float]], full_family: bool) -> None:
+def _run_batch_ui(
+    products: dict[str, list[float]], full_family: bool,
+    inventory: dict[str, InventoryStatus] | None = None,
+) -> None:
     progress = st.progress(0.0, text=t("exec.computing"))
 
     def on_progress(done: int, total: int, name: str) -> None:
         progress.progress(done / total, text=f"{done}/{total} — {name[:40]}")
 
-    report = run_batch(products, use_fast_models=not full_family, on_progress=on_progress)
+    report = run_batch(
+        products, use_fast_models=not full_family, inventory=inventory,
+        on_progress=on_progress,
+    )
     progress.empty()
 
     if report.failure_count:
@@ -190,11 +196,17 @@ def _render_no_history_section(
             st.rerun()
 
 
-def _dataset_signature(products: dict[str, list[float]]) -> str:
+def _dataset_signature(
+    products: dict[str, list[float]],
+    inventory: dict[str, InventoryStatus] | None = None,
+) -> str:
     """بصمة تتغيّر بتغيّر البيانات — مفتاح إبطال الـ cache.
 
     تشمل القيم لا الأسماء فقط: مستخدم يرفع نسخة محدَّثة من ملفه (نفس
-    المنتجات، أرقام جديدة) يجب أن يرى إعادة حساب، لا نتائج الأمس.
+    المنتجات، أرقام جديدة) يجب أن يرى إعادة حساب، لا نتائج الأمس. المخزون
+    يدخل البصمة لنفس السبب بالضبط: رفع ملف مخزون بعد أن حُسبت التوصيات
+    فعلاً يجب أن يُعيد حسابها لتخصم المخزون الجديد، لا أن يبقيها كما كانت
+    حتى يُضغَط "إعادة حساب" يدوياً.
     """
     import hashlib
 
@@ -204,10 +216,19 @@ def _dataset_signature(products: dict[str, list[float]]) -> str:
         digest.update(b"|")
         digest.update(",".join(f"{v:.4f}" for v in products[name]).encode("utf-8"))
         digest.update(b"\n")
+    for name in sorted(inventory or {}):
+        digest.update(b"inv:")
+        digest.update(name.encode("utf-8"))
+        digest.update(b"|")
+        digest.update(f"{inventory[name].current_stock:.4f}".encode("utf-8"))
+        digest.update(b"\n")
     return digest.hexdigest()
 
 
-def _compute_in_session(products: dict[str, list[float]], full_family: bool) -> list:
+def _compute_in_session(
+    products: dict[str, list[float]], full_family: bool,
+    inventory: dict[str, InventoryStatus] | None = None,
+) -> list:
     """حساب بلا حفظ — لبيانات المستخدم وللوضع المستضاف.
 
     يُعيد كائنات ProductionRecommendation مباشرةً بدل المرور بقاعدة
@@ -226,7 +247,10 @@ def _compute_in_session(products: dict[str, list[float]], full_family: bool) -> 
         try:
             result = forecast_product(name, series, steps=6, models=models,
                                       use_cache=False)
-            recommendations.append(recommend_production(name, list(series), result.best))
+            product_inventory = inventory.get(name) if inventory else None
+            recommendations.append(
+                recommend_production(name, list(series), result.best, product_inventory)
+            )
         except AppError:
             pass  # منتج بلا بيانات كافية — متوقَّع، يُتخطّى
         if index % 10 == 0 or index == total:
@@ -245,6 +269,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     # نسخة واحدة تخدم كل الزوّار وقاعدة البيانات ملف مشترك — الحفظ يعني
     # أن يرى الزائر التالي مبيعات السابق.
     ephemeral = is_user_data or is_hosted()
+    inventory = active_inventory()
 
     with st.sidebar:
         st.header(t("common.compute"))
@@ -259,10 +284,10 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         # بدونها: تُحسب التوصيات على بيانات العرض، يرفع المستخدم ملفه،
         # فيبقى الشريط الجانبي يقول "ملفك: 3 منتجات" بينما الجدول يعرض
         # كتالوج العرض كاملاً لا يملكه. كشفته لقطة شاشة بعد كل فحص آلي.
-        signature = _dataset_signature(products)
+        signature = _dataset_signature(products, inventory)
         if compute or st.session_state.get("session_signature") != signature:
             st.session_state["session_recommendations"] = _compute_in_session(
-                products, full_family
+                products, full_family, inventory
             )
             st.session_state["session_signature"] = signature
         stored = st.session_state["session_recommendations"]
@@ -270,7 +295,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
                      else "exec.ephemeral_hosted"))
     else:
         if compute:
-            _run_batch_ui(products, full_family)
+            _run_batch_ui(products, full_family, inventory)
             st.rerun()
         # الحدّ يغطّي الكتالوج كاملاً لا 500 ثابتة: التقاطع بين products
         # وأسماء stored أدناه (no_history) يحتاج كل منتج له توصية، لا أعلى
@@ -327,4 +352,4 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     if no_history:
         _render_no_history_section(no_history, products, ephemeral=ephemeral)
 
-    st.caption(t("exec.inventory_caveat"))
+    st.caption(t("exec.inventory_active") if inventory else t("exec.inventory_caveat"))

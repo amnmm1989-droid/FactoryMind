@@ -115,7 +115,7 @@ not change.
 
 ---
 
-## Phase 2 — Intelligence (brings the engine to enterprise level) — 2.a and 2.b done ✅
+## Phase 2 — Intelligence (brings the engine to enterprise level) — 2.a, 2.b done ✅, 2.c partly done (stock file ✅, safety-stock formula still blocked)
 
 ### 2.a — Level alignment (Hierarchical Reconciliation) ✅
 
@@ -228,18 +228,63 @@ product, click borrow, and confirm it moves into the recommendations table
 with `borrowed_from` set — 5 of its 8 assertions checked to fail against the
 pre-feature code before being called done.
 
-### 2.c — True probability (depends on the stock file — outside this session)
+### 2.c — True probability — stock file done ✅, safety-stock formula still blocked
 
 **The problem**: the confidence margin is fixed (`1.96 × spread`), and
-safety stock is uncomputed because stock data is absent (Phase 5 in
-`docs/ROADMAP.md`, not started).
+safety stock was uncomputed because stock data was absent entirely
+(Roadmap item 3, not started at the time this item was written).
 
-This item is **tied to something outside this plan's scope** — it needs the
-stock file imported first (the first phase in the original roadmap). Once
-available: the standard safety-stock formula in the appendix is ready to
-apply directly on top of `risk_service/factors.py:stock_depletion_risk`,
-which was built to receive it (`None` currently for exactly this reason, not
-a defect).
+**What's actually blocking 2.c turned out to be two separate things, not
+one** — the stock file (data availability) and the safety-stock formula
+(a second kind of data this session's stock file still doesn't carry).
+The first is done; the second remains genuinely out of reach, for a
+reason worth stating precisely rather than re-deferring vaguely.
+
+**Delivered — the stock file (Roadmap item 3)**: a two-column upload
+(`product, current stock`), following the exact session-state-only
+pattern the sales file already uses (`ui/data_source.py::active_inventory`)
+— never written to SQLite, so this doesn't re-scope the privacy promise
+the accounts decision (Phase 3, task 1) was held up on. `services/ingest.py`
+gained `parse_stock_upload`/`parse_stock_upload_with_mapping`/
+`stock_csv_template`, reusing the same hint-guessing and manual
+column-mapping machinery Phase 1 built for the sales file — including a
+fallback screen when column names aren't recognised.
+
+This was wired through every place that was silently passing `inventory=
+None` before: `services/batch.py::run_batch`, `ui/pages/executive.py`'s
+ephemeral session path, and `ui/pages/product_intelligence.py`'s risk
+computation. `recommend_production()`'s stock deduction
+(`_available_stock`, `services/decision_engine/recommender.py`) and
+`stock_depletion_risk()` (`services/risk_service/factors.py`) were already
+built for this — they'd simply never received real data. The executive
+page's recompute-cache signature now folds in the uploaded stock levels
+too, for the identical reason it already folds in the sales data itself
+(a stock upload after recommendations were computed must trigger a
+recompute, not silently sit stale until the button is pressed again).
+
+Verified against the real demo catalogue live: computed the catalogue
+("Electric Motor 1.5kW" → 468.33 units), and confirmed via
+`tests/test_stock_upload_ui.py::test_a_recomputed_recommendation_nets_off_the_uploaded_stock`
+that uploading 5 units of stock and recomputing lands the recommendation
+exactly 5 units lower — the same subtraction `recommend_production` has
+always done, now actually reachable. All new tests confirmed to fail
+against the pre-feature code (missing import at collection time), the
+same check that caught the earlier adherence-dashboard false positive.
+
+**Still blocked — the safety-stock formula itself**: the appendix formula
+(`SS = z × √(σ²_d × L + μ²_d × σ²_L)`) needs lead-time *and its
+variability* (`L`, `σ_L`), not stock level. The two-column stock file
+doesn't carry either — and neither does anything else in the codebase
+today: `products_meta.lead_time_days` exists as a column but has no
+ingest path either, so it sits at its schema default (`0`) for every
+product. Setting `safety_stock`/`reorder_point` from a formula that needs
+data nobody has entered would be the exact "asked for 0, treated as
+default" mistake the rest of this project explicitly refuses to make. So
+`InventoryStatus.safety_stock`/`reorder_point` stay `0.0` — an honest
+default documented in `ui/pages/production_planning.py`'s module
+docstring, not a silent gap. Unblocking this for real needs a lead-time
+(and ideally lead-time-variability) input somewhere — outside this
+session's scope to invent without a real source for that data.
 
 ---
 

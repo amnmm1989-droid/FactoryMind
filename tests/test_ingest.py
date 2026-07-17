@@ -16,9 +16,12 @@ from services.ingest import (
     Dataset,
     guess_column,
     parse_month_label,
+    parse_stock_upload,
+    parse_stock_upload_with_mapping,
     parse_upload,
     parse_upload_with_mapping,
     read_columns,
+    stock_csv_template,
     to_csv_template,
 )
 
@@ -628,3 +631,78 @@ def test_gapped_monthly_data_is_not_rejected():
 
     assert dataset.month_count == 4
     assert any(w.code == "timeline_gaps" for w in dataset.warnings)
+
+
+# ---------------------------------------------------------------------------
+# ملف المخزون — عمودان فقط، لقطة آنية لا سلسلة زمنية
+# ---------------------------------------------------------------------------
+STOCK_CSV = csv(
+    "Product,Current Stock\n"
+    "Hydraulic Pump,50\n"
+    "Safety Valve,0\n"
+)
+
+
+def test_stock_file_is_read_by_hinted_column_names():
+    snapshot = parse_stock_upload(STOCK_CSV, "stock.csv")
+
+    assert snapshot.levels == {"Hydraulic Pump": 50.0, "Safety Valve": 0.0}
+    assert snapshot.warnings == []
+
+
+def test_stock_file_with_unrecognised_columns_names_the_missing_role():
+    data = csv("Item Code,Value\nX,10\n")
+
+    with pytest.raises(DataValidationError) as excinfo:
+        parse_stock_upload(data, "weird.csv")
+
+    assert excinfo.value.context["code"] == "no_stock_columns"
+
+
+def test_stock_mapping_rescues_an_unrecognised_file():
+    data = csv("Item Code,Value\nX,10\nY,20\n")
+
+    snapshot = parse_stock_upload_with_mapping(
+        data, "weird.csv", product_column="Item Code", stock_column="Value",
+    )
+
+    assert snapshot.levels == {"X": 10.0, "Y": 20.0}
+
+
+def test_stock_mapping_rejects_the_same_column_for_both_roles():
+    with pytest.raises(DataValidationError) as excinfo:
+        parse_stock_upload_with_mapping(
+            STOCK_CSV, "stock.csv",
+            product_column="Product", stock_column="Product",
+        )
+
+    assert excinfo.value.context["code"] == "duplicate_mapped_columns"
+
+
+def test_duplicate_product_rows_are_summed_not_overwritten():
+    """صفّان لنفس المنتج غالباً مستودعان — مخزونهما الحقيقي مجموعهما."""
+    data = csv("Product,Stock\nPump,30\nPump,20\n")
+
+    snapshot = parse_stock_upload(data, "multi_warehouse.csv")
+
+    assert snapshot.levels == {"Pump": 50.0}
+    assert any(w.code == "stock_duplicate_rows" for w in snapshot.warnings)
+
+
+def test_negative_stock_is_clipped_to_zero_and_warned():
+    data = csv("Product,Stock\nPump,-5\n")
+
+    snapshot = parse_stock_upload(data, "negative.csv")
+
+    assert snapshot.levels == {"Pump": 0.0}
+    assert any(w.code == "negatives" for w in snapshot.warnings)
+
+
+def test_stock_template_has_the_two_expected_columns():
+    import io
+
+    import pandas as pd
+
+    frame = pd.read_csv(io.BytesIO(stock_csv_template()), encoding="utf-8-sig")
+
+    assert list(frame.columns) == ["المنتج", "المخزون الحالي"]

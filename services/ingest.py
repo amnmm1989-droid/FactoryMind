@@ -73,6 +73,14 @@ QUANTITY_HINTS = ("quantity", "qty", "amount", "value", "sales", "الكمية",
 # اكتشاف تلقائي فقط، توسيعاً لاحقاً إن ثبتت الحاجة.
 CATEGORY_HINTS = ("category", "family", "group", "التصنيف", "الفئة", "العائلة")
 
+# عمود الكمية في ملف المخزون — تقاطع متعمَّد مع QUANTITY_HINTS: نفس
+# الكلمات الشائعة ("quantity"، "qty") تسمّي عموداً مختلفاً كلياً هنا (رصيد
+# آني لا مبيعات شهرية)، لكن الملفين لا يُقرآن معاً أبداً فلا لبس فعلي.
+STOCK_HINTS = (
+    "stock", "on hand", "on-hand", "balance", "available", "qty", "quantity",
+    "المخزون", "الرصيد", "الكمية المتاحة", "الكمية الحالية",
+)
+
 MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى بأي نموذج
 
 # الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم.
@@ -122,6 +130,19 @@ class Dataset:
     @property
     def month_count(self) -> int:
         return len(self.months)
+
+
+@dataclass
+class StockSnapshot:
+    """لقطة مخزون آنية — لا سلسلة زمنية. صفّ واحد لكل منتج، لا شهر.
+
+    ملف مبيعات وملف مخزون شكلان مختلفان جوهرياً لا صدفة تسمية: الأول
+    تاريخ (Dataset)، والثاني حالة الآن فقط (levels). دمجهما في نفس الكيان
+    كان سيجعل "شهر" حقلاً بلا معنى في نصف الحالات.
+    """
+
+    levels: dict[str, float]              # {اسم المنتج: المخزون الحالي}
+    warnings: list[Warning_] = field(default_factory=list)
 
 
 def parse_full_date(label: str) -> date | None:
@@ -309,14 +330,15 @@ def read_columns(content: bytes, filename: str) -> list[str]:
 def guess_column(columns: list[str], role: str) -> str | None:
     """أفضل تخمين لعمود بدور معيّن — لتعبئة شاشة الربط اليدوي مسبقاً.
 
-    role: "product" | "month" | "quantity". يستخدم نفس تلميحات التخمين
-    التلقائي (PRODUCT_HINTS إلخ) — تخمين أفضل من لا شيء، لكنه يبقى تخميناً
-    يُعرض على المستخدم لا يُفرَض عليه؛ الشاشة تسمح بتغييره بنقرة.
+    role: "product" | "month" | "quantity" | "stock". يستخدم نفس تلميحات
+    التخمين التلقائي (PRODUCT_HINTS إلخ) — تخمين أفضل من لا شيء، لكنه يبقى
+    تخميناً يُعرض على المستخدم لا يُفرَض عليه؛ الشاشة تسمح بتغييره بنقرة.
     """
     hints = {
         "product": PRODUCT_HINTS,
         "month": MONTH_HINTS,
         "quantity": QUANTITY_HINTS,
+        "stock": STOCK_HINTS,
     }[role]
     return _find_column(columns, hints)
 
@@ -533,6 +555,108 @@ def to_csv_template() -> bytes:
             "يناير 2024": [120, 45],
             "فبراير 2024": [95, 0],
             "مارس 2024": [130, 60],
+        }
+    )
+    return frame.to_csv(index=False).encode("utf-8-sig")
+
+
+def _stock_from_columns(
+    frame: pd.DataFrame, product_column: str, stock_column: str
+) -> StockSnapshot:
+    """من عمودين معلومَي الاسم إلى {منتج: مخزون} — تخميناً أو يدوياً، كما
+    _from_long لملف المبيعات. الجمع عند التكرار لا الأخذ الأول: صفّان
+    لنفس المنتج غالباً مستودعان لا خطأ إدخال، ومخزونهما الحقيقي مجموعهما.
+    """
+    warnings: list[Warning_] = []
+    duplicates = int(frame.duplicated(subset=[product_column]).sum())
+    if duplicates:
+        warnings.append(Warning_("stock_duplicate_rows", {"count": duplicates}))
+
+    grouped = frame.groupby(product_column)[stock_column].sum()
+    numeric = pd.to_numeric(grouped, errors="coerce")
+    non_numeric = int(numeric.isna().sum())
+    if non_numeric:
+        warnings.append(Warning_("non_numeric", {"count": non_numeric}))
+    numeric = numeric.fillna(0.0)
+
+    negatives = int((numeric < 0).sum())
+    if negatives:
+        warnings.append(Warning_("negatives", {"count": negatives}))
+        numeric = numeric.clip(lower=0)
+
+    levels: dict[str, float] = {}
+    for name, value in numeric.items():
+        label = str(name).strip()
+        if label and label.lower() != "nan":
+            levels[label] = float(value)
+
+    if not levels:
+        raise DataValidationError(
+            "لا منتجات صالحة في ملف المخزون", context={"code": "no_products"}
+        )
+
+    return StockSnapshot(levels=levels, warnings=warnings)
+
+
+def parse_stock_upload(content: bytes, filename: str) -> StockSnapshot:
+    """قراءة ملف مخزون (عمودان: منتج + مخزون حالي) — الأعمدة تُخمَّن بالاسم.
+
+    Raises:
+        DataValidationError: ملف غير مقروء، أو فارغ، أو تعذّر تخمين عمود
+            المنتج أو المخزون (code="no_stock_columns" — قابل للإنقاذ عبر
+            parse_stock_upload_with_mapping)، أو بلا منتجات صالحة.
+    """
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    columns = [str(c) for c in frame.columns]
+    product_column = _find_column(columns, PRODUCT_HINTS)
+    stock_column = _find_column(columns, STOCK_HINTS)
+    if product_column is None or stock_column is None:
+        raise DataValidationError(
+            "لم يُفهَم عمود المنتج أو عمود المخزون",
+            context={"code": "no_stock_columns", "columns": columns[:6]},
+        )
+
+    return _stock_from_columns(frame, product_column, stock_column)
+
+
+def parse_stock_upload_with_mapping(
+    content: bytes, filename: str, *, product_column: str, stock_column: str
+) -> StockSnapshot:
+    """كـ parse_stock_upload، لكن بعمودين اختارهما المستخدم يدوياً بدل التخمين."""
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    columns = [str(c) for c in frame.columns]
+    chosen = {"product": product_column, "stock": stock_column}
+    for role, column in chosen.items():
+        if column not in columns:
+            raise DataValidationError(
+                f"العمود المختار لـ{role} غير موجود في الملف: {column}",
+                context={"code": "unknown_mapped_column", "role": role, "column": column},
+            )
+    if product_column == stock_column:
+        raise DataValidationError(
+            "اختر عمودين مختلفين — نفس العمود لا يصلح لدورين",
+            context={"code": "duplicate_mapped_columns"},
+        )
+
+    return _stock_from_columns(frame, product_column, stock_column)
+
+
+def stock_csv_template() -> bytes:
+    """نموذج فارغ لملف المخزون — عمودان لا أكثر."""
+    frame = pd.DataFrame(
+        {
+            "المنتج": ["Hydraulic Pump 50mm", "Safety Valve 2in"],
+            "المخزون الحالي": [50, 0],
         }
     )
     return frame.to_csv(index=False).encode("utf-8-sig")

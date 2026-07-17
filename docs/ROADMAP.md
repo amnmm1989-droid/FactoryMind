@@ -446,17 +446,25 @@ format no longer doubles the odds of rejection: it doubles the odds of a
 three-click recovery instead. See `READINESS_3_PLAN.md` Phase 1 for the
 implementation detail and its tests.
 
-## 3. Stock file — for the procurement manager
+## 3. Stock file — for the procurement manager ✅
 
 Two ERP columns: `product, current stock`.
 
-Unlocks:
+Unlocked:
 - **Production**: "produce 240" → **"produce 190, you have 50"**
-- **Procurement**: stock coverage and reorder timing
-- **Confidence 80% → 100%**: stock depletion is the fifth, uncomputed factor
+- **Confidence 80% → 100%**: stock depletion is the fifth factor, now computed
 
-`inventory` has been ready since Phase 2; `stock_depletion_risk` is written
-and waiting for its data.
+`inventory` has been ready since Phase 2; `stock_depletion_risk` was
+written and waiting for its data — now fed via `ui/data_source.py::
+active_inventory` (session-only, same privacy pattern as the sales file;
+never written to SQLite). See `docs/READINESS_3_PLAN.md` 2.c for the
+implementation detail and its tests.
+
+**Still open**: reorder timing (`reorder_point`, `safety_stock`) needs
+lead-time and its variability, which this two-column file doesn't carry
+and nothing else in the codebase supplies yet — `products_meta.
+lead_time_days` exists as a column but has no ingest path either. Both
+stay at their schema default (`0.0`) until a lead-time input exists.
 
 ## 4. Actual production file — for the plant manager
 
