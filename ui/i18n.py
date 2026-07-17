@@ -686,6 +686,26 @@ STRINGS: dict[str, dict[str, str]] = {
     "plan.actual": {"ar": "الفعلي", "en": "Actual"},
     "plan.notes_column": {"ar": "ملاحظات", "en": "Notes"},
     "plan.updated": {"ar": "آخر تحديث", "en": "Last updated"},
+
+    # ---- الالتزام — "كم مرة تُتَّبع توصياتنا؟" (سؤال 007 الأصلي) ----
+    "plan.adherence_title": {"ar": "📊 الالتزام بالتوصيات", "en": "📊 Recommendation adherence"},
+    "plan.adherence_summary": {
+        "ar": "من {judged} خطة قابلة للمقارنة بتوصية: اتُّبعت التوصية في "
+              "{followed} ({pct:.0f}%)، وخولفت في {overridden}. {unlinked} "
+              "خطة بلا توصية مرتبطة (بيانات أقدم من هذا الربط، أو لا توصية "
+              "محسوبة أصلاً) — مُستبعدة من هذه النسبة، لا مُحتسَبة صفراً.",
+        "en": "Of {judged} plans with a linked recommendation: {followed} "
+              "followed it ({pct:.0f}%), {overridden} overrode it. {unlinked} "
+              "plans have no linked recommendation (older data, or no "
+              "recommendation ever existed) — excluded from this percentage, "
+              "not counted as zero.",
+    },
+    "plan.adherence_none": {
+        "ar": "لا خطط مرتبطة بتوصية بعد — الالتزام لا يُقاس على خطط بلا مرجع.",
+        "en": "No plans linked to a recommendation yet — adherence isn't "
+              "measured against plans with no baseline.",
+    },
+
     "status.draft": {"ar": "مسودّة", "en": "Draft"},
     "status.approved": {"ar": "معتمدة", "en": "Approved"},
     "status.in_progress": {"ar": "قيد التنفيذ", "en": "In progress"},

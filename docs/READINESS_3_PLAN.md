@@ -243,7 +243,7 @@ a defect).
 
 ---
 
-## Phase 3 — Collaboration (from individual tool to team tool)
+## Phase 3 — Collaboration (from individual tool to team tool) — task 2 done ✅, task 1 awaiting owner decision
 
 **The problem**: no persistent accounts; `source_recommendation_id` (fixed
 this session) links the plan to the recommendation but **within one
@@ -251,31 +251,62 @@ session**, not across planners.
 
 **Tasks**:
 
-1. **Accounts via `st.login()`** (OIDC, natively supported in Streamlit
+1. [ ] **Accounts via `st.login()`** (OIDC, natively supported in Streamlit
    ≥ 1.32): no UI rebuild. Each planner saves plans under their name, not a
-   transient session.
-2. **Adherence dashboard**: `ProductionPlanRepository.adherence()` (added
+   transient session. **Not started — see the decision note below.**
+2. [x] **Adherence dashboard**: `ProductionPlanRepository.adherence()` (added
    this session) actually answers "how many plans are followed?" now — but
    no screen shows it yet. This is the cheapest possible collaboration
    feature: the code is ready, only the display is missing.
-3. **Comments and context on the decision**: a `notes` field exists in
+3. [ ] **Comments and context on the decision**: a `notes` field exists in
    `production_plans` (`migrations/007`) and is already used — expanding it
    to a multi-comment log (who edited it and when) needs a small extra
-   table, not a redesign.
+   table, not a redesign. **Deliberately not started** — "who" is the whole
+   point of a comment log, and there is no "who" without task 1. Building a
+   timestamped-but-anonymous log now would be a lesser feature nobody asked
+   for, not a step toward the real one.
 
 **Acceptance criterion**: a production and a sales manager see the same plan,
 under their names, and a dashboard saying "78% of this month's
 recommendations were followed, and the average deviation when overridden was
 X units".
 
-**Size**: relatively large — accounts change the "no persistent user state"
-assumption the whole project was built on. It deserves an explicit decision
-from the owner before starting (see the business-model note in
-`READINESS_1_MARKET.md`) — because a persistent account means persistent
-data, and this touches the current privacy promise ("nothing is saved when
-hosted") and needs re-phrasing it, not breaking it: **a planner's account
-and name are one thing, their sales file another entirely — separating them
-is what preserves the promise.**
+**Task 2 delivered.** `ui/pages/production_planning.py` now renders the
+adherence numbers `ProductionPlanRepository.adherence()` already computed —
+no engine or repository change needed, exactly as sized. The percentage is
+computed over `judged = total − unlinked`, not `total`: a plan with no
+linked recommendation cannot be judged followed or overridden at all, and
+dividing by the full total would understate the real follow rate — the same
+`None ≠ 0` discipline `adherence()` itself already applies, now carried
+through to the number a planner actually reads. The pure computation
+(`_adherence_summary_params`) is separated from the `st.*` calls and unit
+tested directly; `tests/test_adherence_dashboard_ui.py` drives the actual
+page through `AppTest.from_function` (the page isn't reachable via
+`AppTest.switch_page`, which needs a real file path and this app's pages are
+dynamically registered closures in `app.py`) — seeding a real forecast and
+recommendation first, since a freshly-migrated database has no
+`recommendations` row to follow or override at all. All 3 of its tests
+checked to fail against the pre-feature code; one assertion had to be
+tightened after it passed *even without the feature* — `"0%" in captions`
+matched the substring inside an unrelated `"18.0%"` elsewhere on the page,
+a reminder that a loose text match can be worse than no test.
+
+**Task 1 — accounts — needs your decision before I touch it, for two
+reasons stated plainly:**
+
+1. **I cannot configure the identity provider.** `st.login()` needs a real
+   OIDC provider (Google, Microsoft, Okta, or similar) with a client ID and
+   secret in `secrets.toml` — that requires you to create the provider-side
+   app registration; no code change substitutes for it.
+2. **It re-scopes a promise made throughout this project's own
+   documentation** — "nothing is saved when hosted", "no accounts, ephemeral
+   session" (`ARCHITECTURE.md`, `ROADMAP.md`'s architectural-tension note).
+   A persistent account is persistent data, even if the sales file itself
+   stays exactly as ephemeral as it is today. That re-scoping should be
+   stated and agreed, not slipped in as a side effect of a feature.
+
+Task 3 stays undelivered for the same reason — a comment log's value is
+almost entirely in "who said this", which does not exist without task 1.
 
 ---
 

@@ -41,6 +41,39 @@ def _status_label(code: str) -> str:
     return t(f"status.{code}")
 
 
+def _adherence_summary_params(stats: dict[str, int]) -> dict[str, float | int] | None:
+    """حساب بلا عرض — قابل للاختبار بمعزل عن Streamlit.
+
+    None يعني: لا خطة يمكن الحكم عليها بعد (كل الخطط بلا توصية مرتبطة، أو
+    لا خطط أصلاً). النسبة على judged = total - unlinked لا على total: خطة
+    بلا توصية مرتبطة لا يمكن الحكم عليها متابعةً أو مخالفةً أصلاً، فقسمتها
+    على الإجمالي تُصغِّر النسبة كذباً — نفس مبدأ adherence() نفسه.
+    """
+    judged = stats["total"] - stats["unlinked"]
+    if judged <= 0:
+        return None
+    return {
+        "judged": judged,
+        "followed": stats["followed"],
+        "overridden": stats["overridden"],
+        "unlinked": stats["unlinked"],
+        "pct": stats["followed"] / judged * 100,
+    }
+
+
+def _render_adherence(stats: dict[str, int]) -> None:
+    """"كم مرة تُتَّبع توصياتنا؟" — السؤال الذي بُني الجدول لأجله في 007،
+    وصار قابلاً للإجابة بعد أن صار source_recommendation_id يُكتب فعلاً.
+    """
+    params = _adherence_summary_params(stats)
+    if params is None:
+        st.caption(t("plan.adherence_none"))
+        return
+
+    st.subheader(t("plan.adherence_title"))
+    st.caption(t("plan.adherence_summary", **params))
+
+
 def _plans_frame(rows: list[dict]) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
@@ -124,6 +157,8 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
                 st.info(t("plan.overridden", suggested=suggested, actual=quantity))
             st.success(t("plan.saved", product=product[:40],
                          month=format_month(month_label)))
+
+    _render_adherence(plans.adherence())
 
     st.subheader(t("plan.existing"))
     frame = _plans_frame(plans.all_plans())

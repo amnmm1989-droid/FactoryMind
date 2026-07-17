@@ -16,6 +16,7 @@ import importlib
 import pytest
 
 from domain.entities import ProductionRecommendation, RiskLevel, RiskScore
+from ui.pages.production_planning import _adherence_summary_params
 from ui.pages.executive import (
     MIN_ACTIONABLE_UNITS,
     _format_quantity,
@@ -149,3 +150,46 @@ def test_every_page_module_is_wired_into_navigation():
 
     for module_name in PAGE_MODULES:
         assert f'_page("{module_name}")' in source
+
+
+# ---------------------------------------------------------------------------
+# لوحة الالتزام (production_planning.py) — حساب بلا Streamlit
+# ---------------------------------------------------------------------------
+def test_no_judged_plans_gives_none_not_a_division_by_zero():
+    """كل الخطط بلا توصية مرتبطة (أو لا خطط أصلاً) — لا 0/0."""
+    assert _adherence_summary_params(
+        {"total": 0, "followed": 0, "overridden": 0, "unlinked": 0}
+    ) is None
+    assert _adherence_summary_params(
+        {"total": 5, "followed": 0, "overridden": 0, "unlinked": 5}
+    ) is None
+
+
+def test_the_percentage_excludes_unlinked_from_the_denominator():
+    """جوهر الحساب: النسبة على judged = total - unlinked، لا على total.
+
+    5 خطط، 2 منها بلا توصية مرتبطة: judged=3، والمتابعة من الثلاثة لا
+    الخمسة — قسمتها على 5 كانت لتُصغِّر النسبة كذباً.
+    """
+    params = _adherence_summary_params(
+        {"total": 5, "followed": 2, "overridden": 1, "unlinked": 2}
+    )
+
+    assert params["judged"] == 3
+    assert params["pct"] == pytest.approx(2 / 3 * 100)
+
+
+def test_fully_followed_reports_100_percent():
+    params = _adherence_summary_params(
+        {"total": 3, "followed": 3, "overridden": 0, "unlinked": 0}
+    )
+
+    assert params["pct"] == pytest.approx(100.0)
+
+
+def test_fully_overridden_reports_zero_percent():
+    params = _adherence_summary_params(
+        {"total": 2, "followed": 0, "overridden": 2, "unlinked": 0}
+    )
+
+    assert params["pct"] == pytest.approx(0.0)
