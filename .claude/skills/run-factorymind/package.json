@@ -1,0 +1,7 @@
+{
+  "name": "run-factorymind-driver",
+  "private": true,
+  "type": "module",
+  "description": "أداة وكيل لقيادة واجهة FactoryMind — ليست اعتماداً للمشروع",
+  "dependencies": { "playwright": "^1.61.1" }
+}

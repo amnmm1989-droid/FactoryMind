@@ -39,3 +39,7 @@ models/*.joblib
 # OS files
 .DS_Store
 Thumbs.db
+
+# أدوات الوكيل (.claude/skills/run-factorymind/)
+node_modules/
+.claude/skills/*/screenshots/
