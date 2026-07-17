@@ -292,3 +292,29 @@ class ProductionPlanRepository:
             ) from exc
         finally:
             conn.close()
+
+    def validated_outcomes(self) -> list[dict[str, float]]:
+        """خطط لها كمية فعلية مسجَّلة، مع عوامل الخطورة الخمسة كما حُسبت
+        ساعة التوصية — المادة الخام لمعايرة FACTOR_WEIGHTS
+        (services/risk_service/calibration.py).
+
+        JOIN لا LEFT JOIN: خطة بلا source_recommendation_id (unlinked، راجع
+        adherence()) لا عوامل خطورة محفوظة لها أصلاً — لا شيء يُقارَن
+        بخطأ التخطيط، فلا تدخل المعايرة بصفوف فارغة.
+        """
+        conn = self._get_connection()
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    pp.planned_quantity, pp.actual_quantity,
+                    r.demand_volatility, r.stock_depletion_risk,
+                    r.forecast_accuracy_penalty, r.seasonality_factor, r.growth_rate
+                FROM production_plans pp
+                JOIN recommendations r ON r.id = pp.source_recommendation_id
+                WHERE pp.actual_quantity IS NOT NULL
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            conn.close()

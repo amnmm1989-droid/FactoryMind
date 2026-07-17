@@ -306,6 +306,47 @@ def test_actuals_update_an_existing_plan_in_place(plans, product, month_id):
     assert stored["actual_quantity"] == 95.0
 
 
+# ---------------------------------------------------------------------------
+# مادة المعايرة — Roadmap "Still open" تحت Phase 4 وبند 4
+# ---------------------------------------------------------------------------
+def test_validated_outcomes_is_empty_before_any_actual_is_recorded(
+    plans, product, month_id
+):
+    plans.save(product, month_id, 100.0)
+
+    assert plans.validated_outcomes() == []
+
+
+def test_validated_outcomes_needs_both_a_plan_and_its_recommendation(
+    plans, recommendations, product, month_id
+):
+    """خطة بلا source_recommendation_id (unlinked) لا عوامل خطورة محفوظة
+    لها — لا تدخل مادة المعايرة حتى لو مُلئ actual_quantity."""
+    plans.save(product, month_id, 100.0)  # بلا source_recommendation_id
+    plans.record_actuals(
+        [name for mid, name in plans.month_options() if mid == month_id],
+        {product: [90.0]},
+    )
+
+    assert plans.validated_outcomes() == []
+
+
+def test_validated_outcomes_carries_the_risk_factors_from_the_recommendation(
+    plans, recommendations, product, month_id
+):
+    recommendation_id = recommendations.save(_recommendation(product, 100.0))
+    plans.save(product, month_id, 100.0, source_recommendation_id=recommendation_id)
+    month_label = [name for mid, name in plans.month_options() if mid == month_id][0]
+
+    plans.record_actuals([month_label], {product: [95.0]})
+
+    outcomes = plans.validated_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["planned_quantity"] == 100.0
+    assert outcomes[0]["actual_quantity"] == 95.0
+    assert outcomes[0]["demand_volatility"] == 0.3
+
+
 def test_the_page_holds_no_sql():
     """الخرق نفسه: صفحة واجهة تفتح اتصالها وتكتب استعلاماتها.
 

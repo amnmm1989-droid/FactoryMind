@@ -216,11 +216,27 @@ change is **necessarily zero**. That is not a flaw to hide by changing the
 window; the model genuinely predicts that next month looks like recent
 months.
 
-### Still open
+### Weight calibration ✅ — diagnostic, not automatic
 
-- **Weights are an initial calibration with no validation data.** They get
-  tuned once `production_plans.actual_quantity` accumulates against
-  `planned_quantity`.
+`services/risk_service/calibration.py::calibrate()` reads `Production
+PlanRepository.validated_outcomes()` (every plan with a recorded
+`actual_quantity`, joined to the risk factors its recommendation was
+scored with) and correlates each of the five factors against planning
+error (`|actual - planned| / actual`). Surfaced on Production Planning
+right below the actuals upload — the same page that fills the data it
+reads.
+
+**Deliberately not automatic.** This does not write back into
+`FACTOR_WEIGHTS` — swapping every product's risk score based on a sample
+that might be a few dozen rows is a decision for a human to see and make,
+not one this function makes silently. A factor below `MIN_SAMPLE_PER_
+FACTOR` (10 pairs) reports `correlation=None`, not a noisy number; a
+factor with zero variance across the sample (every row scored it
+identically) also reports `None` — undefined, not zero, the same
+"unmeasurable ≠ 0" rule this codebase applies everywhere else, now applied
+to a correlation coefficient instead of a risk score. Verified live: a
+seeded batch where four of five factors held a constant value correctly
+showed "not enough sample" for all four, not a fabricated 0% correlation.
 
 ## Intermittent demand — Croston / TSB ✅
 
@@ -506,19 +522,14 @@ Unlocked:
   planned quantity — same "None ≠ 0" discipline as everywhere else in this
   codebase.
 
-**Still open**: "tune the risk weights documented as initial calibration
-with no validation data" needs something that actually reads accumulated
-`planned` vs `actual` pairs and adjusts `FACTOR_WEIGHTS`
-(`services/risk_service`) — that calibration logic doesn't exist yet. This
-item only unlocked the data it would need.
-
-> **Half of this became available early.** The first question — "how often
-> are recommendations followed?" — needed `source_recommendation_id`, not a
-> new file. The column existed since 007 and nothing wrote it (see the
-> hardening notes above). `ProductionPlanRepository.adherence()` answers it
-> now. **The second question** — "are outcomes better when they are
-> followed?" — can now be asked (`actual_quantity` is fillable), but nothing
-> yet computes the answer from it.
+> **Both questions this file was needed for are now answered.** The first —
+> "how often are recommendations followed?" — needed `source_recommendation_
+> id`, not a new file. The column existed since 007 and nothing wrote it (see
+> the hardening notes above). `ProductionPlanRepository.adherence()` answers
+> it. **The second** — "are outcomes better when they are followed?" — reads
+> the `planned`/`actual` pairs this file fills and correlates them against
+> each risk factor: `services/risk_service/calibration.py` (see Phase 4's
+> "Weight calibration" above).
 
 ## 5. Customer dimension — for the sales manager ✅
 

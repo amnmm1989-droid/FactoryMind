@@ -46,6 +46,8 @@ from services.ingest import (
     read_columns,
     to_csv_template,
 )
+from services.risk_service.calibration import CalibrationReport, calibrate
+from services.risk_service.scoring import FACTOR_WEIGHTS
 from ui.data_source import active_dataset, active_inventory
 from ui.i18n import error as translate_error
 from ui.i18n import format_month, format_reason, t
@@ -88,6 +90,53 @@ def _render_adherence(stats: dict[str, int]) -> None:
 
     st.subheader(t("plan.adherence_title"))
     st.caption(t("plan.adherence_summary", **params))
+
+
+def _factor_label(name: str) -> str:
+    return t(f"factor.{name}")
+
+
+def _render_calibration(report: CalibrationReport) -> None:
+    """"هل عوامل الخطورة تتنبأ فعلاً بصعوبة التخطيط؟" — تشخيص لا تطبيق.
+
+    FACTOR_WEIGHTS (services/risk_service/scoring.py) معايرة أولية موثَّقة
+    صراحة بلا بيانات تحقّق. الآن بعد أن صار actual_quantity قابلاً للتعبئة
+    (رفع الإنتاج الفعلي أعلاه)، هذا القسم يقيس: هل كل عامل يرتفع فعلاً حين
+    يصعب التخطيط (خطأ planned/actual أكبر)؟ لا يُغيَّر FACTOR_WEIGHTS هنا
+    تلقائياً — عرضٌ لإنسان يقرر، لا استبدال صامت لكل درجة خطورة في التطبيق
+    بناءً على عيّنة قد تكون عشرات الصفوف فقط.
+    """
+    st.subheader(t("plan.calibration_title"))
+
+    if not report.validated_factors:
+        st.caption(t("plan.calibration_none", total=report.total_outcomes))
+        return
+
+    st.caption(t("plan.calibration_summary", total=report.total_outcomes))
+    st.dataframe(
+        pd.DataFrame([
+            {
+                t("plan.calibration_factor"): _factor_label(c.factor),
+                t("plan.calibration_sample"): c.sample_size,
+                t("plan.calibration_correlation"):
+                    f"{c.correlation:+.2f}" if c.correlation is not None else "—",
+                t("plan.calibration_current_weight"): f"{FACTOR_WEIGHTS[c.factor]:.0%}",
+                t("plan.calibration_suggested_weight"): (
+                    f"{report.suggested_weights[c.factor]:.0%}"
+                    if report.suggested_weights and c.factor in report.suggested_weights
+                    else "—"
+                ),
+            }
+            for c in report.correlations
+        ]),
+        use_container_width=True, hide_index=True,
+    )
+
+    if report.unvalidated_factors:
+        st.caption(t(
+            "plan.calibration_unvalidated",
+            names="، ".join(_factor_label(name) for name in report.unvalidated_factors),
+        ))
 
 
 def _plans_frame(rows: list[dict]) -> pd.DataFrame:
@@ -304,6 +353,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     _render_adherence(plans.adherence())
     _render_actuals_upload()
+    _render_calibration(calibrate(plans.validated_outcomes()))
 
     st.subheader(t("plan.existing"))
     frame = _plans_frame(plans.all_plans())

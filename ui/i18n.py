@@ -763,6 +763,40 @@ STRINGS: dict[str, dict[str, str]] = {
               "measured against plans with no baseline.",
     },
 
+    # ---- معايرة أوزان الخطورة — "هل تتنبأ العوامل فعلاً بصعوبة التخطيط؟" ----
+    "plan.calibration_title": {
+        "ar": "📐 معايرة أوزان الخطورة", "en": "📐 Risk weight calibration",
+    },
+    "plan.calibration_none": {
+        "ar": "{total} خطة لها كمية فعلية مسجَّلة — لا يكفي لاختبار أي عامل "
+              "بعد. ارفع ملف الإنتاج الفعلي بانتظام لتتراكم العيّنة.",
+        "en": "{total} plans have a recorded actual quantity — not enough "
+              "yet to test any factor. Upload the actual-production file "
+              "regularly to build up the sample.",
+    },
+    "plan.calibration_summary": {
+        "ar": "من {total} خطة لها كمية فعلية مسجَّلة — أيّ عامل يرتفع فعلاً "
+              "حين يصعب التخطيط؟ **تشخيص لا تطبيق تلقائي**: الأوزان الفعلية "
+              "لا تتغيّر هنا.",
+        "en": "Across {total} plans with a recorded actual quantity — which "
+              "factor actually rises when planning gets harder? "
+              "**Diagnostic, not automatic**: the live weights don't change "
+              "here.",
+    },
+    "plan.calibration_factor": {"ar": "العامل", "en": "Factor"},
+    "plan.calibration_sample": {"ar": "العيّنة", "en": "Sample"},
+    "plan.calibration_correlation": {"ar": "الارتباط", "en": "Correlation"},
+    "plan.calibration_current_weight": {"ar": "الوزن الحالي", "en": "Current weight"},
+    "plan.calibration_suggested_weight": {
+        "ar": "الوزن المقترَح", "en": "Suggested weight",
+    },
+    "plan.calibration_unvalidated": {
+        "ar": "لم تكفِ العيّنة لاختبار: {names} — عيّنتها أقل من الحد الأدنى، "
+              "لا لأنها غير مهمة.",
+        "en": "Not enough sample to test: {names} — their sample is below "
+              "the minimum, not because they don't matter.",
+    },
+
     # ---- الإنتاج الفعلي — "هل النتائج أفضل حين تُتَّبع التوصية؟" ----
     "plan.actuals_header": {
         "ar": "📥 رفع الإنتاج الفعلي", "en": "📥 Upload actual production",
