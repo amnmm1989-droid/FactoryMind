@@ -272,3 +272,32 @@ def test_a_missing_query_param_falls_back_to_the_default(monkeypatch):
     monkeypatch.setattr(i18n.st, "query_params", _FakeQueryParams())
 
     assert i18n.current_language() == "en"
+
+
+def test_the_granularity_message_translates_its_own_parameters(monkeypatch):
+    """رسالة الرفض تحمل رمزاً خاماً ("weekly") من الخدمة، وتحتاجه مصرَّفاً.
+
+    القيمة تُترجَم عبر t() متداخل، واسم المتغيّر واحد في الصياغتين — وإلا
+    انكسر شرط تطابق المتغيّرات، وهو يحرس من صياغة تنهار للغة واحدة فقط.
+    """
+    from core.exceptions import DataValidationError
+
+    exc = DataValidationError(
+        "raw", context={"code": "unsupported_granularity", "granularity": "weekly"}
+    )
+
+    monkeypatch.setattr(i18n.st, "session_state", {"language": "en"})
+    english = i18n.error(exc)
+    assert "weekly" in english and "weeks" in english
+
+    monkeypatch.setattr(i18n.st, "session_state", {"language": "ar"})
+    arabic = i18n.error(exc)
+    assert "أسبوعية" in arabic and "أسبوعاً" in arabic
+
+
+def test_every_granularity_bucket_has_a_label_and_unit():
+    from services.ingest import GRANULARITY_BUCKETS
+
+    for name in GRANULARITY_BUCKETS.values():
+        assert f"granularity.{name}" in STRINGS
+        assert f"granularity.unit.{name}" in STRINGS

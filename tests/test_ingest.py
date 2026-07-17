@@ -264,3 +264,140 @@ def test_the_template_is_parseable_by_the_parser_that_ships_with_it():
     assert isinstance(dataset, Dataset)
     assert dataset.product_count == 2
     assert all(w.code != "dead_products" for w in dataset.warnings)
+
+
+# ---------------------------------------------------------------------------
+# بوابة الحبيبة الزمنية — الثقب الأخير في مبدأ "اعرف متى لا تعرف"
+# ---------------------------------------------------------------------------
+def _series(start: tuple, step_days: int, count: int) -> bytes:
+    import datetime
+
+    first = datetime.date(*start)
+    header, row = "Product", "Widget"
+    for i in range(count):
+        header += f",{(first + datetime.timedelta(days=step_days * i)).isoformat()}"
+        row += f",{100 + i % 5 * 20}"
+    return f"{header}\n{row}\n".encode()
+
+
+def test_full_dates_keep_the_day():
+    """السبب الجذري: parse_month_label يقصّ اليوم، فتضيع الحبيبة قبل قياسها."""
+    from services.ingest import parse_full_date
+
+    assert parse_full_date("2025-01-13") == date(2025, 1, 13)
+    assert parse_month_label("2025-01-13") == date(2025, 1, 1)
+
+
+def test_a_month_name_without_a_day_starts_the_month():
+    """بيانات شهرية لا يوم لها — الأول هو الصحيح لا اختراع."""
+    from services.ingest import parse_full_date
+
+    assert parse_full_date("يناير 2023") == date(2023, 1, 1)
+
+
+@pytest.mark.parametrize("step,expected", [(1, "daily"), (7, "weekly")])
+def test_sub_monthly_granularity_is_detected(step, expected):
+    """تواريخ بيوم صريح: الفارق الأصغر هو الحبيبة."""
+    import datetime
+
+    from services.ingest import detect_granularity
+
+    first = datetime.date(2024, 1, 3)   # ليس أول الشهر — يوم صريح
+    dates = [first + datetime.timedelta(days=step * i) for i in range(8)]
+
+    assert detect_granularity(dates) == expected
+
+
+def test_a_label_without_a_day_cannot_be_finer_than_monthly():
+    """القاعدة التي تُنقذ البيانات المتقطّعة.
+
+    "يناير 2024" لا يحمل يوماً — فهو شهري بحكم بنيته مهما تباعد. بيانات
+    شهرية بفجوات كبيرة (يناير، يونيو، ديسمبر) فوارقها 152 و183 يوماً،
+    وأي تصنيف بالفوارق وحدها يسمّيها "ربعية" ويرفضها خطأً — و84% من هذا
+    الكتالوج متقطّع، أي يُصدَّر بأشهر ناقصة.
+    """
+    from services.ingest import detect_granularity
+
+    sparse = [date(2024, 1, 1), date(2024, 6, 1), date(2024, 12, 1)]
+
+    assert detect_granularity(sparse) == "monthly"
+
+
+def test_gaps_do_not_fool_the_detector():
+    from services.ingest import detect_granularity
+
+    dates = [date(2024, 1, 1), date(2024, 2, 1), date(2024, 6, 1), date(2024, 7, 1)]
+
+    assert detect_granularity(dates) == "monthly"
+
+
+def test_weekly_dates_with_a_gap_are_still_weekly():
+    """الفجوات مضاعفات للحبيبة لا حبيبة أخرى: 7، 14، 7 -> الأصغر هو الحقيقة."""
+    from services.ingest import detect_granularity
+
+    dates = [date(2025, 1, 6), date(2025, 1, 13), date(2025, 1, 27), date(2025, 2, 3)]
+
+    assert detect_granularity(dates) == "weekly"
+
+
+def test_a_single_date_has_no_measurable_granularity():
+    from services.ingest import detect_granularity
+
+    assert detect_granularity([date(2024, 1, 1)]) is None
+
+
+def test_identical_labels_measure_nothing():
+    from services.ingest import detect_granularity
+
+    assert detect_granularity([date(2024, 1, 1)] * 3) is None
+
+
+def test_weekly_data_is_rejected_not_silently_treated_as_monthly():
+    """الانحدار الأساسي لهذه المرحلة.
+
+    قبل البوابة: 30 أسبوعاً تُقبل وتُقرأ 30 شهراً، وSEASONAL_PERIODS=12
+    يبحث عن دورة كل 12 *أسبوعاً* ويسمّيها سنوية. لا خطأ يظهر — فقط
+    تحليل واثق وخاطئ، والتحذير الوحيد (timeline_gaps) مضلّل: لا فجوات.
+    """
+    with pytest.raises(DataValidationError) as excinfo:
+        parse_upload(_series((2025, 1, 6), 7, 30), "weekly.csv")
+
+    assert excinfo.value.context["code"] == "unsupported_granularity"
+    assert excinfo.value.context["granularity"] == "weekly"
+
+
+def test_daily_data_is_rejected_too():
+    with pytest.raises(DataValidationError) as excinfo:
+        parse_upload(_series((2024, 1, 3), 1, 20), "daily.csv")
+
+    assert excinfo.value.context["granularity"] == "daily"
+
+
+def test_monthly_data_still_passes():
+    """البوابة تحرس ولا تمنع: بيانات المشروع نفسها يجب أن تمرّ."""
+    dataset = parse_upload(_series((2023, 1, 1), 31, 24), "monthly.csv")
+
+    assert dataset.month_count == 24
+
+
+def test_mid_month_dates_are_still_monthly():
+    """تصديرة بتاريخ منتصف الشهر (2024-01-15، 2024-02-15) شهرية رغم اليوم."""
+    dataset = parse_upload(_series((2024, 1, 15), 31, 12), "mid.csv")
+
+    assert dataset.month_count == 12
+
+
+def test_arabic_monthly_labels_still_pass():
+    dataset = parse_upload(WIDE, "sales.csv")
+
+    assert dataset.month_count == 4
+
+
+def test_gapped_monthly_data_is_not_rejected():
+    """فجوة في البيانات ليست حبيبة مختلفة — تُحذَّر ولا تُرفَض."""
+    data = csv("p,يناير 2024,فبراير 2024,يونيو 2024,يوليو 2024\nA,1,2,3,4\n")
+
+    dataset = parse_upload(data, "g.csv")
+
+    assert dataset.month_count == 4
+    assert any(w.code == "timeline_gaps" for w in dataset.warnings)

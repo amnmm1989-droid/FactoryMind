@@ -93,10 +93,29 @@ def error(exc: Exception) -> str:
     code = context.get("code")
     if code and f"error.{code}" in STRINGS:
         try:
-            return t(f"error.{code}", **context)
+            return t(f"error.{code}", **_error_params(context))
         except (KeyError, IndexError):
             pass  # سياق ناقص — الرسالة الأصلية أفضل من انهيار
     return getattr(exc, "message", str(exc))
+
+
+def _error_params(context: dict) -> dict:
+    """توسيع السياق بمتغيّرات مشتقّة تحتاجها بعض الرسائل.
+
+    الخدمة ترفع رمزاً خاماً ("weekly")؛ الرسالة تحتاجه مصرَّفاً في جملة
+    ("بياناتك أسبوعية") وبوحدته ("كل 12 أسبوعاً"). التصريف شأن اللغة لا
+    شأن services/ingest.py.
+
+    اسم المتغيّر واحد في الصياغتين ({granularity})، وقيمته هي التي تتبدّل
+    باللغة — عبر t() المتداخل. أسماء مختلفة لكل لغة كانت ستكسر شرط تطابق
+    المتغيّرات، وهو شرط يحرس من خطأ أسوأ: صياغة تنهار للغة واحدة فقط.
+    """
+    params = dict(context)
+    granularity = context.get("granularity")
+    if granularity:
+        params["granularity"] = t(f"granularity.{granularity}")
+        params["unit"] = t(f"granularity.unit.{granularity}")
+    return params
 
 
 def format_month(label: str) -> str:
@@ -308,6 +327,32 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "{months} شهراً فقط — الحد الأدنى {minimum}.",
         "en": "Only {months} months — the minimum is {minimum}.",
     },
+    "error.unsupported_granularity": {
+        "ar": "بياناتك **{granularity}** — والمدعوم اليوم **شهري** فقط.\n\n"
+              "لا نقبلها ونتظاهر: معاملتها كأشهر تجعل النظام يبحث عن دورة "
+              "سنوية كل 12 {unit} ويُنتج موسمية خاطئة تبدو صحيحة. الرفض "
+              "أصدق من رقم لا يُعتمد عليه.\n\n"
+              "جمّع بياناتك شهرياً في نظامك ثم صدّرها — أو انتظر الدعم "
+              "(البند الأول في خارطة الطريق).",
+        "en": "Your data is **{granularity}** — only **monthly** is supported "
+              "today.\n\nWe will not accept it and pretend: treating it as "
+              "monthly makes the system hunt for a yearly cycle every 12 {unit} "
+              "and produce seasonality that is wrong but looks right. A refusal "
+              "is more honest than a number you cannot rely on.\n\nAggregate to "
+              "months in your ERP and re-export — or wait for support (first "
+              "item on the roadmap).",
+    },
+    "granularity.daily": {"ar": "يومية", "en": "daily"},
+    "granularity.weekly": {"ar": "أسبوعية", "en": "weekly"},
+    "granularity.monthly": {"ar": "شهرية", "en": "monthly"},
+    "granularity.quarterly": {"ar": "ربعية", "en": "quarterly"},
+    "granularity.yearly": {"ar": "سنوية", "en": "yearly"},
+    "granularity.unit.daily": {"ar": "يوماً", "en": "days"},
+    "granularity.unit.weekly": {"ar": "أسبوعاً", "en": "weeks"},
+    "granularity.unit.monthly": {"ar": "شهراً", "en": "months"},
+    "granularity.unit.quarterly": {"ar": "ربعاً", "en": "quarters"},
+    "granularity.unit.yearly": {"ar": "سنة", "en": "years"},
+
     "error.no_products": {
         "ar": "لا منتجات صالحة في الملف.",
         "en": "No valid products in the file.",

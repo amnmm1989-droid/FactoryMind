@@ -54,6 +54,18 @@ QUANTITY_HINTS = ("quantity", "qty", "amount", "value", "sales", "الكمية",
 
 MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى بأي نموذج
 
+# الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم.
+# المشروع يدعم الشهري وحده اليوم؛ الباقي يُرفَض صراحةً لا يُقبَل ويُساء
+# تفسيره. راجع docs/ROADMAP.md — "الحبيبة الزمنية المرنة".
+GRANULARITY_BUCKETS = {
+    1: "daily",
+    7: "weekly",
+    30: "monthly",
+    91: "quarterly",
+    365: "yearly",
+}
+SUPPORTED_GRANULARITY = "monthly"
+
 
 @dataclass(frozen=True)
 class Warning_:
@@ -86,18 +98,21 @@ class Dataset:
         return len(self.months)
 
 
-def parse_month_label(label: str) -> date | None:
-    """تحويل تسمية شهر إلى تاريخ. None إن تعذّر — لا تخمين.
+def parse_full_date(label: str) -> date | None:
+    """تحويل تسمية إلى تاريخ **باليوم** — لا يُقصّ.
 
-    يفهم: "يناير 2023"، "Jan 2023"، "2023-01"، "01/2023"، "Jan-23"...
-    ولا يفهم: "الشهر الأول"، "P1"، "أسبوع 3" — وتلك تُرجع None ليُحذَّر
-    المستخدم بدل أن تُخمَّن.
+    الفارق عن parse_month_label جوهري وليس تفصيلاً: قصّ اليوم يجعل
+    2025-01-06 و2025-01-13 و2025-01-20 كلها 2025-01-01، فتضيع الحبيبة
+    الزمنية *قبل* أن تُقاس. الكشف يحتاج التواريخ كاملة.
+
+    تسمية شهرية بلا يوم ("يناير 2023") تُرجع اليوم الأول — وهو الصحيح:
+    البيانات الشهرية لا يوم لها.
     """
     text = str(label).strip()
     if not text:
         return None
 
-    # عربي: اسم الشهر + سنة
+    # عربي: اسم الشهر + سنة (بلا يوم — بيانات شهرية بطبيعتها)
     for name, number in ARABIC_MONTHS.items():
         if name in text:
             year_match = re.search(r"(1[89]\d{2}|20\d{2})", text)
@@ -108,9 +123,58 @@ def parse_month_label(label: str) -> date | None:
     # الباقي: pandas أقدر على أشكال التاريخ الإنجليزية والرقمية
     try:
         parsed = pd.to_datetime(text, errors="raise", dayfirst=False)
-        return date(parsed.year, parsed.month, 1)
+        return date(parsed.year, parsed.month, parsed.day)
     except (ValueError, TypeError, pd.errors.ParserError):
         return None
+
+
+def parse_month_label(label: str) -> date | None:
+    """تحويل تسمية شهر إلى بداية شهرها. None إن تعذّر — لا تخمين.
+
+    يفهم: "يناير 2023"، "Jan 2023"، "2023-01"، "01/2023"، "Jan-23"...
+    ولا يفهم: "الشهر الأول"، "P1"، "أسبوع 3" — وتلك تُرجع None ليُحذَّر
+    المستخدم بدل أن تُخمَّن.
+
+    يُستخدم للترتيب والعرض. لقياس الحبيبة استخدم parse_full_date.
+    """
+    parsed = parse_full_date(label)
+    return date(parsed.year, parsed.month, 1) if parsed else None
+
+
+def detect_granularity(dates: list[date]) -> str | None:
+    """استنتاج الحبيبة الزمنية. None حين لا تكفي التواريخ لقياسها.
+
+    ## القاعدة الأولى: التسمية بلا يوم لا يمكن أن تكون أدق من شهر
+
+    "يناير 2024" و"2024-01" و"Jan 2024" لا تحمل يوماً — فهي شهرية بحكم
+    بنيتها، مهما تباعدت. هذا يحسم الحالة التي تُسقط أي كاشف يعتمد على
+    الفوارق وحدها: بيانات شهرية بفجوات كبيرة (يناير، يونيو، ديسمبر)
+    فوارقها 152 و183 يوماً، وأي تصنيف بالفوارق يسمّيها "ربعية" خطأً.
+
+    والبيانات المتقطّعة — 84% من هذا الكتالوج — تُصدَّر بأشهر ناقصة
+    كثيراً. الرفض الكاذب هنا عطل أيضاً، أعلى صوتاً فقط.
+
+    ## القاعدة الثانية: مع يوم صريح، الفارق الأصغر هو الحبيبة
+
+    الفجوات مضاعفات للحبيبة لا حبيبة أخرى: أسبوعي بفجوة فوارقه 7 و14
+    و21 — والأصغر (7) هو الحقيقة. المتوسط والمنوال كلاهما يضلّل هنا.
+    """
+    unique = sorted(set(dates))
+    if len(unique) < 2:
+        return None
+
+    # كلها في أول الشهر -> تسميات شهرية (أو أخشن). لا نميّز الربعي عنها:
+    # التمييز يحتاج انتظاماً لا تعطيه ثلاث نقاط، وخطؤه يرفض بيانات صحيحة.
+    # والعطل الذي نحرسه هو الأدقّ-من-شهري تحديداً.
+    if all(d.day == 1 for d in unique):
+        return SUPPORTED_GRANULARITY
+
+    smallest_gap = min(
+        (unique[i + 1] - unique[i]).days for i in range(len(unique) - 1)
+    )
+    return GRANULARITY_BUCKETS[
+        min(GRANULARITY_BUCKETS, key=lambda b: abs(smallest_gap - b))
+    ]
 
 
 def _read_file(content: bytes, filename: str) -> pd.DataFrame:
@@ -194,10 +258,34 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
     layout = _detect_layout(frame)
     pivoted, warnings = _from_long(frame) if layout == "long" else _from_wide(frame)
 
+    # التواريخ كاملةً أولاً: الحبيبة تُقاس منها، وقصّ اليوم يمحوها.
+    parsed_full: list[tuple[str, date | None]] = [
+        (str(column), parse_full_date(column)) for column in pivoted.columns
+    ]
+    full_dates = [parsed for _, parsed in parsed_full if parsed]
+
+    # بوابة الحبيبة — قبل أي بناء.
+    #
+    # بدونها كان ملف أسبوعي *يُقبَل* ويُعامَل كأشهر: 30 أسبوعاً تُقرأ 30
+    # شهراً، وSEASONAL_PERIODS=12 يبحث عن دورة كل 12 *أسبوعاً* ويسمّيها
+    # سنوية. لا خطأ يظهر — فقط تحليل واثق وخاطئ، وهو أسوأ ما يمكن أن
+    # تفعله أداة دعواها أنها تعرف متى لا تعرف.
+    granularity = detect_granularity(full_dates)
+    if granularity is not None and granularity != SUPPORTED_GRANULARITY:
+        raise DataValidationError(
+            f"بيانات {granularity} — المدعوم حالياً: {SUPPORTED_GRANULARITY}",
+            context={
+                "code": "unsupported_granularity",
+                "granularity": granularity,
+                "supported": SUPPORTED_GRANULARITY,
+            },
+        )
+
     # ترتيب الأشهر زمنياً — لا بترتيب ظهورها في الملف. عمود "يناير" قبل
     # "ديسمبر" في ملف المستخدم يعني سنة تالية، لا شهراً سابقاً.
     parsed_months: list[tuple[str, date | None]] = [
-        (str(column), parse_month_label(column)) for column in pivoted.columns
+        (label, date(parsed.year, parsed.month, 1) if parsed else None)
+        for label, parsed in parsed_full
     ]
     understood = [(label, parsed) for label, parsed in parsed_months if parsed]
 
