@@ -16,7 +16,7 @@
   - logs/app.log (rotating file, حتى لا يكبر بلا حدود)
 
 لا يعتمد على Streamlit حتى يبقى قابلاً لإعادة الاستخدام في سكربتات
-مستقلة (مثل benchmark.py أو مهام الجدولة المستقبلية).
+مستقلة (مثل scripts/generate_demo_data.py أو migrate.py).
 """
 from __future__ import annotations
 

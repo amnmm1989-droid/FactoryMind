@@ -18,7 +18,9 @@ for path in [CACHE_PATH, LOG_PATH, EXPORT_PATH, os.path.dirname(DATABASE_PATH)]:
     os.makedirs(path, exist_ok=True)
 
 # ========== باقي الإعدادات (بدون تغيير) ==========
-PAGE_TITLE = "نظام تحليل وتنبؤ متقدم"
+# لا PAGE_TITLE هنا: العنوان نصٌّ يراه المستخدم، فمكانه قاموس الترجمة
+# (ui/i18n.page_title). نصٌّ مثبَّت بلغة واحدة في ملف إعدادات كان يجعل تبويب
+# المتصفّح عربياً على صفحة إنجليزية.
 PAGE_ICON = "🔮"
 LAYOUT = "wide"
 INITIAL_SIDEBAR_STATE = "expanded"

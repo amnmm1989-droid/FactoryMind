@@ -138,7 +138,7 @@ pytest                        # الحزمة كاملة
 
 ```
 app.py                 نقطة الدخول (composition root)
-config.py              الإعدادات القديمة (لا تزال مستخدمة)
+config.py              الإعدادات — مصدر واحد، تُقرأ عند النداء لا الاستيراد
 migrate.py             مشغّل الـ migrations — idempotent وذرّي
 
 core/                  الأساس: إعدادات، logging، استثناءات، وضع التشغيل

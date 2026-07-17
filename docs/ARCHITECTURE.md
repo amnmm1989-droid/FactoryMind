@@ -27,9 +27,9 @@ app.py (composition root)
 ```
 app.py
  ├─ core/                   ✅ (Phase 0 — مُنفَّذ)
- │   ├─ app_config.py        إعدادات بدون side effects + دعم env vars
  │   ├─ logging_config.py    logging مركزي (console + rotating file)
- │   └─ exceptions.py        تسلسل استثناءات موحّد
+ │   ├─ exceptions.py        تسلسل استثناءات موحّد
+ │   └─ runtime_mode.py      محلي (يحفظ) | مستضاف (لا يحفظ)
  ├─ domain/                 ✅ (Phase 0 — الهيكل فقط، المنطق لاحقاً)
  │   └─ entities.py          ForecastResult, RiskScore,
  │                           ProductionRecommendation, InventoryStatus

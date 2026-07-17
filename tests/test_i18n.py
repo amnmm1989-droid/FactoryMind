@@ -41,6 +41,54 @@ def test_every_string_has_both_languages():
     assert missing == [], f"ترجمات ناقصة: {missing}"
 
 
+def test_no_key_is_orphaned():
+    """مفتاح لا يستدعيه أحد نصٌّ يُترجَم مرّتين ولا يُقرأ مرة.
+
+    وأخطر منه أنه يُخفي عطلاً: "app.title" كان هنا مترجماً بالكامل ولا
+    يستدعيه أحد، بينما app.py يمرّر PAGE_TITLE — نصاً عربياً مثبَّتاً في
+    config.py. فكان الزائر يبدّل إلى الإنجليزية، وتُترجم الصفحة كلها، ويبقى
+    تبويب متصفّحه عربياً. المفتاح اليتيم كان الدليل، ولم يكن أحد يقرؤه.
+
+    المفاتيح الديناميكية (f"rec.{code}") تُستثنى بالبادئة: لا يظهر اسمها
+    الكامل في الكود أبداً.
+
+    نطاقا البحث مختلفان عمداً. الحرفيّ يستثني ui/i18n.py وإلا طابق كل مفتاح
+    تعريفَه في STRINGS فلم يُكتشف يتيم قط. والديناميكيّ يشمله: format_reason
+    و format_recommendation تعيشان هناك، وهما تبنيان "reason.*" و"rec.*".
+    """
+    everywhere = [
+        path
+        for path in Path(".").rglob("*.py")
+        if ".venv" not in str(path) and "__pycache__" not in str(path)
+    ]
+    dynamic_sources = "\n".join(p.read_text(encoding="utf-8") for p in everywhere)
+    literal_sources = "\n".join(
+        p.read_text(encoding="utf-8") for p in everywhere if p != Path("ui/i18n.py")
+    )
+
+    orphans = []
+    for key in STRINGS:
+        if f'"{key}"' in literal_sources or f"'{key}'" in literal_sources:
+            continue
+        prefix = key.split(".")[0]
+        if re.search(rf'f["\']{re.escape(prefix)}\.\{{', dynamic_sources):
+            continue  # يُبنى ديناميكياً
+        orphans.append(key)
+
+    assert orphans == [], f"مفاتيح لا يستدعيها أحد: {orphans}"
+
+
+def test_the_browser_tab_title_is_translated():
+    """العنوان يتبع الرابط، ولا يعود نصاً مثبَّتاً بلغة واحدة."""
+    assert i18n.STRINGS["app.title"]["ar"] != i18n.STRINGS["app.title"]["en"]
+
+    source = Path("app.py").read_text(encoding="utf-8")
+    assert "page_title=page_title()" in source, "app.py لا يستعمل العنوان المترجَم"
+    assert "PAGE_TITLE" not in source.replace(
+        "# لا PAGE_TITLE من config.py", ""
+    ), "app.py عاد إلى عنوان مثبَّت"
+
+
 def test_placeholders_match_across_languages():
     """`{count}` في العربية و`{n}` في الإنجليزية = KeyError وقت العرض،
     على مستخدم واحد فقط ولغة واحدة فقط — أسوأ أنواع الأعطال."""

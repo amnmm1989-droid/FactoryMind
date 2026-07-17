@@ -1,8 +1,20 @@
 # tests/test_phase0_foundation.py
-import logging
-import os
+"""
+أساس Phase 0 الباقي: الاستثناءات، الـlogging، وكيانات الـdomain.
 
-from core.app_config import Settings, get_settings
+كان هنا أربعة اختبارات لـ core.app_config حتى حُذفت الوحدة: طبقة إعدادات
+كُتبت في Phase 0 لتحلّ محلّ config.py، بخطة دمج من ثلاث خطوات في رأسها،
+لم تُنفَّذ الخطوة الثانية منها قط. لم يستوردها شيء إلا هذه الاختبارات.
+
+وأحدها كان يقول:
+
+    assert not os.path.exists(s.cache_path) or True
+
+وهو تعبير قيمته True مهما كان الطرف الأول — اختبار لا يؤكّد شيئاً، اسمه
+يَعِد بحراسة الآثار الجانبية ولا يحرسها. دقّة الوحدة المحذوفة نفسها.
+"""
+import logging
+
 from core.exceptions import AppError, ForecastError, InsufficientDataError
 from core.logging_config import get_logger, setup_logging
 from domain.entities import (
@@ -11,45 +23,6 @@ from domain.entities import (
     RiskLevel,
     RiskScore,
 )
-
-
-# ---------------------------------------------------------------------------
-# core.app_config
-# ---------------------------------------------------------------------------
-def test_settings_defaults_match_current_config_values():
-    s = Settings()
-    assert s.data_source == "sqlite"
-    assert s.default_forecast_steps == 6
-    assert s.max_forecast_steps == 24
-    assert s.seasonal_periods == 12
-
-
-def test_settings_no_side_effects_on_creation(tmp_path, monkeypatch):
-    # التأكد أن مجرد إنشاء Settings لا ينشئ مجلدات (بعكس config.py الحالي)
-    s = get_settings()
-    assert not os.path.exists(s.cache_path) or True  # لا نفترض حالة النظام، فقط أنه لا كراش
-
-
-def test_ensure_directories_creates_paths(tmp_path):
-    s = Settings(
-        cache_path=str(tmp_path / "cache"),
-        log_path=str(tmp_path / "logs"),
-        export_path=str(tmp_path / "exports"),
-        models_cache_path=str(tmp_path / "cache" / "models"),
-        database_path=str(tmp_path / "data" / "app.db"),
-    )
-    s.ensure_directories()
-    assert os.path.isdir(s.cache_path)
-    assert os.path.isdir(s.log_path)
-    assert os.path.isdir(s.export_path)
-
-
-def test_env_override(monkeypatch):
-    monkeypatch.setenv("DATA_SOURCE", "json")
-    monkeypatch.setenv("MAX_FORECAST_STEPS", "12")
-    s = get_settings()
-    assert s.data_source == "json"
-    assert s.max_forecast_steps == 12
 
 
 # ---------------------------------------------------------------------------

@@ -74,6 +74,25 @@ def is_rtl() -> bool:
     return current_language() == "ar"
 
 
+def page_title() -> str:
+    """عنوان تبويب المتصفّح — بلغة الزائر.
+
+    منفصلة عن t("app.title") لسبب تقني: st.set_page_config يجب أن يسبق كل
+    أمر Streamlit آخر، بينما current_language() تكتب في st.session_state.
+    فنقرأ الرابط وحده هنا (مسموح قبل set_page_config — قِيس)، ونقبل
+    الافتراضي عند غيابه.
+
+    الثمن مقبول: الزائر الذي بدّل لغته يحمل ?lang في رابطه (المبدّل يكتبه)،
+    فيتبعه التبويب. ومن لم يبدّل يرى الافتراضي — وهو ما كان يريده.
+
+    ولماذا وُجدت أصلاً: كان app.py يمرّر PAGE_TITLE من config.py — نصاً
+    عربياً مثبَّتاً. فيبدّل الزائر إلى الإنجليزية، وتُترجم الصفحة كلها،
+    ويبقى تبويب متصفّحه عربياً. المفتاح المترجَم كان موجوداً في هذا القاموس
+    منذ البداية ولا يستدعيه أحد.
+    """
+    return STRINGS["app.title"][_language_from_url() or DEFAULT_LANGUAGE]
+
+
 def t(key: str, **kwargs: Any) -> str:
     """نص مترجَم. مفتاح مفقود يظهر كـ ⟨key⟩ — صاخب عمداً ليُلاحَظ.
 
@@ -735,7 +754,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{count} outliers detected (months: {months})",
     },
     "old.main_chart": {"ar": "📈 الاتجاه الفعلي والتنبؤ", "en": "📈 Actual trend and forecast"},
-    "old.comparison": {"ar": "📊 مقارنة المنتجات", "en": "📊 Product comparison"},
     "old.correlation_title": {"ar": "🔗 مصفوفة الارتباط", "en": "🔗 Correlation matrix"},
     "old.seasonal_title": {"ar": "📅 التحليل الموسمي (حسب الربع)", "en": "📅 Seasonal analysis (by quarter)"},
     "old.distribution_title": {"ar": "📊 تحليل التوزيع الإحصائي", "en": "📊 Statistical distribution"},

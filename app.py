@@ -11,15 +11,17 @@
 """
 import streamlit as st
 
-from config import INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON, PAGE_TITLE
+from config import INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON
 from core.exceptions import MigrationError
 from migrate import migrate
 from repositories.base import resolve_db_path
 from ui.data_source import active_dataset, render_upload_widget
-from ui.i18n import render_language_switcher, t
+from ui.i18n import page_title, render_language_switcher, t
 
 st.set_page_config(
-    page_title=PAGE_TITLE,
+    # لا PAGE_TITLE من config.py: كان نصاً عربياً مثبَّتاً يجعل تبويب
+    # المتصفّح عربياً مهما كانت لغة الصفحة.
+    page_title=page_title(),
     page_icon=PAGE_ICON,
     layout=LAYOUT,
     initial_sidebar_state=INITIAL_SIDEBAR_STATE,
