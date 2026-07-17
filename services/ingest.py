@@ -660,3 +660,107 @@ def stock_csv_template() -> bytes:
         }
     )
     return frame.to_csv(index=False).encode("utf-8-sig")
+
+
+def _actuals_from_pivot(pivoted: pd.DataFrame) -> tuple[list[str], dict[str, list[float]]]:
+    """من إطار مُحوَّر (فهرس = منتجات، أعمدة = تسميات أشهر) إلى (أشهر،
+    منتجات) خام — بلا MIN_MONTHS ولا بوابة حبيبة ولا ترتيب زمني، خلافاً
+    لـ_finalize.
+
+    القيود تلك صُمِّمت لبيانات مبيعات تُبنى منها سلسلة زمنية تُتنبَّأ بها.
+    ملف الإنتاج الفعلي غرضه مختلف كلياً: كل خلية تُطابَق بمفردها مع خطة
+    محفوظة بتاريخها (ProductionPlanRepository.record_actuals) — فرض ثلاثة
+    أشهر على الأقل كان سيرفض الحالة الأشيع فعلياً: رفع شهر واحد فور
+    اكتماله.
+    """
+    numeric = pivoted.apply(pd.to_numeric, errors="coerce").fillna(0.0).clip(lower=0)
+
+    products: dict[str, list[float]] = {}
+    for name, row in numeric.iterrows():
+        label = str(name).strip()
+        if label and label.lower() != "nan":
+            products[label] = [float(v) for v in row.tolist()]
+
+    if not products:
+        raise DataValidationError(
+            "لا منتجات صالحة في الملف", context={"code": "no_products"}
+        )
+
+    return [str(c) for c in pivoted.columns], products
+
+
+def parse_actuals_upload(content: bytes, filename: str) -> tuple[list[str], dict[str, list[float]]]:
+    """قراءة ملف إنتاج فعلي — نفس شكل ملف المبيعات (منتج × شهر)، والأعمدة
+    تُخمَّن بنفس تلميحات ذلك الملف بالضبط. يفترق عن parse_upload في نتيجته
+    فقط (راجع _actuals_from_pivot): لا Dataset ولا قيود سلسلة زمنية.
+
+    شكل عريض بأعمدة لا تُفهَم كأشهر أصلاً (لا PRODUCT_HINTS/MONTH_HINTS/
+    QUANTITY_HINTS طويلة، ولا عمود واحد بعد الأول يُفسَّر تاريخاً) يُعامَل
+    كتصديرة طويلة بأسماء غير معروفة — نفس عطل SAP الذي دفع لشاشة الربط
+    اليدوي في الأصل (راجع تعليق PRODUCT_HINTS) — لا يُقبَل صامتاً كعريض.
+
+    Raises:
+        DataValidationError: ملف غير مقروء أو فارغ، أو بلا منتجات صالحة،
+            أو أعمدة غير مفهومة (code="no_actuals_columns" — قابل للإنقاذ
+            عبر parse_actuals_upload_with_mapping).
+    """
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    layout = _detect_layout(frame)
+    if layout == "long":
+        columns = [str(c) for c in frame.columns]
+        pivoted, _, _ = _from_long(
+            frame,
+            _find_column(columns, PRODUCT_HINTS),
+            _find_column(columns, MONTH_HINTS),
+            _find_column(columns, QUANTITY_HINTS),
+        )
+    else:
+        pivoted, _ = _from_wide(frame)
+        headers = [str(c) for c in pivoted.columns]
+        if not any(parse_month_label(h) is not None for h in headers) \
+                and len(frame.columns) >= 3:
+            raise DataValidationError(
+                "لم يُفهَم عمود المنتج أو الشهر أو الكمية",
+                context={
+                    "code": "no_actuals_columns",
+                    "columns": [str(c) for c in frame.columns][:6],
+                },
+            )
+
+    return _actuals_from_pivot(pivoted)
+
+
+def parse_actuals_upload_with_mapping(
+    content: bytes, filename: str, *,
+    product_column: str, month_column: str, quantity_column: str,
+) -> tuple[list[str], dict[str, list[float]]]:
+    """كـ parse_actuals_upload، لكن بأعمدة اختارها المستخدم يدوياً."""
+    frame = _read_file(content, filename)
+    if frame.empty:
+        raise DataValidationError(
+            "الملف فارغ", context={"code": "empty_file", "filename": filename}
+        )
+
+    columns = [str(c) for c in frame.columns]
+    chosen = {
+        "product": product_column, "month": month_column, "quantity": quantity_column,
+    }
+    for role, column in chosen.items():
+        if column not in columns:
+            raise DataValidationError(
+                f"العمود المختار لـ{role} غير موجود في الملف: {column}",
+                context={"code": "unknown_mapped_column", "role": role, "column": column},
+            )
+    if len(set(chosen.values())) < 3:
+        raise DataValidationError(
+            "اختر ثلاثة أعمدة مختلفة — نفس العمود لا يصلح لدورين",
+            context={"code": "duplicate_mapped_columns"},
+        )
+
+    pivoted, _, _ = _from_long(frame, product_column, month_column, quantity_column)
+    return _actuals_from_pivot(pivoted)

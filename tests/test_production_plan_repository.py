@@ -234,6 +234,78 @@ def test_notes_left_empty_are_stored_as_null_not_empty_string(
     assert plans.all_plans()[0]["notes"] is None
 
 
+# ---------------------------------------------------------------------------
+# الإنتاج الفعلي — Roadmap بند 4: تعبئة actual_quantity لخطط محفوظة فعلاً
+# ---------------------------------------------------------------------------
+def test_actuals_are_matched_by_date_not_by_the_literal_label(plans, product, month_id):
+    """ملف المستخدم يسمّي الشهر بلغته وشكله؛ القاعدة تخزّن التسمية الخام
+    من بيانات العرض. المطابقة بالتاريخ المفسَّر لا بتطابق النصّين."""
+    plans.save(product, month_id, 100.0)
+    month_label = [name for mid, name in plans.month_options() if mid == month_id][0]
+    from services.ingest import parse_month_label
+    parsed = parse_month_label(month_label)
+    # تسمية إنجليزية مبنية من نفس التاريخ، لا نص القاعدة العربي حرفياً.
+    import calendar
+    english_label = f"{calendar.month_abbr[parsed.month]} {parsed.year}"
+
+    report = plans.record_actuals([english_label], {product: [123.0]})
+
+    assert report.updated == 1
+    assert plans.all_plans()[0]["actual_quantity"] == 123.0
+
+
+def test_a_cell_with_no_saved_plan_is_reported_not_invented(plans, product, month_id):
+    """إنتاج فعلي لمنتج/شهر بلا خطة محفوظة له — لا يُخترَع صفّ جديد."""
+    month_label = [name for mid, name in plans.month_options() if mid == month_id][0]
+
+    report = plans.record_actuals([month_label], {product: [50.0]})
+
+    assert report.updated == 0
+    assert report.no_plan == [(product, month_label)]
+    assert plans.all_plans() == []
+
+
+def test_an_unknown_product_is_reported_not_raised(plans, month_id):
+    month_label = [name for mid, name in plans.month_options() if mid == month_id][0]
+
+    report = plans.record_actuals([month_label], {"لا وجود له": [10.0]})
+
+    assert report.updated == 0
+    assert report.unknown_products == ["لا وجود له"]
+
+
+def test_an_unrecognisable_month_label_is_reported_not_raised(plans, product, month_id):
+    plans.save(product, month_id, 100.0)
+
+    report = plans.record_actuals(["أسبوع 3"], {product: [10.0]})
+
+    assert report.updated == 0
+    assert report.unknown_months == ["أسبوع 3"]
+    assert plans.all_plans()[0]["actual_quantity"] is None
+
+
+def test_a_month_with_no_matching_row_in_the_database_is_reported(plans, product, month_id):
+    """تاريخ مفهوم لكن غير موجود بين أشهر القاعدة — ليس نفس تسمية غير مفهومة."""
+    plans.save(product, month_id, 100.0)
+
+    report = plans.record_actuals(["Jan 1999"], {product: [10.0]})
+
+    assert report.updated == 0
+    assert report.unknown_months == ["Jan 1999"]
+
+
+def test_actuals_update_an_existing_plan_in_place(plans, product, month_id):
+    plans.save(product, month_id, 100.0, status="completed")
+    month_label = [name for mid, name in plans.month_options() if mid == month_id][0]
+
+    report = plans.record_actuals([month_label], {product: [95.0]})
+
+    assert report.updated == 1
+    stored = plans.all_plans()[0]
+    assert stored["planned_quantity"] == 100.0
+    assert stored["actual_quantity"] == 95.0
+
+
 def test_the_page_holds_no_sql():
     """الخرق نفسه: صفحة واجهة تفتح اتصالها وتكتب استعلاماتها.
 

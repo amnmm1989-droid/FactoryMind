@@ -466,26 +466,40 @@ and nothing else in the codebase supplies yet — `products_meta.
 lead_time_days` exists as a column but has no ingest path either. Both
 stay at their schema default (`0.0`) until a lead-time input exists.
 
-## 4. Actual production file — for the plant manager
+## 4. Actual production file — for the plant manager ✅ (upload) / open (calibration)
 
 Same shape as the sales file: `product, month, produced quantity`
 (manufacturing orders report from the ERP).
 
-Unlocks:
-- **Plant**: planned vs actual — plan adherence
-- **The system calibrating itself**: `production_plans.actual_quantity` has
-  existed since Phase 2, empty. Filling it lets us tune the risk weights
-  documented as "initial calibration with no validation data".
+Unlocked:
+- **Plant**: planned vs actual — an upload in Production Planning matches
+  the file against saved plans by parsed date (not literal label text) and
+  fills `production_plans.actual_quantity`, via `ProductionPlanRepository.
+  record_actuals` (`repositories/production_plan_repository.py`). Reuses the
+  sales file's exact column-hint/manual-mapping machinery, but *not*
+  `parse_upload`/`Dataset` itself — those enforce a 3-month minimum and a
+  monthly-granularity gate built for building a forecastable series, and a
+  plant manager's real usage is uploading one just-completed month at a
+  time. `services/ingest.py::parse_actuals_upload` is the same shape with
+  those two constraints deliberately dropped.
+- A cell with no saved plan behind it (production happened, nothing was
+  planned) is reported, not silently invented as a plan with an unknown
+  planned quantity — same "None ≠ 0" discipline as everywhere else in this
+  codebase.
 
-**The system starts grading itself instead of claiming.**
+**Still open**: "tune the risk weights documented as initial calibration
+with no validation data" needs something that actually reads accumulated
+`planned` vs `actual` pairs and adjusts `FACTOR_WEIGHTS`
+(`services/risk_service`) — that calibration logic doesn't exist yet. This
+item only unlocked the data it would need.
 
 > **Half of this became available early.** The first question — "how often
 > are recommendations followed?" — needed `source_recommendation_id`, not a
 > new file. The column existed since 007 and nothing wrote it (see the
 > hardening notes above). `ProductionPlanRepository.adherence()` answers it
 > now. **The second question** — "are outcomes better when they are
-> followed?" — is the one that still waits for `actual_quantity` from this
-> file.
+> followed?" — can now be asked (`actual_quantity` is fillable), but nothing
+> yet computes the answer from it.
 
 ## 5. Customer dimension — for the sales manager
 

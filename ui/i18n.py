@@ -408,6 +408,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not recognise the product column or the stock column "
               "in this file.",
     },
+    "error.no_actuals_columns": {
+        "ar": "لم يُفهَم عمود المنتج أو الشهر أو الكمية في هذا الملف.",
+        "en": "Could not recognise the product, month, or quantity column "
+              "in this file.",
+    },
     "error.too_few_months": {
         "ar": "{months} شهراً فقط — الحد الأدنى {minimum}.",
         "en": "Only {months} months — the minimum is {minimum}.",
@@ -761,6 +766,50 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "لا خطط مرتبطة بتوصية بعد — الالتزام لا يُقاس على خطط بلا مرجع.",
         "en": "No plans linked to a recommendation yet — adherence isn't "
               "measured against plans with no baseline.",
+    },
+
+    # ---- الإنتاج الفعلي — "هل النتائج أفضل حين تُتَّبع التوصية؟" ----
+    "plan.actuals_header": {
+        "ar": "📥 رفع الإنتاج الفعلي", "en": "📥 Upload actual production",
+    },
+    "plan.actuals_help": {
+        "ar": "نفس شكل ملف المبيعات: منتج × شهر — لكن الكمية هنا ما أُنتج "
+              "فعلاً. يملأ الفارق بين المخطَّط والفعلي لخطط محفوظة فعلاً "
+              "فقط؛ لا يُنشئ خططاً جديدة.",
+        "en": "Same shape as the sales file: product × month — but the "
+              "quantity here is what was actually produced. Fills the "
+              "planned-vs-actual gap for plans that already exist; it "
+              "doesn't create new ones.",
+    },
+    "plan.actuals_template": {"ar": "⬇ نموذج CSV", "en": "⬇ CSV template"},
+    "plan.actuals_applied": {
+        "ar": "✅ حُدِّثت **{count}** خطة بكميتها الفعلية.",
+        "en": "✅ **{count}** plans updated with their actual quantity.",
+    },
+    "plan.actuals_no_plan": {
+        "ar": "⚠️ {count} خلية بلا خطة محفوظة لها",
+        "en": "⚠️ {count} cells with no saved plan to attach to",
+    },
+    "plan.actuals_no_plan_help": {
+        "ar": "إنتاج فعلي حدث فعلاً، لكن لا خطة (كمية مخطَّطة) محفوظة لهذا "
+              "المنتج في هذا الشهر — لا شيء يُقارَن به، فلم تُخترَع له خطة "
+              "بكمية مخطَّطة مجهولة.",
+        "en": "Production actually happened, but no plan (planned "
+              "quantity) is saved for this product in this month — there's "
+              "nothing to compare it against, so no plan was invented with "
+              "an unknown planned quantity.",
+    },
+    "plan.actuals_unmatched": {
+        "ar": "{products} منتجاً و{months} تسمية شهر في الملف لم يُتعرَّف "
+              "عليهما في القاعدة المحلية.",
+        "en": "{products} products and {months} month labels in the file "
+              "were not recognised in the local database.",
+    },
+    "plan.actuals_empty": {
+        "ar": "لم يُطابَق شيء — تأكّد أن أسماء المنتجات والأشهر تطابق "
+              "الكتالوج المحلي.",
+        "en": "Nothing matched — make sure product names and months match "
+              "the local catalogue.",
     },
 
     "status.draft": {"ar": "مسودّة", "en": "Draft"},

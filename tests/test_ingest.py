@@ -15,6 +15,8 @@ from core.exceptions import DataValidationError
 from services.ingest import (
     Dataset,
     guess_column,
+    parse_actuals_upload,
+    parse_actuals_upload_with_mapping,
     parse_month_label,
     parse_stock_upload,
     parse_stock_upload_with_mapping,
@@ -706,3 +708,63 @@ def test_stock_template_has_the_two_expected_columns():
     frame = pd.read_csv(io.BytesIO(stock_csv_template()), encoding="utf-8-sig")
 
     assert list(frame.columns) == ["المنتج", "المخزون الحالي"]
+
+
+# ---------------------------------------------------------------------------
+# ملف الإنتاج الفعلي — نفس شكل ملف المبيعات، بلا قيود السلسلة الزمنية
+# ---------------------------------------------------------------------------
+def test_a_single_month_is_accepted_unlike_the_sales_upload():
+    """الفرق الجوهري عن parse_upload: شهر واحد هو الحالة الأشيع فعلياً —
+    رفع الإنتاج الفعلي فور اكتمال الشهر، لا بعد تراكم ثلاثة."""
+    data = csv("Product,Month,Quantity\nPump,Jan 2024,95\n")
+
+    months, products = parse_actuals_upload(data, "one_month.csv")
+
+    assert months == ["Jan 2024"]
+    assert products == {"Pump": [95.0]}
+
+    with pytest.raises(DataValidationError) as excinfo:
+        parse_upload(data, "one_month.csv")
+    assert excinfo.value.context["code"] == "too_few_months"
+
+
+def test_a_genuine_wide_file_with_many_months_still_works():
+    months, products = parse_actuals_upload(WIDE, "wide.csv")
+
+    assert months == ["يناير 2024", "فبراير 2024", "مارس 2024", "أبريل 2024"]
+    assert products["Hydraulic Pump"] == [120.0, 95.0, 130.0, 110.0]
+
+
+def test_a_mislabeled_long_file_is_rejected_not_silently_treated_as_wide():
+    """Ident/Zeitraum/Betrag لا تُلتقَط بالتلميحات ولا تُفسَّر كأشهر —
+    نفس عطل SAP الطويل، فتُرفَض لا تُقرَأ خطأً كعريض بأعمدة عشوائية."""
+    data = csv(
+        "Ident,Zeitraum,Betrag\nPUMP-01,2024-01,10\nPUMP-01,2024-02,12\n"
+    )
+
+    with pytest.raises(DataValidationError) as excinfo:
+        parse_actuals_upload(data, "sap.csv")
+
+    assert excinfo.value.context["code"] == "no_actuals_columns"
+
+
+def test_actuals_mapping_rescues_the_mislabeled_file():
+    data = csv(
+        "Ident,Zeitraum,Betrag\nPUMP-01,2024-01,10\nPUMP-01,2024-02,12\n"
+    )
+
+    months, products = parse_actuals_upload_with_mapping(
+        data, "sap.csv",
+        product_column="Ident", month_column="Zeitraum", quantity_column="Betrag",
+    )
+
+    assert products == {"PUMP-01": [10.0, 12.0]}
+    assert set(months) == {"2024-01", "2024-02"}
+
+
+def test_actuals_negative_quantities_are_clipped_to_zero():
+    data = csv("Product,Month,Quantity\nPump,Jan 2024,-5\n")
+
+    _, products = parse_actuals_upload(data, "negative.csv")
+
+    assert products == {"Pump": [0.0]}

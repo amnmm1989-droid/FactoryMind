@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.exceptions import DataAccessError
@@ -30,6 +31,23 @@ logger = get_logger(__name__)
 # مكرَّرة هنا عمداً كي تُرفض القيمة الخاطئة برسالة مفهومة قبل أن ترتطم
 # بقيد SQLite، وtest_migrations يحرس تطابق القائمتين.
 STATUS_CODES = ("draft", "approved", "in_progress", "completed", "cancelled")
+
+
+@dataclass
+class ActualsReport:
+    """حصيلة مطابقة ملف الإنتاج الفعلي — كل خلية (منتج × شهر) لها مصير.
+
+    لا رقم إجمالي واحد يخفي التفاصيل: منتج غير معروف ليس نفس شهر غير
+    مفهوم، وليس نفس خلية بلا خطة محفوظة أصلاً — كل حالة تعني شيئاً مختلفاً
+    للمستخدم، فتُعدّ منفصلة لا تُطوى في "فشل" واحد.
+    """
+
+    updated: int = 0
+    unknown_products: list[str] = field(default_factory=list)
+    unknown_months: list[str] = field(default_factory=list)
+    # (منتج، تسمية شهر) بلا خطة محفوظة لهما — إنتاج فعلي حدث فعلاً، لكن لا
+    # planned_quantity يُقارَن به. لا تُخترَع له خطة بكمية مخطَّطة مجهولة.
+    no_plan: list[tuple[str, str]] = field(default_factory=list)
 
 
 class ProductionPlanRepository:
@@ -195,3 +213,82 @@ class ProductionPlanRepository:
             "overridden": total - unlinked - followed,
             "unlinked": unlinked,
         }
+
+    def record_actuals(
+        self, months: list[str], products: dict[str, list[float]]
+    ) -> ActualsReport:
+        """يطابق ملف الإنتاج الفعلي (نفس شكل ملف المبيعات: منتج × شهر) مع
+        القاعدة، ويملأ actual_quantity لخطط محفوظة فعلاً.
+
+        المطابقة بالتاريخ المفسَّر لا بنص التسمية: ملف المستخدم يسمّي
+        الشهر بلغته وشكله ("Jan 2024")، بينما months.name تخزّن التسمية
+        الخام كما وصلت من بيانات العرض ("يناير 2023") — نفس ما يفعله
+        format_month في الاتجاه المعاكس.
+
+        لا تُنشئ خطة جديدة: إنتاج فعلي لمنتج/شهر بلا صفّ production_plans
+        محفوظ له أصلاً لا شيء يُقارَن به — planned_quantity غير معروفة،
+        واختراع 0 كذبٌ (يعني قراراً واعياً بلا إنتاج، لا غياب خطة). تُعدّ
+        في no_plan صراحةً بدل ذلك.
+
+        Raises:
+            DataAccessError: فشل SQL أثناء التحديث.
+        """
+        from services.ingest import parse_month_label
+
+        conn = self._get_connection()
+        try:
+            month_rows = conn.execute("SELECT id, name FROM months").fetchall()
+            month_id_by_date: dict[tuple[int, int], int] = {}
+            for row in month_rows:
+                parsed = parse_month_label(row["name"])
+                if parsed is not None:
+                    month_id_by_date[(parsed.year, parsed.month)] = row["id"]
+
+            report = ActualsReport()
+            for product_name, values in products.items():
+                product_row = conn.execute(
+                    "SELECT id FROM products WHERE name = ?", (product_name,)
+                ).fetchone()
+                if product_row is None:
+                    report.unknown_products.append(product_name)
+                    continue
+                product_id = product_row["id"]
+
+                for month_label, quantity in zip(months, values):
+                    parsed = parse_month_label(month_label)
+                    month_id = (
+                        month_id_by_date.get((parsed.year, parsed.month))
+                        if parsed is not None else None
+                    )
+                    if month_id is None:
+                        report.unknown_months.append(month_label)
+                        continue
+
+                    cursor = conn.execute(
+                        """
+                        UPDATE production_plans
+                        SET actual_quantity = ?, updated_at = datetime('now')
+                        WHERE product_id = ? AND month_id = ?
+                        """,
+                        (quantity, product_id, month_id),
+                    )
+                    if cursor.rowcount == 0:
+                        report.no_plan.append((product_name, month_label))
+                    else:
+                        report.updated += 1
+
+            conn.commit()
+            logger.info(
+                "Actuals applied | updated=%d | no_plan=%d | unknown_products=%d "
+                "| unknown_months=%d",
+                report.updated, len(report.no_plan),
+                len(report.unknown_products), len(report.unknown_months),
+            )
+            return report
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise DataAccessError(
+                f"فشل تسجيل الإنتاج الفعلي: {exc}", cause=exc
+            ) from exc
+        finally:
+            conn.close()
