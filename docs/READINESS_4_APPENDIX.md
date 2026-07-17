@@ -1,9 +1,10 @@
-# الجزء 4 — الملحق التقني والمصادر
+# Part 4 — Technical Appendix and Sources
 
-صيغ دقيقة لمن يبني مرحلة بعينها من `READINESS_3_PLAN.md`، ومصادر كل ادّعاء
-بحثي في الأجزاء السابقة.
+Exact formulas for whoever builds a specific phase from
+`READINESS_3_PLAN.md`, and the source of every research claim in the
+previous parts.
 
-## الصيغ
+## Formulas
 
 ### WAPE — Weighted Absolute Percentage Error
 
@@ -11,11 +12,13 @@
 WAPE = Σ|actual - predicted| / Σ|actual|
 ```
 
-الفرق عن MAPE: المقام مجموع لا متوسط نسب فردية — فمنتج بقيمة فعلية صغيرة
-لا يُفجِّر المقياس كما يفعل في MAPE (وهو بالضبط سبب حماية القسمة على صفر
-الموجودة في `evaluation.py` اليوم). يُحسب على مستوى الكتالوج كاملاً، لا
-لكل منتج على حدة — هذا ما يجعله "دقّة عملية" مفهومة: "أخطأنا بنسبة كذا%
-من إجمالي الطلب"، لا متوسط أخطاء نسبية متفرقة.
+The difference from MAPE: the denominator is a sum, not an average of
+individual ratios — so a product with a small actual value does not blow up
+the metric the way it does in MAPE (which is precisely why the
+divide-by-zero protection exists in `evaluation.py` today). Computed at the
+whole-catalogue level, not per product — this is what makes it an
+understandable "practical accuracy": "we were off by X% of total demand",
+not an average of scattered relative errors.
 
 ### FVA — Forecast Value Added
 
@@ -23,39 +26,41 @@ WAPE = Σ|actual - predicted| / Σ|actual|
 FVA(model) = Error(naive_baseline) - Error(model)
 ```
 
-موجب = النموذج أضاف قيمة حقيقية فوق التنبؤ الساذج. سالب أو صفر = التعقيد
-لم يشترِ شيئاً، والتوصية عندها استخدام الساذج نفسه — أرخص وأسرع. القياس
-دائماً بخط أساس ثابت (Naive، لا "آخر أفضل نموذج") حتى تبقى المقارنة عادلة
-عبر الزمن.
+Positive = the model added real value over the naive forecast. Negative or
+zero = the complexity bought nothing, and the recommendation there is to use
+the naive one itself — cheaper and faster. Always measured against a fixed
+baseline (Naive, not "the latest best model") so the comparison stays fair
+over time.
 
-### مخزون الأمان (Safety Stock) — طلب ومهلة توريد متغيّران
+### Safety stock — variable demand and lead time
 
 ```
 SS = z × √(σ²_d × L + μ²_d × σ²_L)
 ```
 
-حيث `z` معامل مستوى الخدمة المطلوب (1.65 لـ95%، 2.33 لـ99%)، `σ_d`
-انحراف الطلب اليومي، `L` متوسط مهلة التوريد، `μ_d` متوسط الطلب اليومي،
-`σ_L` انحراف مهلة التوريد. **يحتاج بيانات مهلة توريد فعلية من ملف مخزون
-— لا يُقدَّر بلا ذلك.**
+where `z` is the service-level factor (1.65 for 95%, 2.33 for 99%), `σ_d`
+the daily demand standard deviation, `L` the mean lead time, `μ_d` the mean
+daily demand, `σ_L` the lead-time standard deviation. **Needs actual
+lead-time data from a stock file — not estimated without it.**
 
-### نقطة إعادة الطلب (Reorder Point)
+### Reorder Point
 
 ```
 ROP = (μ_d × L) + SS
 ```
 
-### محاذاة المستويات — Bottom-Up (الخطوة الأولى، الأبسط)
+### Level alignment — Bottom-Up (the first, simplest step)
 
-تنبؤ الفئة = مجموع تنبؤات منتجاتها مباشرة. لا تعديل إحصائي، لا مصفوفات.
-كافٍ كخطوة أولى ومتّسق حسابياً بالتعريف. **MinT** (Minimum Trace،
-Wickramasuriya et al. 2019) هو المعيار الأدق حين يُحتاج توزيع الخطأ
-الأمثل عبر المستويات جميعاً (لأعلى ولأسفل معاً) — يُؤجَّل حتى تثبت الحاجة
-الفعلية لدقّة تفوق Bottom-Up.
+Category forecast = sum of its products' forecasts directly. No statistical
+adjustment, no matrices. Sufficient as a first step and arithmetically
+coherent by definition. **MinT** (Minimum Trace, Wickramasuriya et al. 2019)
+is the more accurate standard when an optimal error distribution across all
+levels (both up and down together) is needed — deferred until a real need
+for accuracy beyond Bottom-Up is proven.
 
-## مصادر البحث
+## Research sources
 
-### السوق والمنافسون
+### Market and competitors
 - [Best Demand Planning Software in 2026](https://www.mainconverter.com/list-of-demand-planning-softwares/)
 - [Best SCM Software 2026: Kinaxis vs SAP IBP vs o9 vs Blue Yonder](https://www.demystifyingplm.com/best-scm-software-2026)
 - [Netstock Integrations](https://www.netstock.com/integrations/)
@@ -63,11 +68,11 @@ Wickramasuriya et al. 2019) هو المعيار الأدق حين يُحتاج �
 - [frePPLe — open source supply chain planning](https://github.com/frePPLe/frepple)
 - [OSI: frePPLe + Odoo integration](https://www.opensourceintegrators.com/publications/build-supply-chain-resiliency-odoo-erp-and-frepple)
 
-### مسابقة M5 والدروس الإحصائية
+### The M5 competition and statistical lessons
 - [M5 accuracy competition: Results, findings, and conclusions (ScienceDirect)](https://www.sciencedirect.com/science/article/pii/S0169207021001874)
 - [The M5 uncertainty competition (ScienceDirect)](https://www.sciencedirect.com/science/article/pii/S0169207021001722)
 
-### المقاييس
+### Metrics
 - [WAPE: Weighted Absolute Percentage Error — Rob J Hyndman](https://robjhyndman.com/hyndsight/wape.html)
 - [Forecast Accuracy Metrics: MAPE, WAPE, Bias Explained](https://www.demandplan.io/insights/forecast-accuracy-metrics)
 - [Measuring forecast model accuracy — AWS](https://aws.amazon.com/blogs/machine-learning/measuring-forecast-model-accuracy-to-optimize-your-business-objectives-with-amazon-forecast/)
@@ -76,32 +81,33 @@ Wickramasuriya et al. 2019) هو المعيار الأدق حين يُحتاج �
 - [Forecast value added in demand planning (ScienceDirect)](https://www.sciencedirect.com/science/article/pii/S0169207024000736)
 - [How To Use Forecast Value Added Analysis](https://demand-planning.com/2018/02/12/what-is-forecast-value-added-analysis/)
 
-### محاذاة المستويات
+### Level alignment
 - [Forecast reconciliation: A review — Athanasopoulos/Hyndman](https://robjhyndman.com/papers/hf_review.pdf)
 - [How to Forecast Hierarchical Time Series — Towards Data Science](https://towardsdatascience.com/how-to-forecast-hierarchical-time-series-75f223f79793/)
 
-### مخزون الأمان وMEIO
+### Safety stock and MEIO
 - [Reorder Point vs. Safety Stock — GAINS](https://gainsystems.com/blog/reorder-point-vs-safety-stock-balancing-inventory-in-retail/)
 - [A guide to echelon inventory: multi-echelon optimization](https://www.cleverence.com/articles/for-business/echelon-inventory-4726/)
 
-### المنتج الجديد (Cold Start)
+### The new product (Cold Start)
 - [New Product Demand Forecasting Without History](https://www.fygurs.com/use-cases/new-product-demand-forecasting-cold-start)
 - [Generate cold start forecasts — Amazon Forecast](https://aws.amazon.com/blogs/machine-learning/generate-cold-start-forecasts-for-products-with-no-historical-data-using-amazon-forecast-now-up-to-45-more-accurate/)
 
-### النماذج التأسيسية للسلاسل الزمنية (سياق، لا توصية فورية)
+### Time-series foundation models (context, not immediate recommendation)
 - [Benchmarking a time-series foundation model (TimeGPT)](https://www.sciencedirect.com/science/article/pii/S2666827025001847)
 - [Time Series Foundation Models: Benchmarking Challenges](https://arxiv.org/html/2510.13654v1)
 
-### الحسابات والتعاون
+### Accounts and collaboration
 - [Streamlit: User authentication and information](https://docs.streamlit.io/develop/concepts/connections/authentication)
 - [st.login — Streamlit Docs](https://docs.streamlit.io/develop/api-reference/user/st.login)
 
-### مصير Amazon Forecast (سياق تنافسي)
+### Amazon Forecast's fate (competitive context)
 - [AWS Lifecycle Changes](https://aws.amazon.com/products/lifecycle/)
 
-## ملاحظة منهجية
+## Methodological note
 
-هذه المصادر نتائج بحث ويب بتاريخ 2026-07-17، وبعضها (مثل تسعير Netstock/
-GMDH الدقيق) غير منشور علناً بالكامل — أشير إلى ذلك صراحة في مكانه بدل
-اختراع رقم. أي قرار تسعير أو تموضع تجاري يحتاج تحققاً مباشراً من المصدر
-وقت التنفيذ، لا الاعتماد على لقطة هذا البحث وحدها.
+These sources are web-search results dated 2026-07-17, and some (such as the
+exact Netstock/GMDH pricing) are not fully published — this is stated
+explicitly where relevant instead of inventing a number. Any pricing or
+commercial-positioning decision needs direct verification from the source at
+execution time, not reliance on this research snapshot alone.

@@ -1,42 +1,46 @@
-# خطة الجاهزية العالمية — الفهرس
+# Global Readiness Plan — Index
 
-**الهدف:** نقل FactoryMind من أداة تعمل وتصدُق مستخدمها، إلى أداة تنافس
-Netstock وGMDH Streamline وo9 وBlue Yonder في الوظيفة — مع الاحتفاظ بما
-يميّزها عنها جميعاً: **صدقها، ومجانيتها، وقابليتها للاستنساخ.**
+**Goal:** move FactoryMind from a tool that works and tells its user the
+truth, to a tool that competes with Netstock, GMDH Streamline, o9, and
+Blue Yonder on function — while keeping what sets it apart from all of them:
+**its honesty, its being free, and its being cloneable.**
 
-هذه الخطة مبنية على بحثين متوازيين: مسحٌ لما تفعله أفضل أدوات التحليل
-والتنبؤ العالمية اليوم (2026)، وقراءةٌ للكود الفعلي في هذا المستودع —
-لا افتراضات. كل فجوة مذكورة هنا لها سطر كود يثبتها.
+This plan is built on two parallel research efforts: a survey of what the
+world's best analysis and forecasting tools do today (2026), and a reading
+of the actual code in this repository — not assumptions. Every gap named
+here has a line of code that proves it.
 
-## كيف تُقرأ هذه الأجزاء
+## How to read these parts
 
-| الملف | يجيب على | لمن |
+| File | Answers | For |
 |---|---|---|
-| [`READINESS_1_MARKET.md`](READINESS_1_MARKET.md) | من ننافس، وبماذا نتميّز؟ | صاحب القرار قبل البدء |
-| [`READINESS_2_GAPS.md`](READINESS_2_GAPS.md) | أين الكود اليوم أضعف من المعيار العالمي؟ | من يريد الفهم قبل التنفيذ |
-| [`READINESS_3_PLAN.md`](READINESS_3_PLAN.md) | ما الذي نبنيه، بأي ترتيب؟ | من يريد التنفيذ مباشرة |
-| [`READINESS_4_APPENDIX.md`](READINESS_4_APPENDIX.md) | الصيغ والمراجع الدقيقة | من يبني مرحلة بعينها |
+| [`READINESS_1_MARKET.md`](READINESS_1_MARKET.md) | Who do we compete with, and how do we differ? | The decision-maker, before starting |
+| [`READINESS_2_GAPS.md`](READINESS_2_GAPS.md) | Where is the code weaker than the global standard today? | Whoever wants to understand before implementing |
+| [`READINESS_3_PLAN.md`](READINESS_3_PLAN.md) | What do we build, in what order? | Whoever wants to implement directly |
+| [`READINESS_4_APPENDIX.md`](READINESS_4_APPENDIX.md) | The exact formulas and references | Whoever builds a specific phase |
 
-**إن كنت تريد التنفيذ فقط**: اذهب مباشرة إلى `READINESS_3_PLAN.md` —
-كل مرحلة فيه مستقلة، ومرتّبة بالأثر لا بالتسلسل الزمني الإجباري.
+**If you only want to execute:** go straight to `READINESS_3_PLAN.md` —
+each phase there is independent, ordered by impact rather than forced
+chronology.
 
-## الموقف الحاكم — لا يتغيّر بهذه الخطة
+## The governing stance — unchanged by this plan
 
-من [`docs/ROADMAP.md`](ROADMAP.md): النظام **تحليل وتنبؤ فقط**. لا إنشاء
-أوامر، لا تكامل مباشر مع ERP يكتب فيه، لا مراقبة آلات لحظية. هذه الخطة
-تُعمِّق الجاهزية *داخل* هذا النطاق — لا توسّعه. أي بند هنا يبدو أنه يخرج
-عن الحدود (مثل الاتصال المباشر بـ API) هو **قراءة فقط**، ويُشار إلى ذلك
-صراحةً في مكانه.
+From [`ROADMAP.md`](ROADMAP.md): the system is **analysis and forecasting
+only**. No order creation, no direct ERP integration that writes back, no
+live machine monitoring. This plan *deepens* readiness within that scope —
+it does not widen it. Any item here that looks like it leaves the boundary
+(such as a direct API connection) is **read-only**, and this is stated
+explicitly where it appears.
 
-## ملخّص تنفيذي — سطر واحد لكل مرحلة
+## Executive summary — one line per phase
 
-| المرحلة | ما تحلّه | لماذا الآن |
+| Phase | What it solves | Why now |
 |---|---|---|
-| **0 — المقاييس** | RMSE/MAPE ليست ما يقيس به المحترفون؛ WAPE هو المعيار الفعلي | أرخص مرحلة، وأعلى مصداقية فورية |
-| **1 — الاتصال** | تخمين الأعمدة يبقى تخميناً؛ SAP/Odoo يحتاجان ربطاً مرئياً لا حظاً | يفتح كل تصديرة لم تُختبَر بعد |
-| **2 — الذكاء** | لا تناسق بين تنبؤ المنتج والفئة والإجمالي؛ لا شيء للمنتج الجديد | يقرّب المحرك من مستوى o9/Blue Yonder |
-| **3 — التعاون** | لا حسابات، لا أدوار، لا قياس "هل تُتَّبع توصياتنا؟" مستمر | يحوّلها من أداة فردية إلى أداة فريق |
-| **4 — القياس** | 29 صنفاً تعمل في أقل من ثانية؛ 30,000 صنف (حجم M5) لم تُختبَر قط | شرط أي عميل حقيقي متوسط الحجم |
+| **0 — Metrics** | RMSE/MAPE aren't what professionals measure by; WAPE is the actual standard | Cheapest phase, highest immediate credibility |
+| **1 — Connection** | Column guessing stays guessing; SAP/Odoo need visible mapping, not luck | Opens every export not yet tested |
+| **2 — Intelligence** | No coherence between product, category, and total forecasts; nothing for a new product | Brings the engine closer to o9/Blue Yonder level |
+| **3 — Collaboration** | No accounts, no roles, no continuous measure of "are our recommendations followed?" | Turns it from an individual tool into a team tool |
+| **4 — Scale** | 29 products run in under a second; 30,000 (M5 size) never tested | A prerequisite for any real mid-sized customer |
 
-كل رقم في الجدول أعلاه مُثبَت بمصدر أو بقراءة كود — التفاصيل في الأجزاء
-التالية.
+Every number in the table above is backed by a source or a code reading —
+the details are in the following parts.

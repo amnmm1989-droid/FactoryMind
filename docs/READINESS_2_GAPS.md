@@ -1,99 +1,113 @@
-# الجزء 2 — تحليل الفجوات (من الكود، لا من الافتراض)
+# Part 2 — Gap Analysis (from the code, not from assumption)
 
-كل سطر هنا مؤكَّد بقراءة كود فعلية في هذه الجلسة أو الجلسات السابقة —
-لا تخمين. حين توجد فجوة، تُذكر أقرب نقطة كود لها كي يبدأ التنفيذ من هناك
-مباشرة لا من الصفر.
+Every line here is confirmed by an actual code reading in this session or
+prior ones — not a guess. Where a gap exists, the nearest code location is
+cited so implementation can start there directly rather than from scratch.
 
-## 1. المقاييس: RMSE/MAPE بدل معيار الصناعة
+## 1. Metrics: RMSE/MAPE instead of the industry standard
 
-`services/forecast_engine/evaluation.py` يحسب MAE وRMSE وMAPE (مع حماية
-من القسمة على صفر) وcumulative_error — أربعة مقاييس مدروسة بعناية حقيقية.
-لكن **لا واحد منها WAPE**، وهو ما يصفه خبراء التخطيط بأنه *"الافتراضي
-لتخطيط الطلب، والأنسب للقرار التشغيلي"* — لأنه يزن الخطأ بحجم الطلب
-فيمنع منتجاً صغيراً من قلب المقارنة، وهو تحديداً ما يعاني منه MAPE هنا (لذا
-احتاج حماية القسمة على صفر أصلاً).
+`services/forecast_engine/evaluation.py` computes MAE, RMSE, MAPE (with
+divide-by-zero protection), and cumulative_error — four metrics designed
+with genuine care. But **none of them is WAPE**, which planning experts
+describe as *"the default for demand planning, and the best for operational
+decisions"* — because it weights the error by demand size, preventing a
+small product from flipping the comparison, which is exactly what MAPE
+suffers from here (hence the divide-by-zero protection was needed at all).
 
-كذلك: لا تتبّع مستمر لـ**Forecast Value Added** — قياس كل نموذج أو تدخّل
-بشري مقابل خط أساس ساذج عبر الزمن. الـREADME يعرض هذا كتقرير واحد
-("النماذج الساذجة تفوز 60%")، لكنه غير مُخزَّن كمقياس حيّ يتراكم مع كل
-دفعة (`services/batch.py`).
+Also: no continuous tracking of **Forecast Value Added** — measuring each
+model or human intervention against a naive baseline over time. The README
+presents this as a one-off report ("naive models win 60%"), but it is not
+stored as a live metric accumulating with every batch
+(`services/batch.py`).
 
-## 2. لا محاذاة بين مستويات التجميع (Hierarchical Reconciliation)
+## 2. No alignment across aggregation levels (Hierarchical Reconciliation)
 
-`services/batch.py:92` يمرّ على كل منتج **مستقلاً تماماً**:
+`services/batch.py:92` iterates over each product **entirely independently**:
 ```python
 for index, (name, series) in enumerate(products.items(), start=1):
 ```
-لا مجموع فئة، ولا مجموع إجمالي، ولا ضمان أن تنبؤ 29 منتجاً يجمع إلى رقم
-متّسق مع تنبؤ الإجمالي لو حُسب مباشرة. لمدير مصنع يريد "كم سننتج هذا
-الشهر؟" كإجابة واحدة، هذا فرق جوهري — وهو ما تحلّه كل أداة مؤسسية بتقنية
-MinT (Minimum Trace) القياسية منذ 2019.
+No category total, no grand total, and no guarantee that the forecast of 29
+products sums to a figure consistent with a directly-computed total
+forecast. For a plant manager who wants "how much will we produce this
+month?" as a single answer, this is a fundamental difference — and it is
+what every enterprise tool solves with the standard MinT (Minimum Trace)
+technique, in use since 2019.
 
-## 3. لا تعامل خاص بالمنتج الجديد (Cold Start)
+## 3. No special handling of the new product (Cold Start)
 
-`services/ingest.py` يحدّد `MIN_MONTHS = 3` كحدّ أدنى مطلق. أقل من ذلك:
-`InsufficientDataError` — رفض تام، لا تقدير. الصناعة تستخدم مطابقة
-بالخصائص (فئة، سعر، حجم) لاستعارة نمط طلب من منتجات مشابهة قائمة. منتج
-جديد اليوم في FactoryMind **غير مرئي في أي تقرير** — لا "لا نعرف" بل
-غياب تام، وهذا أسوأ من `None` الصريح الذي يمارسه `risk_service` في كل
-مكان آخر (`services/risk_service/factors.py:5`).
+`services/ingest.py` sets `MIN_MONTHS = 3` as an absolute floor. Below that:
+`InsufficientDataError` — a full rejection, no estimate. The industry uses
+attribute matching (category, price, size) to borrow a demand pattern from
+similar existing products. A new product in FactoryMind today is **invisible
+in every report** — not "we don't know" but total absence, which is worse
+than the explicit `None` that `risk_service` practises everywhere else
+(`services/risk_service/factors.py:5`).
 
-## 4. الاحتمالية سطحية
+## 4. Probability is shallow
 
 `services/forecast_engine/statistical.py:65`:
 ```python
 margin = CONFIDENCE_LEVEL * spread
 ```
-هامش ثابت (`1.96 × انتشار`) لا توزيعاً احتمالياً مشتقاً من طبيعة كل
-نموذج. Blue Yonder وo9 يبنيان مدى نتائج كامل لا رقماً واحداً بهامش. هذا
-يرتبط مباشرة بفجوة أعمق: **لا مخزون أمان محسوب** — `services/risk_service/
-factors.py:149` يعيد `None` لعامل نفاد المخزون لأن جدول `inventory`
-(`migrations/003_inventory.sql`) موجود بنيوياً منذ Phase 2 ولم يُملأ قط.
-صيغة مخزون الأمان القياسية (`z × جذر(σ²_d×L + μ²_d×σ²_L)`) تحتاج بالضبط
-ما ينقص: توزيعاً احتمالياً + بيانات مخزون.
+A fixed margin (`1.96 × spread`), not a probabilistic distribution derived
+from each model's nature. Blue Yonder and o9 build a full outcome range, not
+a single number with a margin. This ties directly to a deeper gap: **no
+computed safety stock** — `services/risk_service/factors.py:149` returns
+`None` for the stock-depletion factor because the `inventory` table
+(`migrations/003_inventory.sql`) has existed structurally since Phase 2 and
+was never filled. The standard safety-stock formula
+(`z × √(σ²_d×L + μ²_d×σ²_L)`) needs exactly what is missing: a probabilistic
+distribution + stock data.
 
-## 5. الاتصال بالأنظمة: تخمين لا ربط
+## 5. System connection: guessing, not mapping
 
 `services/ingest.py:51`:
 ```python
 PRODUCT_HINTS = ("product", "item", "sku", "material", "part", "المنتج", "الصنف", "المادة")
 ```
-قائمة تُضاف إليها الكلمات كلما ظهرت تصديرة جديدة تكسرها — كما حدث فعلياً
-هذا الأسبوع مع SAP الطويل. Netstock وGMDH يشحنان موصّلات لكل نظام معروف
-مسبقاً؛ FactoryMind يخمّن اسم عمود. هذا **ليس بالضرورة خطأً** — الرؤية
-تستثني الاتصال المباشر بـERP عمداً — لكن شاشة **ربط أعمدة مرئية** (يختار
-المستخدم أي عمود هو "المنتج" حين يفشل التخمين) هي نقطة وسط لم تُبنَ بعد،
-ومذكورة في `docs/ROADMAP.md` كبند أول منذ البداية.
+A list that gets a word added every time a new export breaks it — as
+happened in practice this week with the long-format SAP. Netstock and GMDH
+ship connectors for every known system in advance; FactoryMind guesses a
+column name. This is **not necessarily wrong** — the vision deliberately
+excludes direct ERP connection — but a **visible column-mapping screen**
+(the user picks which column is "the product" when the guess fails) is a
+middle ground not yet built, and listed in `docs/ROADMAP.md` as the first
+item from the start.
 
-## 6. لا حسابات، لا أدوار، لا تعاون
+## 6. No accounts, no roles, no collaboration
 
-`ui/data_source.py` — كل جلسة معزولة بحكم تصميم Streamlit، بلا حساب
-دائم. هذا صحيح تماماً للخصوصية (نقطة تفوّق، لا فجوة) لكنه يمنع أي شكل من
-التخطيط الجماعي: لا يمكن لمدير المبيعات ومدير الإنتاج رؤية نفس الخطة
-المحفوظة والتعليق عليها، ولا قياس مستمر عبر الزمن لمن يتّبع التوصيات (وهذا
-تحديداً ما أصلحناه جزئياً بإضافة `source_recommendation_id` — لكنه محلي
-الجلسة، بلا حساب يربطه بمخطِّط بعينه).
+`ui/data_source.py` — every session is isolated by Streamlit design, with no
+persistent account. This is entirely correct for privacy (an advantage, not
+a gap) but it prevents any form of team planning: a sales manager and a
+production manager cannot see the same saved plan and comment on it, and
+there is no continuous measurement over time of who follows recommendations
+(which is exactly what we partly fixed by adding
+`source_recommendation_id` — but it is session-local, with no account
+tying it to a specific planner).
 
-**الخبر الجيد:** Streamlit يدعم `st.login()` وOIDC أصلياً منذ 1.32 —
-لا حاجة لإعادة بناء الواجهة على إطار آخر لإضافة حسابات.
+**The good news:** Streamlit natively supports `st.login()` and OIDC since
+1.32 — no need to rebuild the UI on another framework to add accounts.
 
-## 7. المقياس: 29 صنفاً ليس دليلاً على 30,000
+## 7. Scale: 29 products is not proof of 30,000
 
-`services/batch.py` يقيس فعلياً: 29 منتجاً بالنماذج الخفيفة < ثانية،
-بالتسعة الكاملة 3.3 دقيقة. هذا رقم حقيقي **على 29 فقط**. كتالوج M5
-المرجعي (المسابقة العالمية للتنبؤ) يضم **30,490 سلسلة**. الحلقة في
-`batch.py:92` تسلسلية بلا توازٍ، وكل حفظ (`ForecastRepository`،
-`RecommendationRepository`) يفتح اتصال SQLite جديداً بمفرده. لا قياس ولا
-اختبار عند هذا الحجم — الفجوة هنا ليست في الكود بل في **غياب الدليل**.
+`services/batch.py` measures for real: 29 products with light models
+< 1 second, with the full nine 3.3 minutes. This is a real number **on 29
+only**. The reference M5 catalogue (the global forecasting competition) has
+**30,490 series**. The loop in `batch.py:92` is sequential with no
+parallelism, and every save (`ForecastRepository`,
+`RecommendationRepository`) opens a fresh SQLite connection on its own.
+There is no measurement and no test at that scale — the gap here is not in
+the code but in the **absence of evidence**.
 
-## ما ليس فجوة — ويستحق التوضيح
+## What is not a gap — and deserves clarifying
 
-- **عدم إنشاء الأوامر**: قرار نطاق من الرؤية، لا نقص.
-- **عدم الاتصال المباشر بـERP**: قرار نطاق من الرؤية، لا نقص.
-- **البيانات الشهرية فقط**: قيد معروف وموثَّق (`README.md`)، أول بند في
-  خارطة الطريق أصلاً، وليس اكتشافاً جديداً هنا.
-- **العائلة الإحصائية (Croston/TSB/ETS/SARIMA)**: مناسبة تماماً لحجم
-  الكتالوجات الصغيرة والمتوسطة المستهدفة. لا حاجة لاستبدالها بنماذج
-  أثقل (LightGBM، النماذج التأسيسية كـTimeGPT/Chronos) قبل أن يثبت حجمُ
-  استخدام حقيقي أنها المرحلة الصحيحة — راجع الجزء 4 في `READINESS_3_PLAN.md`
-  لتوقيت ذلك بدقّة.
+- **No order creation**: a scope decision from the vision, not a shortfall.
+- **No direct ERP connection**: a scope decision from the vision, not a
+  shortfall.
+- **Monthly data only**: a known, documented limit (`README.md`), the first
+  roadmap item already, not a new discovery here.
+- **The statistical family (Croston/TSB/ETS/SARIMA)**: entirely appropriate
+  for the small-to-mid catalogue sizes targeted. No need to replace it with
+  heavier models (LightGBM, foundation models like TimeGPT/Chronos) before
+  real usage scale proves it the right phase — see Part 4 in
+  `READINESS_3_PLAN.md` for the exact timing.

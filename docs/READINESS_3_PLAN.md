@@ -1,166 +1,198 @@
-# الجزء 3 — خطة التنفيذ
+# Part 3 — Execution Plan
 
-مرتّبة بالأثر على المصداقية والجاهزية التنافسية، لا بترتيب زمني إجباري.
-كل مرحلة مستقلة قابلة للتنفيذ وحدها. الصيغ الدقيقة والمراجع في
+Ordered by impact on credibility and competitive readiness, not by forced
+chronology. Each phase is independent and executable on its own. Exact
+formulas and references are in
 [`READINESS_4_APPENDIX.md`](READINESS_4_APPENDIX.md).
 
 ---
 
-## المرحلة 0 — المقاييس (الأرخص، الأعلى مصداقية)
+## Phase 0 — Metrics (cheapest, highest credibility)
 
-**المشكلة**: `services/forecast_engine/evaluation.py` لا يحسب WAPE، وهو
-المعيار الفعلي لتخطيط الطلب. ولا تتبّع مستمر لـForecast Value Added.
+**The problem**: `services/forecast_engine/evaluation.py` does not compute
+WAPE, the actual standard for demand planning. And there is no continuous
+Forecast Value Added tracking.
 
-**المهام**:
+**Tasks**:
 
-1. أضف `wape` إلى `ModelMetrics` (`evaluation.py`) — صيغته في الملحق.
-   لا يستبدل RMSE (الذي يبقى معيار الاختيار الداخلي المبرَّر إحصائياً)
-   بل يُعرض للمستخدم كرقم "دقة عملية" مفهوم بلا شرح رياضي.
-2. اعرض WAPE في `ui/pages/executive.py` بجانب الثقة — الصيغة الحالية
-   `RiskScore.confidence` تعرض 4/5 عوامل؛ WAPE يجيب "وهل نثق بالرقم نفسه؟"
-3. **لوحة FVA**: بعد كل `run_batch`، سجّل مقارنة "النموذج الفائز" مقابل
-   `NaiveForecaster` تحديداً — لا الأفضل بين التسعة. هذا رقم واحد إضافي
-   في `model_performance` (الجدول موجود من Phase 2) يتراكم عبر الزمن،
-   ويحوّل ادّعاء الـREADME الثابت ("60% نماذج ساذجة تفوز") إلى مقياس حيّ
-   يتغيّر مع بيانات كل مستخدم.
+1. Add `wape` to `ModelMetrics` (`evaluation.py`) — formula in the appendix.
+   It does not replace RMSE (which stays the statistically-justified
+   internal selection metric); it is shown to the user as a "practical
+   accuracy" number understandable without a mathematical explanation.
+2. Show WAPE in `ui/pages/executive.py` alongside confidence — the current
+   `RiskScore.confidence` shows 4/5 factors; WAPE answers "and do we trust
+   the number itself?"
+3. **FVA panel**: after each `run_batch`, record a comparison of "the
+   winning model" specifically against `NaiveForecaster` — not the best of
+   the nine. This is one extra number in `model_performance` (the table has
+   existed since Phase 2) that accumulates over time, turning the README's
+   static claim ("60% naive models win") into a live metric that shifts with
+   each user's data.
 
-**معيار القبول**: صفحة تنفيذية تعرض "دقّتنا الفعلية هذا الشهر: WAPE
-كذا%، وكانت النماذج المعقّدة أفضل من المتوسط المتحرك في كذا% من الأصناف" —
-جملة لا يقولها أي منافس تجاري عن نفسه.
+**Acceptance criterion**: an executive page showing "our actual accuracy
+this month: WAPE X%, and complex models beat the moving average in Y% of
+products" — a sentence no commercial competitor says about itself.
 
-**الحجم**: صغير. لا تغيير معماري — إضافة حقل ومقارنة إحصائية على بنية
-قائمة.
-
----
-
-## المرحلة 1 — الاتصال (يفتح كل تصديرة لم تُختبَر)
-
-**المشكلة**: `PRODUCT_HINTS`/`MONTH_HINTS`/`QUANTITY_HINTS` في
-`services/ingest.py` قائمة تخمين تكبر بالتصادف، لا بالتصميم.
-
-**المهام**:
-
-1. **شاشة ربط أعمدة مرئية**: حين يفشل `_detect_layout` (لا يجد تلميحاً
-   لعمود ما)، لا يُرفَض الملف — تُعرض أعمدته الفعلية للمستخدم مع قوائم
-   منسدلة: "أيّ عمود هو المنتج؟ الشهر؟ الكمية؟" هذا يحوّل كل تصديرة غير
-   معروفة من رفض تام إلى ثانية عمل من المستخدم، بلا لمس كود.
-2. **توسيع التلميحات تدريجياً بالدليل لا بالتخمين**: أي اسم عمود يُضاف
-   من الآن فصاعداً يحتاج تصديرة حقيقية تثبته (نفس القيد الذي وُضع هذا
-   الأسبوع بعد خطأ تخمين أعمدة SAP الألمانية) — يبقى، لا يُخفَّف.
-3. **قالب تنزيل بأعمدة قابلة للتخصيص**: `to_csv_template()` يعرض حالياً
-   أسماء ثابتة؛ إتاحة تنزيله بأعمدة النظام المصدر الشائعة (SAP/Odoo) كخيار
-   يقلّل الحاجة للربط اليدوي أصلاً.
-
-**معيار القبول**: أي CSV بأعمدة عربية أو إنجليزية أو ألمانية، طويلة أو
-عريضة، يُقرأ إمّا تلقائياً أو بربط يدوي من ثلاث نقرات — لا رفض صامت.
-
-**الحجم**: متوسط. الشاشة المرئية تحتاج حالة جلسة إضافية في
-`ui/data_source.py`، لكن منطق القراءة (`_from_long`/`_from_wide`) لا يتغيّر.
+**Size**: small. No architectural change — adding a field and a statistical
+comparison on an existing structure.
 
 ---
 
-## المرحلة 2 — الذكاء (يقرّب المحرك من مستوى المؤسسات)
+## Phase 1 — Connection (opens every untested export)
 
-### 2.أ — محاذاة المستويات (Hierarchical Reconciliation)
+**The problem**: `PRODUCT_HINTS`/`MONTH_HINTS`/`QUANTITY_HINTS` in
+`services/ingest.py` is a guess list that grows by accident, not by design.
 
-**المشكلة**: `services/batch.py` يتنبأ بكل منتج مستقلاً؛ لا ضمان أن مجموع
-تنبؤات فئة يطابق تنبؤ الفئة المحسوب مباشرة.
+**Tasks**:
 
-**المهمة**: بعد تنبؤ كل منتج، اجمع حسب فئة (إن وُجد تصنيف منتجات — حالياً
-غير موجود، فهذا يعتمد على المرحلة 1 جزئياً لإدخال عمود فئة اختياري)،
-واحسب Bottom-Up كخطوة أولى (الأبسط: التجميع من الأسفل للأعلى بلا تعديل
-إحصائي) قبل الانتقال إلى MinT الأكثر دقة. الصيغ في الملحق.
+1. **Visible column-mapping screen**: when `_detect_layout` fails (finds no
+   hint for a column), the file is not rejected — its actual columns are
+   shown to the user with dropdowns: "which column is the product? the
+   month? the quantity?" This turns every unknown export from a full
+   rejection into a second of user work, with no code touched.
+2. **Expanding hints by evidence, not by guessing**: any column name added
+   from now on needs a real export to prove it (the same constraint placed
+   this week after the German SAP column guessing error) — it stays, it is
+   not relaxed.
+3. **Downloadable template with customisable columns**: `to_csv_template()`
+   currently shows fixed names; offering it downloadable with common source
+   system columns (SAP/Odoo) as an option reduces the need for manual
+   mapping in the first place.
 
-**معيار القبول**: مجموع تنبؤ كل منتجات فئة = تنبؤ الفئة المعروض في لوحة
-تنفيذية واحدة، دائماً، حسابياً — لا تقريباً.
+**Acceptance criterion**: any CSV with Arabic or English or German columns,
+long or wide, is read either automatically or by a three-click manual
+mapping — no silent rejection.
 
-### 2.ب — تعامل مع المنتج الجديد (Cold Start)
-
-**المشكلة**: `MIN_MONTHS = 3` يرفض أي منتج أحدث — لا تقدير، غياب تام.
-
-**المهمة**: حين يقل تاريخ منتج عن الحدّ، اعرضه في قسم منفصل ("منتجات
-جديدة — بلا تقدير كافٍ بعد") بدل إخفائه، مع خيار اختياري: اختيار "منتج
-مشابه" يدوياً من الكتالوج القائم، واستعارة نمط طلبه (تصنيف Croston/ETS/
-smooth إلخ) كتقدير أولي موسوم صراحة بأنه "مُستعار لا محسوب". None صريح
-يتحوّل هنا إلى تقدير موسوم — لا اختراع رقم بلا تحذير.
-
-**معيار القبول**: منتج عمره شهر واحد **مرئي** في كل تقرير، بعلامة واضحة
-أنه بلا تاريخ كافٍ، لا غائب عنه بصمت.
-
-### 2.ج — احتمالية حقيقية (يعتمد على ملف المخزون — خارج هذه الجلسة)
-
-**المشكلة**: هامش الثقة ثابت (`1.96 × انتشار`)، ومخزون الأمان غير محسوب
-لغياب بيانات المخزون (Phase 5 في `docs/ROADMAP.md`، لم يبدأ).
-
-هذا البند **مرتبط ببند خارج نطاق هذه الخطة** — يحتاج أولاً استيراد ملف
-مخزون (المرحلة الأولى في خارطة الطريق الأصلية). حين يتوفر: صيغة مخزون
-الأمان القياسية في الملحق جاهزة للتطبيق مباشرة فوق `risk_service/
-factors.py:stock_depletion_risk`، الذي بُني أصلاً ليستقبلها (`None` حالياً
-تحديداً لهذا السبب، لا لعيب).
+**Size**: medium. The visible screen needs extra session state in
+`ui/data_source.py`, but the reading logic (`_from_long`/`_from_wide`) does
+not change.
 
 ---
 
-## المرحلة 3 — التعاون (من أداة فردية إلى أداة فريق)
+## Phase 2 — Intelligence (brings the engine to enterprise level)
 
-**المشكلة**: لا حسابات دائمة؛ `source_recommendation_id` (أُصلح هذه
-الجلسة) يربط الخطة بالتوصية لكن **داخل جلسة واحدة**، لا عبر مخطِّطين.
+### 2.a — Level alignment (Hierarchical Reconciliation)
 
-**المهام**:
+**The problem**: `services/batch.py` forecasts each product independently;
+no guarantee that the sum of a category's product forecasts matches the
+directly-computed category forecast.
 
-1. **حسابات عبر `st.login()`** (OIDC، مدعوم أصلياً في Streamlit ≥ 1.32):
-   بلا إعادة بناء الواجهة. كل مخطِّط يحفظ خططه باسمه، لا بجلسة عابرة.
-2. **لوحة الالتزام (Adherence Dashboard)**: `ProductionPlanRepository.
-   adherence()` (أُضيف هذه الجلسة) يجيب "كم خطة تُتَّبع؟" فعلياً الآن —
-   لكن لا شاشة تعرضه بعد. هذه أرخص ميزة تعاون ممكنة: الكود جاهز، الناقص
-   عرض فقط.
-3. **تعليق وسياق على القرار**: حقل `notes` موجود في `production_plans`
-   (`migrations/007`) ويُستخدم بالفعل — توسيعه إلى سجل تعليقات متعدد
-   (من عدّله ومتى) يحتاج جدولاً صغيراً إضافياً، لا إعادة تصميم.
+**The task**: after forecasting each product, aggregate by category (if a
+product classification exists — currently absent, so this partly depends on
+Phase 1 to introduce an optional category column), and compute Bottom-Up as
+a first step (the simplest: aggregation from the bottom up with no
+statistical adjustment) before moving to the more accurate MinT. Formulas in
+the appendix.
 
-**معيار القبول**: مديرا إنتاج ومبيعات يريان نفس الخطة، بأسمائهما، ولوحة
-تقول "78% من توصيات الشهر اتُّبعت، ومتوسط الانحراف حين خولفت كذا وحدة".
+**Acceptance criterion**: the sum of all a category's product forecasts =
+the category forecast shown on a single executive panel, always,
+arithmetically — not approximately.
 
-**الحجم**: كبير نسبياً — الحسابات تغيّر افتراض "لا حالة دائمة للمستخدم"
-الذي بُني عليه المشروع كاملاً. يستحق قراراً صريحاً من المالك قبل البدء
-(راجع نقطة نموذج العمل في `READINESS_1_MARKET.md`) — لأن حساباً دائماً
-يعني بيانات دائمة، وهذا يمسّ وعد الخصوصية الحالي ("لا شيء يُحفَظ في
-المستضاف") ويحتاج إعادة صياغته لا نقضه: **حساب المخطِّط واسمه شيء، وملف
-مبيعاته شيء آخر تماماً — الفصل بينهما هو ما يحفظ الوعد.**
+### 2.b — New-product handling (Cold Start)
 
----
+**The problem**: `MIN_MONTHS = 3` rejects any newer product — no estimate,
+total absence.
 
-## المرحلة 4 — القياس والصلابة (شرط أي عميل حقيقي متوسط الحجم)
+**The task**: when a product's history falls below the floor, show it in a
+separate section ("new products — no sufficient estimate yet") instead of
+hiding it, with an optional choice: manually pick a "similar product" from
+the existing catalogue and borrow its demand pattern
+(Croston/ETS/smooth classification etc.) as an initial estimate, explicitly
+labelled "borrowed, not computed". The explicit `None` here becomes a
+labelled estimate — not an invented number without a warning.
 
-**المشكلة**: 29 صنفاً مقاس؛ 30,000 (حجم مسابقة M5 المرجعية) غير مقاس.
-`services/batch.py` تسلسلي، واتصال SQLite جديد لكل حفظ.
+**Acceptance criterion**: a product one month old is **visible** in every
+report, clearly marked as lacking sufficient history, not silently absent.
 
-**المهام مرتّبة بالتكلفة**:
+### 2.c — True probability (depends on the stock file — outside this session)
 
-1. **قِس أولاً، لا تُحسِّن أعمى**: أنشئ كتالوجاً اصطناعياً بـ1,000 ثم
-   10,000 صنف (بنفس مولّد `scripts/generate_demo_data.py` بحجم أكبر)،
-   وشغّل `run_batch` بالنماذج الخفيفة. سجّل الزمن قبل أي تغيير — هذا هو
-   نفس مبدأ المشروع في كل مكان آخر: القياس قبل الادّعاء.
-2. **إن كان الزمن غير مقبول**: توازٍ على مستوى المنتج (`concurrent.
-   futures` أو `multiprocessing`) — كل منتج مستقل تماماً عن الآخر في
-   `batch.py:92`، فالتوازي آمن بلا تنسيق.
-3. **اتصال SQLite واحد لكل دفعة لا لكل صف**: `ForecastRepository` و
-   `RecommendationRepository` يفتحان اتصالاً بالنداء الواحد — تمرير اتصال
-   مشترك عبر الدفعة كاملة (بدل صف بصف) يقلّل عبء I/O خطياً مع حجم الكتالوج.
-4. **حين يُثبَت أن SQLite هو العنق الحقيقي** (لا قبل ذلك): DuckDB بديل
-   قريب بلا تغيير SQL كبير، مناسب لأحمال القراءة التحليلية الثقيلة التي
-   يفعلها هذا المشروع تحديداً.
+**The problem**: the confidence margin is fixed (`1.96 × spread`), and
+safety stock is uncomputed because stock data is absent (Phase 5 in
+`docs/ROADMAP.md`, not started).
 
-**معيار القبول**: رقم زمن حقيقي منشور لكتالوج 10,000 صنف، لا افتراض. إن
-كان مقبولاً (ثوانٍ لا دقائق)، **لا تُنفَّذ الخطوات 2-4 إطلاقاً** — هذا
-تحديداً نفس درس `core/app_config.py` الذي حُذف هذه الجلسة: حلٌّ لمشكلة لم
-تُثبَت بعد هو دَيْن، لا أصل.
+This item is **tied to something outside this plan's scope** — it needs the
+stock file imported first (the first phase in the original roadmap). Once
+available: the standard safety-stock formula in the appendix is ready to
+apply directly on top of `risk_service/factors.py:stock_depletion_risk`,
+which was built to receive it (`None` currently for exactly this reason, not
+a defect).
 
 ---
 
-## الترتيب المقترح لو طُلب رقم واحد
+## Phase 3 — Collaboration (from individual tool to team tool)
 
-**0 → 1 → 4(قياس فقط) → 2 → 3**
+**The problem**: no persistent accounts; `source_recommendation_id` (fixed
+this session) links the plan to the recommendation but **within one
+session**, not across planners.
 
-المقاييس والاتصال يرفعان المصداقية بأقل كود. قياس الحجم (لا تحسينه بعد)
-يجب أن يسبق أي استثمار في الذكاء أو التعاون — فلا معنى لمحاذاة مستويات
-أو حسابات مستخدمين على محرك لم يثبت أنه يتحمّل الحجم الذي ستُستخدم عليه.
+**Tasks**:
+
+1. **Accounts via `st.login()`** (OIDC, natively supported in Streamlit
+   ≥ 1.32): no UI rebuild. Each planner saves plans under their name, not a
+   transient session.
+2. **Adherence dashboard**: `ProductionPlanRepository.adherence()` (added
+   this session) actually answers "how many plans are followed?" now — but
+   no screen shows it yet. This is the cheapest possible collaboration
+   feature: the code is ready, only the display is missing.
+3. **Comments and context on the decision**: a `notes` field exists in
+   `production_plans` (`migrations/007`) and is already used — expanding it
+   to a multi-comment log (who edited it and when) needs a small extra
+   table, not a redesign.
+
+**Acceptance criterion**: a production and a sales manager see the same plan,
+under their names, and a dashboard saying "78% of this month's
+recommendations were followed, and the average deviation when overridden was
+X units".
+
+**Size**: relatively large — accounts change the "no persistent user state"
+assumption the whole project was built on. It deserves an explicit decision
+from the owner before starting (see the business-model note in
+`READINESS_1_MARKET.md`) — because a persistent account means persistent
+data, and this touches the current privacy promise ("nothing is saved when
+hosted") and needs re-phrasing it, not breaking it: **a planner's account
+and name are one thing, their sales file another entirely — separating them
+is what preserves the promise.**
+
+---
+
+## Phase 4 — Scale and robustness (prerequisite for any real mid-sized customer)
+
+**The problem**: 29 products measured; 30,000 (the reference M5 competition
+size) unmeasured. `services/batch.py` is sequential, with a fresh SQLite
+connection per save.
+
+**Tasks ordered by cost**:
+
+1. **Measure first, don't optimise blind**: create a synthetic catalogue of
+   1,000 then 10,000 products (with the same `scripts/generate_demo_data.py`
+   generator at larger size), and run `run_batch` with the light models.
+   Record the time before any change — this is the same principle the
+   project applies everywhere else: measurement before claiming.
+2. **If the time is unacceptable**: parallelism at the product level
+   (`concurrent.futures` or `multiprocessing`) — each product is entirely
+   independent of the others in `batch.py:92`, so parallelism is safe with
+   no coordination.
+3. **One SQLite connection per batch, not per row**: `ForecastRepository`
+   and `RecommendationRepository` open a connection per call — passing a
+   shared connection across the whole batch (instead of row by row) reduces
+   I/O overhead linearly with catalogue size.
+4. **When SQLite is proven the real bottleneck** (not before): DuckDB is a
+   close alternative with no major SQL change, suited to the heavy
+   analytical read loads this project specifically does.
+
+**Acceptance criterion**: a real, published time figure for a 10,000-product
+catalogue, not an assumption. If it is acceptable (seconds, not minutes),
+**steps 2–4 are never executed** — this is exactly the same lesson as
+`core/app_config.py`, deleted this session: a solution to a problem not yet
+proven is debt, not an asset.
+
+---
+
+## The suggested order if one number is requested
+
+**0 → 1 → 4(measure only) → 2 → 3**
+
+Metrics and connection raise credibility with the least code. Measuring
+scale (not yet optimising it) must precede any investment in intelligence or
+collaboration — there is no point aligning levels or building user accounts
+on an engine not proven to handle the scale it will be used at.
