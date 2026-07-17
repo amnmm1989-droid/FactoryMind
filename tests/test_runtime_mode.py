@@ -66,7 +66,7 @@ def test_a_different_product_set_changes_the_signature():
     كتالوج العرض — نتائج محسوبة قبل الرفع وبقيت في session_state. مرّ الخطأ
     من كل فحص آلي (النصوص كانت موجودة) وكشفته لقطة شاشة.
     """
-    demo = {f"Demo Part {i}": [1.0, 2.0] for i in range(185)}
+    demo = {f"Demo Part {i}": [1.0, 2.0] for i in range(50)}
     uploaded = {"مضخة": [1.0, 2.0], "صمام": [3.0, 4.0], "محرك": [5.0, 6.0]}
 
     assert _dataset_signature(demo) != _dataset_signature(uploaded)
