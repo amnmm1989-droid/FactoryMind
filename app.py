@@ -11,8 +11,9 @@
 """
 import streamlit as st
 
-from config import INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON, PAGE_TITLE
+from config import DATABASE_PATH, INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON, PAGE_TITLE
 from core.exceptions import MigrationError
+from migrate import migrate
 from ui.data_source import active_dataset, render_upload_widget
 from ui.i18n import render_language_switcher, t
 
@@ -39,12 +40,39 @@ for key, default in [
 # يقرر أن الأداة ليست له.
 render_language_switcher()
 
+
+@st.cache_resource(show_spinner=False)
+def _ensure_database(db_path: str) -> None:
+    """يبني القاعدة عند الإقلاع إن لم تكن مبنية.
+
+    بدون هذا، الاستضافة مستحيلة: `data/app.db` مُتجاهَل في git عن حق،
+    فالاستنساخ يصل بلا قاعدة. ومنصّة مثل Streamlit Cloud تشغّل
+    `streamlit run app.py` وكفى — لا موضع فيها لأمر طرفية قبله. كانت
+    النتيجة أن كل زائر يرى "شغّل: python migrate.py" على خادم لا يملكه.
+
+    آمن في الوضعين: migrate() نفسه idempotent وذرّي، ولا يبني إلا البنية
+    وبيانات العرض العامة. ملف المستخدم لا يمرّ من هنا إطلاقاً — يبقى في
+    الذاكرة (ui/data_source.py).
+
+    cache_resource لا تجميلاً: app.py يُعاد تنفيذه عند كل تفاعل، وقراءة
+    القرص والتحقق من الانحراف عند كل ضغطة زر ثمن بلا مقابل. مرة لكل عملية.
+
+    db_path وسيطٌ ولا يُقرأ من الوحدة مباشرةً — وهو مفتاح الـ cache. بلا
+    وسيط تُخزَّن نتيجة أول استدعاء لكل قاعدة قادمة: صار الإقلاع الثاني
+    يظنّ نفسه مُنجَزاً على قاعدة لم تُبنَ قط. كشفه اختبار الإقلاع البارد
+    حين فشل جماعياً ونجح منفرداً.
+    """
+    migrate(db_path, verbose=False)
+
+
 try:
+    _ensure_database(DATABASE_PATH)
     render_upload_widget()
     months, products, is_user_data = active_dataset()
 except MigrationError as exc:
-    # الـ schema مملوكة لـ migrations/ منذ Phase 2 — الفشل هنا صريح ومع
-    # تعليمات، لا "no such table" غامض عند أول استعلام.
+    # يبقى المسار الصريح: الآن لا يعني "لم تُشغّل migrate.py" بل أنها
+    # حاولت وفشلت (قرص للقراءة فقط، انحراف checksum، migration معطوب).
+    # وهي حالات تستحق رسالة صريحة لا "no such table" غامضاً بعد حين.
     st.error(f"⚠️ {exc.message}")
     st.code("python migrate.py", language="bash")
     st.stop()

@@ -84,6 +84,49 @@ def test_long_layout_is_detected_and_pivoted():
     assert dataset.products == {"A": [10.0, 20.0, 30.0], "B": [5.0, 5.0, 5.0]}
 
 
+# ---------------------------------------------------------------------------
+# تصديرات ERP الحقيقية — بأسماء أعمدتها لا بأسمائنا
+# ---------------------------------------------------------------------------
+# المشروع "طبقة تحليل فوق نظامك"، فأسماء أعمدة نظامك هي واجهته الحقيقية.
+# كانت PRODUCT_HINTS تحمل "المادة" وتنسى أصلها "material"، فيسقط الشكل
+# الطويل من SAP إلى _from_wide ويردّ "لم يُفهَم أي عمود كشهر" — خطأ يصف
+# عرَضاً لا سبباً. مرّ ذلك بلا اختبار لأن كل اختبار هنا كان يستعمل
+# أسماءنا نحن ("product"/"month"/"quantity") التي لا يصدّرها نظام أحد.
+@pytest.mark.parametrize(
+    "system, header",
+    [
+        ("SAP", "Material,Period,Quantity"),
+        ("Odoo", "product_id,date,qty"),
+        ("تصنيع عام", "Part Number,Month,Value"),
+        ("عربية", "الصنف,الشهر,الكمية"),
+    ],
+)
+def test_a_long_export_is_read_whatever_the_erp_calls_its_columns(system, header):
+    data = csv(
+        f"{header}\n"
+        "PUMP-01,2024-01,10\nPUMP-01,2024-02,12\n"
+        "PUMP-01,2024-03,9\nPUMP-01,2024-04,11\n"
+    )
+
+    dataset = parse_upload(data, "export.csv")
+
+    assert dataset.products == {"PUMP-01": [10.0, 12.0, 9.0, 11.0]}, system
+
+
+def test_a_wide_export_ignores_the_first_column_name():
+    """الشكل العريض كان يعمل دائماً — وهذا سبب دقيق يستحق التثبيت.
+
+    _from_wide يأخذ العمود الأول فهرساً بلا قراءة اسمه، فأي تسمية تمرّ.
+    الـREADME كان يعلن أن SAP "تُرفض" بينما عريضها يُقبل منذ البداية:
+    قيد موثَّق لا وجود له. هذا الاختبار يمنع عودة الادعاء.
+    """
+    data = csv("Material,2024-01,2024-02,2024-03\nPUMP-01,10,12,9\n")
+
+    dataset = parse_upload(data, "sap.csv")
+
+    assert dataset.products == {"PUMP-01": [10.0, 12.0, 9.0]}
+
+
 def test_duplicate_rows_are_summed_not_dropped():
     """صفّان لنفس المنتج/الشهر = طلبان. أخذ الأول يفقد مبيعات."""
     data = csv(
