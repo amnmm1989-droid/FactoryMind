@@ -18,9 +18,11 @@ import pandas as pd
 import streamlit as st
 
 from config import DATABASE_PATH
+from core.runtime_mode import is_hosted
 from domain.entities import RiskLevel
 from repositories.recommendation_repository import RecommendationRepository
-from services.batch import run_batch
+from services.batch import fast_models, run_batch
+from ui.data_source import active_dataset
 
 LEVEL_BADGE = {
     RiskLevel.LOW: "🟢 منخفضة",
@@ -86,11 +88,61 @@ def _to_frame(recommendations) -> pd.DataFrame:
     ])
 
 
+def _dataset_signature(products: dict[str, list[float]]) -> str:
+    """بصمة تتغيّر بتغيّر البيانات — مفتاح إبطال الـ cache.
+
+    تشمل القيم لا الأسماء فقط: مستخدم يرفع نسخة محدَّثة من ملفه (نفس
+    المنتجات، أرقام جديدة) يجب أن يرى إعادة حساب، لا نتائج الأمس.
+    """
+    import hashlib
+
+    digest = hashlib.sha256()
+    for name in sorted(products):
+        digest.update(name.encode("utf-8"))
+        digest.update(b"|")
+        digest.update(",".join(f"{v:.4f}" for v in products[name]).encode("utf-8"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _compute_in_session(products: dict[str, list[float]], full_family: bool) -> list:
+    """حساب بلا حفظ — لبيانات المستخدم وللوضع المستضاف.
+
+    يُعيد كائنات ProductionRecommendation مباشرةً بدل المرور بقاعدة
+    البيانات. ممكن فقط لأن النماذج الخفيفة تُنهي 185 منتجاً في 0.7 ثانية.
+    """
+    from core.exceptions import AppError
+    from services.decision_engine import recommend_production
+    from services.forecast_engine import forecast_product
+
+    models = fast_models() if not full_family else None
+    progress = st.progress(0.0, text="جارٍ الحساب...")
+    recommendations = []
+    total = len(products)
+
+    for index, (name, series) in enumerate(products.items(), start=1):
+        try:
+            result = forecast_product(name, series, steps=6, models=models,
+                                      use_cache=False)
+            recommendations.append(recommend_production(name, list(series), result.best))
+        except AppError:
+            pass  # منتج بلا بيانات كافية — متوقَّع، يُتخطّى
+        if index % 10 == 0 or index == total:
+            progress.progress(index / total, text=f"{index}/{total}")
+
+    progress.empty()
+    recommendations.sort(key=lambda r: r.risk.score if r.risk else 0, reverse=True)
+    return recommendations
+
+
 def render(months: list[str], products: dict[str, list[float]]) -> None:
     st.title("📊 النظرة التنفيذية")
 
-    repository = RecommendationRepository(db_path=DATABASE_PATH)
-    stored = repository.highest_risk(limit=500)
+    _, _, is_user_data = active_dataset()
+    # بيانات المستخدم لا تُكتب في القرص أبداً، والوضع المستضاف لا يحفظ شيئاً:
+    # نسخة واحدة تخدم كل الزوّار وقاعدة البيانات ملف مشترك — الحفظ يعني
+    # أن يرى الزائر التالي مبيعات السابق.
+    ephemeral = is_user_data or is_hosted()
 
     with st.sidebar:
         st.header("الحساب")
@@ -98,14 +150,34 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             "كل النماذج التسعة", value=False,
             help="أدقّ، لكن ~3.3 دقيقة على 185 منتجاً. الخفيفة: ~1 ثانية.",
         )
-        if st.button("🔄 إعادة حساب الكتالوج", use_container_width=True):
+        compute = st.button("🔄 حساب الكتالوج", use_container_width=True)
+
+    if ephemeral:
+        # بصمة البيانات جزء من مفتاح الـ cache — وليست ترفاً.
+        # بدونها: تُحسب التوصيات على بيانات العرض، يرفع المستخدم ملفه،
+        # فيبقى الشريط الجانبي يقول "ملفك: 3 منتجات" بينما الجدول يعرض
+        # 185 صنف بنّ لا يملكها. كشفته لقطة شاشة بعد أن مرّ من كل فحص آلي.
+        signature = _dataset_signature(products)
+        if compute or st.session_state.get("session_signature") != signature:
+            st.session_state["session_recommendations"] = _compute_in_session(
+                products, full_family
+            )
+            st.session_state["session_signature"] = signature
+        stored = st.session_state["session_recommendations"]
+        st.caption(
+            "🔒 محسوب في الذاكرة ولا يُحفَظ — "
+            + ("بياناتك ملكك." if is_user_data else "الوضع المستضاف.")
+        )
+    else:
+        if compute:
             _run_batch_ui(products, full_family)
             st.rerun()
+        stored = RecommendationRepository(db_path=DATABASE_PATH).highest_risk(limit=500)
 
     if not stored:
         st.info(
-            "لا توصيات محفوظة بعد. اضغط **إعادة حساب الكتالوج** في الشريط "
-            "الجانبي — النماذج الخفيفة تُنهي الـ 185 منتجاً في نحو ثانية."
+            "لا توصيات بعد. اضغط **حساب الكتالوج** في الشريط الجانبي — "
+            "النماذج الخفيفة تُنهي 185 منتجاً في نحو ثانية."
         )
         return
 

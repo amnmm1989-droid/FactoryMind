@@ -13,7 +13,7 @@ import streamlit as st
 
 from config import INITIAL_SIDEBAR_STATE, LAYOUT, PAGE_ICON, PAGE_TITLE
 from core.exceptions import MigrationError
-from utils.data_loader import get_repository
+from ui.data_source import active_dataset, render_upload_widget
 
 st.set_page_config(
     page_title=PAGE_TITLE,
@@ -34,13 +34,9 @@ for key, default in [
         st.session_state[key] = default
 
 
-@st.cache_data(show_spinner="تحميل البيانات...")
-def _load_data():
-    return get_repository().load_data()
-
-
 try:
-    months, products = _load_data()
+    render_upload_widget()
+    months, products, is_user_data = active_dataset()
 except MigrationError as exc:
     # الـ schema مملوكة لـ migrations/ منذ Phase 2 — الفشل هنا صريح ومع
     # تعليمات، لا "no such table" غامض عند أول استعلام.

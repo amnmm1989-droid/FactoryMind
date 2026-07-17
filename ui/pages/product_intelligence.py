@@ -16,10 +16,12 @@ import streamlit as st
 
 from config import DATABASE_PATH
 from core.exceptions import AppError
+from core.runtime_mode import is_hosted
 from domain.entities import RiskLevel
 from repositories.forecast_repository import ForecastRepository
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models
+from ui.data_source import active_dataset
 from services.forecast_engine import classify_demand, forecast_product
 from services.risk_service import FACTOR_WEIGHTS, compute_risk
 
@@ -138,6 +140,17 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             "معايرة أولية بلا بيانات تحقّق — تُضبط حين يتراكم "
             "`production_plans.actual_quantity` مقابل `planned_quantity`."
         )
+
+    # السجل المحفوظ يخصّ بيانات العرض في القاعدة المحلية. منتج مرفوع لا
+    # وجود له فيها، والاستعلام عنه يُرجع فراغاً مضلّلاً ("لا سجل" توحي
+    # بأن الحساب لم يُشغَّل، بينما التخزين معطَّل أصلاً).
+    _, _, is_user_data = active_dataset()
+    if is_user_data or is_hosted():
+        st.caption(
+            "🔒 سجل النماذج التاريخي متاح في الوضع المحلي فقط — "
+            "بياناتك لا تُحفَظ. كل ما فوق محسوب لجلستك الآن."
+        )
+        return
 
     st.subheader("سجل النماذج المحفوظ")
     ranking = ForecastRepository(db_path=DATABASE_PATH).model_ranking(product)

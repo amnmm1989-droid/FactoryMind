@@ -21,7 +21,9 @@ import streamlit as st
 
 from config import DATABASE_PATH
 from core.logging_config import get_logger
+from core.runtime_mode import is_hosted
 from repositories.recommendation_repository import RecommendationRepository
+from ui.data_source import active_dataset
 
 logger = get_logger(__name__)
 
@@ -111,6 +113,32 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         "التوصية اقتراح النظام؛ الخطة قرارك. الفصل بينهما يسمح بقياس "
         "جودة التوصيات لاحقاً."
     )
+
+    # الخطط تُكتب في production_plans، ومفتاحها الأجنبي يشير إلى جدول
+    # products — الذي يحمل بيانات العرض لا ملف المستخدم. حفظ خطة لمنتج
+    # مرفوع سيفشل بـ DataAccessError. الرفض هنا صريح ومُفسَّر بدل انهيار
+    # عند الضغط على "حفظ".
+    _, _, is_user_data = active_dataset()
+    if is_user_data or is_hosted():
+        reason = (
+            "بياناتك المرفوعة تعيش في جلستك ولا تُكتب في قاعدة البيانات"
+            if is_user_data
+            else "الوضع المستضاف لا يحفظ شيئاً على الخادم"
+        )
+        st.info(
+            f"**التخطيط متاح في الوضع المحلي فقط.** {reason} — والخطط تحتاج "
+            "تخزيناً دائماً ليكون لها معنى (قياس المخطَّط مقابل الفعلي عبر "
+            "الأشهر).\n\nاستنسخ المستودع وشغّله محلياً لاستخدام هذه الصفحة:",
+            icon="ℹ️",
+        )
+        st.code("git clone https://github.com/amnmm1989-droid/FactoryMind\n"
+                "cd FactoryMind && python migrate.py && streamlit run app.py",
+                language="bash")
+        st.caption(
+            "التنبؤ والخطورة وذكاء المنتج تعمل كاملةً على بياناتك هنا — "
+            "التخزين وحده هو المعطَّل."
+        )
+        return
 
     st.warning(
         "**الكميات لا تخصم المخزون** — جدول `inventory` فارغ حتى Phase 5. "

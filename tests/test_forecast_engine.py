@@ -128,6 +128,32 @@ def test_mismatched_output_lengths_are_rejected():
         ForecastOutput(values=[1.0, 2.0], lower=[0.0], upper=[3.0, 4.0])
 
 
+def test_forecasts_are_invariant_to_the_synthetic_start_date():
+    """يحرس ضد "إصلاح" وهمي لتاريخ البداية المثبَّت.
+
+    SERIES_START يبدو خطأً واضحاً: تاريخ مثبَّت في الكود بينما بيانات
+    المستخدم قد تبدأ من أي سنة. والحدس يقول إن Prophet خاصةً سيتأثر،
+    لأن موسميته السنوية تُحسب من اليوم في السنة.
+
+    القياس يقول العكس: النماذج ثابتة تحت الإزاحة. إزاحة كل التواريخ
+    تُزيح النمط المتعلَّم *وأفق التنبؤ* معاً، فتُلغى. تمرير تاريخ حقيقي
+    من الملف المرفوع تعقيد بلا أثر.
+    """
+    import services.forecast_engine.statistical as statistical_module
+
+    original = statistical_module.SERIES_START
+    try:
+        statistical_module.SERIES_START = "2022-12-01"
+        baseline = ETSForecaster().fit_predict(SEASONAL, steps=3).values
+
+        statistical_module.SERIES_START = "1999-07-01"
+        shifted = ETSForecaster().fit_predict(SEASONAL, steps=3).values
+    finally:
+        statistical_module.SERIES_START = original
+
+    assert baseline == pytest.approx(shifted)
+
+
 def test_tree_models_are_deterministic():
     """random_state مثبّت — مقارنة نموذجين تتغير نتيجتها بين تشغيلين
     ليست مقارنة."""
