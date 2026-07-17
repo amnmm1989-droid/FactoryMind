@@ -129,8 +129,16 @@ class RecommendationRepository:
             risk=risk,
         )
 
-    def latest_for_product(self, product_name: str) -> ProductionRecommendation | None:
-        """أحدث توصية لمنتج، أو None."""
+    def latest_with_id_for_product(
+        self, product_name: str
+    ) -> tuple[int, ProductionRecommendation] | None:
+        """أحدث توصية لمنتج مع معرّفها في الجدول، أو None.
+
+        المعرّف مطلوب لأن production_plans.source_recommendation_id يربط
+        قرار المخطِّط بالتوصية التي رآها. والكيان لا يحمله: كائنات domain
+        نقية تُبنى قبل أن تُحفظ، فلا معرّف لها ساعة الحساب. فيُعاد بجانبه
+        لا بداخله.
+        """
         conn = self._get_connection()
         try:
             row = conn.execute(
@@ -144,9 +152,14 @@ class RecommendationRepository:
                 """,
                 (product_name,),
             ).fetchone()
-            return self._to_entity(row) if row else None
+            return (row["id"], self._to_entity(row)) if row else None
         finally:
             conn.close()
+
+    def latest_for_product(self, product_name: str) -> ProductionRecommendation | None:
+        """أحدث توصية لمنتج، أو None."""
+        found = self.latest_with_id_for_product(product_name)
+        return found[1] if found else None
 
     def highest_risk(self, limit: int = 10) -> list[ProductionRecommendation]:
         """أعلى المنتجات خطورة — أحدث توصية لكل منتج، مرتّبة تنازلياً.
