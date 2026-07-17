@@ -501,7 +501,7 @@ and nothing else in the codebase supplies yet — `products_meta.
 lead_time_days` exists as a column but has no ingest path either. Both
 stay at their schema default (`0.0`) until a lead-time input exists.
 
-## 4. Actual production file — for the plant manager ✅ (upload) / open (calibration)
+## 4. Actual production file — for the plant manager ✅
 
 Same shape as the sales file: `product, month, produced quantity`
 (manufacturing orders report from the ERP).
