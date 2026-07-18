@@ -856,6 +856,7 @@ STRINGS: dict[str, dict[str, str]] = {
 
     # ---- ذكاء المنتج ----
     "pi.title": {"ar": ":material/psychology: ذكاء المنتج", "en": ":material/psychology: Product Intelligence"},
+    "pi.settings": {"ar": ":material/tune: الإعدادات", "en": ":material/tune: Settings"},
     "pi.classification": {"ar": "تصنيف الطلب", "en": "Demand classification"},
     "pi.class": {"ar": "التصنيف", "en": "Class"},
     "pi.adi_help": {

@@ -55,6 +55,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     st.title(t("pi.title"))
 
     with st.sidebar:
+        st.header(t("pi.settings"))
         product = st.selectbox(t("common.product"), sorted(products))
 
     series = products[product]
