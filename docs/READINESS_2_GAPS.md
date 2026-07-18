@@ -76,16 +76,14 @@ excludes direct ERP connection — but a **visible column-mapping screen**
 middle ground not yet built, and listed in `docs/ROADMAP.md` as the first
 item from the start.
 
-## 6. No accounts, no roles, no collaboration
+## 6. No accounts, no roles
 
 `ui/data_source.py` — every session is isolated by Streamlit design, with no
 persistent account. This is entirely correct for privacy (an advantage, not
-a gap) but it prevents any form of team planning: a sales manager and a
-production manager cannot see the same saved plan and comment on it, and
-there is no continuous measurement over time of who follows recommendations
-(which is exactly what we partly fixed by adding
-`source_recommendation_id` — but it is session-local, with no account
-tying it to a specific planner).
+a gap): the project no longer tracks shared plans or team decisions at all
+(that scope — production planning, adherence, comments — was removed
+deliberately; see `ROADMAP.md`'s Audience section), so there is nothing
+left that a persistent account would be needed to attribute.
 
 **The good news:** Streamlit natively supports `st.login()` and OIDC since
 1.32 — no need to rebuild the UI on another framework to add accounts.

@@ -3,13 +3,18 @@
 نقطة الدخول — قشرة تنقّل لا لوحة.
 
 قبل Phase 6 كان هذا الملف يبني اللوحة الوحيدة مباشرةً. الآن يوزّع على
-سبع صفحات ولا يحسب شيئاً بنفسه.
+خمس صفحات ولا يحسب شيئاً بنفسه.
+
+⚠️ Production Planning وCustomer Intelligence أُزيلتا عمداً من نطاق
+المشروع (قرار منتج صريح، لا نقص تقني) — مع كل ما يخصّهما حصراً:
+services/customer_analysis.py، services/risk_service/calibration.py،
+repositories/production_plan_repository.py، وأعمدة/دوال ملف العميل
+والإنتاج الفعلي في services/ingest.py.
 
 الترتيب مقصود: التنفيذية أولاً (ما الذي يحتاج انتباهي؟)، ثم التنبؤ
-(المحرك الكامل)، ثم التخطيط، ثم ذكاء المنتج، والتحليل المتقدّم — الصفحة
-الأصلية، للمحلل لا لمدير الإنتاج — ثم ذكاء العميل: البُعد الثالث
-(Roadmap بند 5)، لمدير المبيعات لا الإنتاج — وأخيراً خطة الشراء، لمدير
-المشتريات: أفق تغطية يختاره هو، مُصدَّراً Excel مباشرة.
+(المحرك الكامل)، ثم ذكاء المنتج، والتحليل المتقدّم — الصفحة الأصلية،
+للمحلل — وأخيراً خطة الشراء، لمدير المشتريات: أفق تغطية يختاره هو،
+مُصدَّراً Excel مباشرة.
 """
 import streamlit as st
 
@@ -103,20 +108,16 @@ def _page(module_name: str):
 
 # url_path صريح لكل صفحة — إلزامي هنا: Streamlit يشتقّ المسار من اسم
 # الدالة حين لا يُعطى، وكل ما يُرجعه _page() اسمه `run`، فتتصادم الصفحات
-# الخمس على المسار نفسه وترفع StreamlitAPIException.
+# على المسار نفسه وترفع StreamlitAPIException.
 navigation = st.navigation([
     st.Page(_page("executive"), title=t("nav.executive"), icon=":material/dashboard:",
             url_path="executive", default=True),
     st.Page(_page("forecasting"), title=t("nav.forecasting"), icon=":material/insights:",
             url_path="forecasting"),
-    st.Page(_page("production_planning"), title=t("nav.planning"), icon=":material/factory:",
-            url_path="production-planning"),
     st.Page(_page("product_intelligence"), title=t("nav.intelligence"), icon=":material/psychology:",
             url_path="product-intelligence"),
     st.Page(_page("advanced_analytics"), title=t("nav.advanced"), icon=":material/analytics:",
             url_path="advanced-analytics"),
-    st.Page(_page("customer_intelligence"), title=t("nav.customers"), icon=":material/handshake:",
-            url_path="customer-intelligence"),
     st.Page(_page("purchase_plan"), title=t("nav.purchase_plan"), icon=":material/shopping_cart:",
             url_path="purchase-plan"),
 ])

@@ -271,13 +271,6 @@ def test_every_risk_factor_has_a_label():
         assert f"factor.{name}" in STRINGS
 
 
-def test_every_plan_status_has_a_label():
-    from ui.pages.production_planning import STATUS_CODES
-
-    for code in STATUS_CODES:
-        assert f"status.{code}" in STRINGS
-
-
 # ---------------------------------------------------------------------------
 # بقاء اللغة — انحدار كشفه التشغيل الحقيقي
 # ---------------------------------------------------------------------------

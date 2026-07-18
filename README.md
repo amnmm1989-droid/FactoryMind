@@ -22,11 +22,11 @@ survives reloads and can be shared as-is.
 |---|---|---|
 | **Production** | Sales report | How much to produce of each product |
 | **Procurement** | Sales + stock | When to reorder, and which products can't be planned by forecast |
-| **Sales** | Sales by customer | Which customers grow, which bleed |
-| **Plant** | Manufacturing orders | Whether execution matches the plan |
 
-All four are served today — see [`docs/ROADMAP.md`](docs/ROADMAP.md) for
-what each upload unlocks, and the competitive readiness plan in
+A deliberate scope decision, not a gap: FactoryMind analyses and forecasts
+product demand — it does not track team adherence to plans or analyse
+customers as their own dimension. See [`docs/ROADMAP.md`](docs/ROADMAP.md)
+for what each upload unlocks, and the competitive readiness plan in
 [`docs/READINESS_0_INDEX.md`](docs/READINESS_0_INDEX.md) for what's still
 gated behind an owner decision (accounts).
 
@@ -89,19 +89,16 @@ A tool that tells you when not to trust it should start with itself:
   lead time" file is a scoped, not-yet-built next step; true variability
   needs a heavier purchase-order/receipt log most ERPs don't export as one
   flat file.
-- **Risk weights are a documented initial calibration, not an auto-tuned
-  one.** `services/risk_service/calibration.py` correlates each factor
-  against real planning outcomes once you upload actual production — but it
-  only *reports* the correlation for a human to act on. It never rewrites
-  the live weights itself, on principle: reshaping every product's risk
-  score from a sample that might be a few dozen rows isn't a decision this
-  tool makes silently.
-- **Accounts don't exist.** Every plan is per-session; there's no login, so
-  "who decided this" isn't tracked across planners. This is a deliberate,
-  not-yet-made decision — it needs an external identity provider (Google/
-  Microsoft/Okta) and, more importantly, your explicit sign-off to re-scope
-  the privacy promise below (an account is persistent by definition; your
-  sales file still wouldn't be).
+- **Risk weights are a documented initial estimate, not tuned against your
+  own outcomes.** The five factors are weighted from general planning
+  practice, not correlated against your specific plant's history — by
+  scope decision, not oversight: FactoryMind analyses and forecasts, it
+  does not track team decisions to learn from them.
+- **Accounts don't exist.** Every session is independent; there's no login.
+  This is a deliberate, not-yet-made decision — it needs an external
+  identity provider (Google/Microsoft/Okta) and, more importantly, your
+  explicit sign-off to re-scope the privacy promise below (an account is
+  persistent by definition; your sales file still wouldn't be).
 - **Forecasts see quantity history only.** No price, promotions, or
   macroeconomic signal — every model here is univariate by design. That's
   not a gap to be filled; it's what "reads a sales export" structurally
@@ -146,7 +143,6 @@ the wrong number because he trusted this file. The green badge is measured.
 |---|---|---|
 | Run | `streamlit run app.py` | `FACTORYMIND_MODE=hosted streamlit run app.py` |
 | Results | Saved to `data/app.db` | **Nothing is ever saved** |
-| Production planning | ✅ Available | ❌ Needs persistent storage |
 | Your uploaded file | Memory only | Memory only |
 
 **Why no persistence when hosted?** One instance serves every visitor and
@@ -168,7 +164,7 @@ of memory — inside the free 1 GB limit.
 ## 📁 Project structure
 
 ```
-app.py                 Entry point (composition root; boots the DB, routes 6 pages)
+app.py                 Entry point (composition root; boots the DB, routes 5 pages)
 config.py              Settings — single source, read at call time not import time
 migrate.py             Migration runner — idempotent and atomic, checksum drift detection
 

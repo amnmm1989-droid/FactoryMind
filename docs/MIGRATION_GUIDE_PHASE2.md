@@ -117,12 +117,12 @@ Tests never touch the real `data/app.db`.
 
 ⚠️ **`migrated_db` is session-scoped and derived tables accumulate.**
 The catalogue (products/months) is never modified by tests, but
-`forecasts`, `recommendations`, and `production_plans` are written across
-the session and nothing cleans them globally. Existing tests survive
-because they only assert on what they just wrote. Any test that asserts on
-a *global* state (an aggregate, an empty table) must clean up what
-concerns it first — see `_clean_slate` in
-`tests/test_production_plan_repository.py`.
+`forecasts` and `recommendations` are written across the session and
+nothing cleans them globally. Existing tests survive because they only
+assert on what they just wrote. Any test that asserts on a *global* state
+(an aggregate, an empty table) must clean up what concerns it first, or
+use its own isolated `tmp_path` database (see the `isolated_db` fixture
+pattern in `tests/test_stock_upload_ui.py`).
 
 ---
 

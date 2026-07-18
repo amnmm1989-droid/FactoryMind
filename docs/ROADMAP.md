@@ -18,8 +18,12 @@ does not store what they store, and does not compete with them.
 |---|---|---|
 | **Production** | Sales Analysis | How much of each product should I make? |
 | **Procurement** | Inventory + Sales | When do I reorder? Which products can't be planned by forecast at all? |
-| **Sales** | Sales by Customer | Which customer grows? Which bleeds? Where is my risk concentrated? |
-| **Plant** | Manufacturing Orders | Are we executing what we plan? |
+
+⚠️ **Scope decision, not history**: this project no longer tracks a sales
+manager's customer dimension or a plant manager's plan-adherence — both were
+built and shipped, then removed deliberately to keep the tool to two
+questions it answers well, not four it answers thinly. See the "Removed by
+scope decision" note at the end of this file for what that took with it.
 
 ## Explicitly out of scope
 
@@ -241,28 +245,6 @@ change is **necessarily zero**. That is not a flaw to hide by changing the
 window; the model genuinely predicts that next month looks like recent
 months.
 
-### Weight calibration ✅ — diagnostic, not automatic
-
-`services/risk_service/calibration.py::calibrate()` reads `Production
-PlanRepository.validated_outcomes()` (every plan with a recorded
-`actual_quantity`, joined to the risk factors its recommendation was
-scored with) and correlates each of the five factors against planning
-error (`|actual - planned| / actual`). Surfaced on Production Planning
-right below the actuals upload — the same page that fills the data it
-reads.
-
-**Deliberately not automatic.** This does not write back into
-`FACTOR_WEIGHTS` — swapping every product's risk score based on a sample
-that might be a few dozen rows is a decision for a human to see and make,
-not one this function makes silently. A factor below `MIN_SAMPLE_PER_
-FACTOR` (10 pairs) reports `correlation=None`, not a noisy number; a
-factor with zero variance across the sample (every row scored it
-identically) also reports `None` — undefined, not zero, the same
-"unmeasurable ≠ 0" rule this codebase applies everywhere else, now applied
-to a correlation coefficient instead of a risk score. Verified live: a
-seeded batch where four of five factors held a constant value correctly
-showed "not enough sample" for all four, not a fabricated 0% correlation.
-
 ## Intermittent demand — Croston / TSB ✅
 
 **Motivation:** the Syntetos-Boylan-Croston classification of this catalogue:
@@ -354,10 +336,13 @@ code guarded by tests that no user ever saw.
 - [x] `app.py` — an `st.navigation` shell with five pages, computing nothing
 - [x] `ui/pages/executive.py` — "what needs my attention?"
 - [x] `ui/pages/forecasting.py` — Phase 3 engine + model comparison
-- [x] `ui/pages/production_planning.py` — system suggestion → human decision
 - [x] `ui/pages/product_intelligence.py` — classification + risk breakdown
 - [x] `ui/pages/advanced_analytics.py` — the original page, behaviour unchanged
 - [x] `services/batch.py` — whole-catalogue computation and persistence
+
+(`ui/pages/production_planning.py` also shipped in this phase — "system
+suggestion → human decision" — removed later by an explicit scope
+decision; see the Audience section at the top of this file.)
 
 ### Batch, not compute-on-load — a measurement settled the design
 
@@ -411,14 +396,6 @@ Recorded in the run skill's driver.
   the boot path untestable, which is exactly why the cold-boot bug survived.
   Now every repository resolves its path at call time
   (`repositories.base.resolve_db_path`), with structural guards.
-- **Plan ↔ recommendation link**: `production_plans.source_recommendation_id`
-  existed since migration 007 — with a foreign key and a comment explaining
-  it is the *reason* the two tables are separate — and nothing ever wrote
-  it. The planning page held its own SQL and omitted it, so the question
-  the table was built to answer ("how often are our recommendations
-  followed?") was unanswerable. `ProductionPlanRepository` now owns the
-  table, writes the link, and `adherence()` answers the question.
-  `test_the_page_holds_no_sql` keeps UI pages out of the SQL business.
 
 ---
 
@@ -456,9 +433,9 @@ changed is what happens next (see below) — it no longer rejects, it tags.
 ### The remaining half — ✅ done: actually supporting weekly/daily
 
 All five detected granularities (daily/weekly/monthly/quarterly/yearly) are
-now accepted, not just tagged and rejected — `Dataset.granularity`/
-`CustomerSalesDataset.granularity` carry it forward, and `ui/data_source.py::
-active_granularity()` exposes the session's real granularity to every page.
+now accepted, not just tagged and rejected — `Dataset.granularity` carries
+it forward, and `ui/data_source.py::active_granularity()` exposes the
+session's real granularity to every page.
 
 Every location in the table below now derives its number from
 `config.SEASONAL_PERIODS_BY_GRANULARITY`/`PERIODS_PER_YEAR_BY_GRANULARITY`/
@@ -520,78 +497,15 @@ active_inventory` (session-only, same privacy pattern as the sales file;
 never written to SQLite). See `docs/READINESS_3_PLAN.md` 2.c for the
 implementation detail and its tests.
 
-**Still open**: reorder timing (`reorder_point`, `safety_stock`) needs
-lead-time and its variability, which this two-column file doesn't carry
-and nothing else in the codebase supplies yet — `products_meta.
-lead_time_days` exists as a column but has no ingest path either. Both
-stay at their schema default (`0.0`) until a lead-time input exists.
-
-## 4. Actual production file — for the plant manager ✅
-
-Same shape as the sales file: `product, month, produced quantity`
-(manufacturing orders report from the ERP).
-
-Unlocked:
-- **Plant**: planned vs actual — an upload in Production Planning matches
-  the file against saved plans by parsed date (not literal label text) and
-  fills `production_plans.actual_quantity`, via `ProductionPlanRepository.
-  record_actuals` (`repositories/production_plan_repository.py`). Reuses the
-  sales file's exact column-hint/manual-mapping machinery, but *not*
-  `parse_upload`/`Dataset` itself — those enforce a 3-month minimum and a
-  monthly-granularity gate built for building a forecastable series, and a
-  plant manager's real usage is uploading one just-completed month at a
-  time. `services/ingest.py::parse_actuals_upload` is the same shape with
-  those two constraints deliberately dropped.
-- A cell with no saved plan behind it (production happened, nothing was
-  planned) is reported, not silently invented as a plan with an unknown
-  planned quantity — same "None ≠ 0" discipline as everywhere else in this
-  codebase.
-
-> **Both questions this file was needed for are now answered.** The first —
-> "how often are recommendations followed?" — needed `source_recommendation_
-> id`, not a new file. The column existed since 007 and nothing wrote it (see
-> the hardening notes above). `ProductionPlanRepository.adherence()` answers
-> it. **The second** — "are outcomes better when they are followed?" — reads
-> the `planned`/`actual` pairs this file fills and correlates them against
-> each risk factor: `services/risk_service/calibration.py` (see Phase 4's
-> "Weight calibration" above).
-
-## 5. Customer dimension — for the sales manager ✅
-
-`product, customer, month, quantity` (Sales by Customer). A third dimension
-— `services/ingest.py` reads two today.
-
-Unlocked: a new page, Customer Intelligence, answering three questions no
-other page can — none of them possible without the customer column:
-
-- **Concentration**: rank every customer by share of total quantity, with
-  a running cumulative share ("the top 2 customers are 94% of volume").
-- **Bleeding customers**: whose purchases dropped more than 20% between
-  the first and second half of the file's window, steepest decline first.
-- **Growth by customer**: the same first-half/second-half comparison for
-  everyone, not just decliners — deliberately the simplest calculation
-  that's explainable in one sentence, not a linear-regression trend line
-  (same preference for plain-explainable math already made for Bottom-Up
-  reconciliation over MinT elsewhere in this doc).
-
-`services/customer_analysis.py` holds the three pure functions;
-`services/ingest.py::parse_customer_upload` reads the file (long-format
-only — a 3D cube has no natural flat "wide" shape) using the same
-hint-guessing and manual-mapping machinery as the other files, but with
-its own `CUSTOMER_MIN_MONTHS = 2` rather than the sales file's 3: this
-analysis compares two halves of a window, not a forecast, and doesn't
-need three months' minimum for a reason that doesn't apply to it — the
-same lesson the actual-production file taught above.
-
-**Analysis only — no order creation, and no persistence.** The sales
-manager receives orders; they do not place them. And unlike the
-production-actuals file, this never touches SQLite at all: every number
-the analysis needs is already inside the uploaded file itself (a full
-multi-month history), not a snapshot to be compared against something
-saved from an earlier session — so it's exactly as ephemeral as the sales
-and stock files, in both local and hosted mode alike.
-
----
+**Partially resolved since**: Purchase Plan now takes a manual "typical
+lead time (days)" input and flags each line urgent/can-wait against it
+(`services/decision_engine/purchase_plan.py::_urgency`) — a real, if
+coarse, answer to "when do I reorder?" **Still open**: this is one number
+for the whole catalogue, not per-supplier, and it isn't a true
+reorder-point system — that needs lead-time *variability* (multiple
+order→delivery date pairs), which no current upload supplies.
+`reorder_point`/`safety_stock` on `InventoryStatus` still default to
+`0.0`; the urgency flag lives beside them, not inside them.
 
 ## An architectural tension to resolve
 

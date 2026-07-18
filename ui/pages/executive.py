@@ -153,51 +153,21 @@ def _render_category_totals(categories: dict[str, str], recommendations) -> None
         )
 
 
-def _render_cross_functional_glance() -> None:
-    """"نظرة تنفيذية" يجب أن تعني عبر العملية كلها، لا الإنتاج وحده — هذه
-    الصفحة قبل هذه الدالة كانت بالكامل عن توصيات الإنتاج رغم اسمها. يسحب
-    هذا القسم سطراً واحداً من كل جانب آخر (التزام الإنتاج، العملاء،
-    المشتريات) حين تتوفّر بياناته في هذه الجلسة، بلا إجبار المستخدم على
-    رفع شيء لم يرفعه أصلاً. لا قسم فارغ حين لا يتوفّر شيء إطلاقاً — نفس
-    مبدأ _render_category_totals تماماً.
+def _render_purchase_plan_status() -> None:
+    """إشارة من Purchase Plan — الصفحة الأخرى الوحيدة المتبقية في النطاق —
+    حين تكون قد حُسبت فعلاً هذه الجلسة. لا إجبار على زيارتها أولاً؛ إن لم
+    تُحسَب بعد، لا يظهر شيء هنا إطلاقاً — لا سطراً فارغاً يملأ الشاشة.
     """
-    lines: list[str] = []
-
-    from repositories.production_plan_repository import ProductionPlanRepository
-    from ui.pages.production_planning import _adherence_summary_params
-
-    adherence_params = _adherence_summary_params(ProductionPlanRepository().adherence())
-    if adherence_params is not None:
-        lines.append(t("exec.glance_adherence", **adherence_params))
-
-    from ui.pages.customer_intelligence import SESSION_KEY as CUSTOMER_SESSION_KEY
-
-    customer_dataset = st.session_state.get(CUSTOMER_SESSION_KEY)
-    if customer_dataset is not None:
-        from services.customer_analysis import bleeding_customers
-
-        bleeding = bleeding_customers(customer_dataset)
-        lines.append(t(
-            "exec.glance_customers",
-            bleeding=len(bleeding), total=customer_dataset.customer_count,
-        ))
-
     from ui.pages.purchase_plan import RESULT_KEY as PPLAN_RESULT_KEY
 
     purchase_plan = st.session_state.get(PPLAN_RESULT_KEY)
-    if purchase_plan is not None:
-        urgent = sum(1 for line in purchase_plan.lines if line.urgency == "urgent")
-        lines.append(t(
-            "exec.glance_purchase", urgent=urgent, total=len(purchase_plan.lines),
-        ))
-
-    if not lines:
+    if purchase_plan is None:
         return
 
-    with st.container(border=True):
-        st.caption(t("exec.glance_title"))
-        for line in lines:
-            st.write(f"- {line}")
+    urgent = sum(1 for line in purchase_plan.lines if line.urgency == "urgent")
+    st.caption(t(
+        "exec.glance_purchase", urgent=urgent, total=len(purchase_plan.lines),
+    ))
 
 
 def _render_no_history_section(
@@ -319,7 +289,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     st.title(t("exec.title"))
     # مستقلة عن وجود توصيات إنتاج كلياً — قسم يسحب من صفحات أخرى، فيجب أن
     # يظهر حتى لو "يحتاج قراراً" أدناه فارغة تماماً (لا توصيات محسوبة بعد).
-    _render_cross_functional_glance()
+    _render_purchase_plan_status()
 
     _, _, is_user_data = active_dataset()
     # بيانات المستخدم لا تُكتب في القرص أبداً، والوضع المستضاف لا يحفظ شيئاً:

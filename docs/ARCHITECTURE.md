@@ -23,8 +23,7 @@ app.py                       Composition root: boots the DB, routes 5 pages,
  │   ├─ base.py              DataRepository ABC + resolve_db_path()
  │   ├─ sqlite_repository.py Catalogue (months/products/sales)
  │   ├─ forecast_repository.py       forecasts + model_performance
- │   ├─ recommendation_repository.py recommendations
- │   └─ production_plan_repository.py production_plans + adherence()
+ │   └─ recommendation_repository.py recommendations
  ├─ services/
  │   ├─ ingest.py            Reads user files (CSV/Excel), wide & long
  │   │                       layouts, granularity gate (monthly only).
@@ -39,7 +38,10 @@ app.py                       Composition root: boots the DB, routes 5 pages,
  │   ├─ risk_service/        RiskScore from 5 factors. A factor without
  │   │                       data = None, never 0; it is excluded and the
  │   │                       remaining weights re-normalise.
- │   ├─ decision_engine/     ForecastResult → ProductionRecommendation.
+ │   ├─ decision_engine/     ForecastResult → ProductionRecommendation
+ │   │                       (recommender.py, single period) or a
+ │   │                       PurchasePlan (purchase_plan.py, multi-period,
+ │   │                       ephemeral — no persistence, no repository).
  │   │                       Quantity = expected demand minus available
  │   │                       stock (when a stock file exists).
  │   └─ batch.py             Whole-catalogue computation + persistence
@@ -49,8 +51,8 @@ app.py                       Composition root: boots the DB, routes 5 pages,
      │                       (ReasonPart, Warning_, message_code) — the layer
      │                       that computes never chooses display language.
      ├─ data_source.py       Session data: user upload or bundled demo
-     ├─ pages/               executive, forecasting, production_planning,
-     │                       product_intelligence, advanced_analytics
+     ├─ pages/               executive, forecasting, product_intelligence,
+     │                       advanced_analytics, purchase_plan
      └─ dashboard.py + sidebar/charts/tables/export
                              The original analyst view — render-only since
                              Phase 1; serves correlation/distribution/
@@ -72,17 +74,12 @@ outside `ui/` reintroduces the bug.
 
 ### 2. Repositories own all SQL — UI pages render only
 
-Broken once: `ui/pages/production_planning.py` opened its own sqlite3
-connection and hand-wrote `INSERT ... ON CONFLICT` — the only page of five
-that did. The cost was concrete: the query omitted
-`source_recommendation_id`, silently orphaning every plan from the
-recommendation it was based on, and making the question the table was
-designed to answer ("how often are recommendations followed?")
-unanswerable. A query written by someone thinking about the screen, not
-the table, with no contract and no test.
-
-`ProductionPlanRepository` owns the table now;
-`test_the_page_holds_no_sql` keeps SQL out of pages permanently.
+Broken once, on a page since removed by scope decision: it opened its own
+sqlite3 connection and hand-wrote an `INSERT ... ON CONFLICT`, and the
+query silently dropped a foreign-key column the table existed specifically
+to hold — a query written by someone thinking about the screen, not the
+table, with no contract and no test. Every current page still goes through
+a repository; none opens `sqlite3` directly.
 
 ### 3. Paths resolve at call time, never at import time
 
@@ -103,9 +100,9 @@ means "the current default", not "no path". Structural guards in
 `stock_depletion_risk` returns `None` while the inventory table is empty —
 because `0` means "measured, safe" and `None` means "we don't know".
 Conflating them puts unknown-stock products at the top of the "safest"
-list. The same principle appears in `adherence()` (plans without a linked
-recommendation are `unlinked`, not "overridden") and in MAPE handling
-(None when all actuals are zero, never a fake number).
+list. The same principle appears in MAPE handling (None when all actuals
+are zero, never a fake number) and in Purchase Plan's urgency flag (None
+without a lead time or a known stock level, never a default "can wait").
 
 ## Integration principle: no big bang
 
@@ -134,18 +131,11 @@ reason is not technical: a wrong analysis is a rejected suggestion; a wrong
 order is money spent. The tool has not earned that responsibility while —
 by its own measurements — 84% of the catalogue resists forecasting.
 
-`recommendations` (system suggestion) is separate from `production_plans`
-(human decision) since Phase 2 for exactly this reason — and
-`source_recommendation_id` links each decision to the suggestion the
-planner saw, so the follow/override rate is measurable
-(`ProductionPlanRepository.adherence()`).
-
 ## Two runtime modes
 
 | | local (default) | hosted (`FACTORYMIND_MODE=hosted`) |
 |---|---|---|
 | Batch results | persisted to `data/app.db` | recomputed in session memory |
-| Production plans | ✅ | ❌ (needs persistence) |
 | User uploads | memory only | memory only |
 
 Hosted persistence is impossible **by architecture**: one instance serves
