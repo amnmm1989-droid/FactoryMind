@@ -12,6 +12,10 @@
 
 التوصية تحمل خطورتها ومصدرها معها. لا رقم بلا سياق.
 """
+from .purchase_plan import PurchaseOrderLine, PurchasePlan, build_purchase_plan
 from .recommender import BASELINE_MONTHS, borrow_recommendation, recommend_production
 
-__all__ = ["recommend_production", "borrow_recommendation", "BASELINE_MONTHS"]
+__all__ = [
+    "recommend_production", "borrow_recommendation", "BASELINE_MONTHS",
+    "build_purchase_plan", "PurchasePlan", "PurchaseOrderLine",
+]

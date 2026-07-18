@@ -31,6 +31,7 @@ PAGE_MODULES = [
     "product_intelligence",
     "advanced_analytics",
     "customer_intelligence",
+    "purchase_plan",
 ]
 
 

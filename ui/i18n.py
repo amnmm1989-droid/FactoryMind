@@ -1238,4 +1238,91 @@ STRINGS: dict[str, dict[str, str]] = {
               "purchases in the first half, so growth from zero isn't "
               "mathematically defined — not zero, not an invented number.",
     },
+
+    # -------------------------------------------------------------------
+    # خطة الشراء — لمدير المشتريات: كم يشتري من كل منتج لتغطية أفق يختاره
+    # -------------------------------------------------------------------
+    "nav.purchase_plan": {"ar": "خطة الشراء", "en": "Purchase Plan"},
+    "pplan.title": {"ar": "🛒 خطة الشراء", "en": "🛒 Purchase Plan"},
+    "pplan.subtitle": {
+        "ar": "لكل منتج: كمية الشراء الموصى بها لتغطية عدد الأشهر الذي "
+              "تحدّده أدناه — قابلة للتصدير Excel مباشرة.",
+        "en": "Per product: the recommended purchase quantity to cover "
+              "the number of months you set below — exportable to Excel "
+              "directly.",
+    },
+    "pplan.header": {"ar": "إعداد الخطة", "en": "Plan setup"},
+    "pplan.horizon_label": {"ar": "عدد الأشهر المراد تغطيتها", "en": "Months to cover"},
+    "pplan.horizon_help": {
+        "ar": "أفق واحد يُطبَّق على كل المنتجات — الكمية الناتجة لكل منتج "
+              "تختلف بحسب طلبه المتوقَّع، لا الأفق نفسه.",
+        "en": "One horizon applied to every product — the resulting "
+              "quantity differs per product based on its own forecast, "
+              "not the horizon itself.",
+    },
+    "pplan.compute": {"ar": "🔄 احسب خطة الشراء", "en": "🔄 Compute purchase plan"},
+    "pplan.empty": {
+        "ar": "اضبط عدد الأشهر واضغط \"احسب خطة الشراء\" من الشريط الجانبي.",
+        "en": "Set the months to cover and click \"Compute purchase plan\" "
+              "in the sidebar.",
+    },
+    "pplan.stale_warning": {
+        "ar": "⚠️ البيانات تغيّرت منذ آخر حساب — النتائج أدناه قد لا تطابق "
+              "الملف الحالي. اضغط \"احسب خطة الشراء\" لتحديثها.",
+        "en": "⚠️ Data changed since the last computation — results below "
+              "may not match the current file. Click \"Compute purchase "
+              "plan\" to refresh them.",
+    },
+    "pplan.kpi_assessed": {"ar": "منتجات مُقيَّمة", "en": "Products assessed"},
+    "pplan.kpi_to_order": {"ar": "تحتاج شراءً", "en": "Need purchasing"},
+    "pplan.kpi_low_confidence": {"ar": "بيانات قليلة جداً", "en": "Very little data"},
+    "pplan.kpi_total_qty": {"ar": "إجمالي الكمية المطلوبة", "en": "Total quantity needed"},
+    "pplan.no_stock_note": {
+        "ar": "لم يُرفَع ملف مخزون — الكميات أعلاه هي الطلب المتوقَّع "
+              "بالكامل بلا خصم أي مخزون حالي.",
+        "en": "No stock file uploaded — quantities above are the full "
+              "expected demand with no current stock deducted.",
+    },
+    "pplan.orders_title": {"ar": "أوامر الشراء", "en": "Purchase orders"},
+    "pplan.nothing_to_order": {
+        "ar": "لا منتج يحتاج شراءً بالكمية الحالية — كل الطلب المتوقَّع "
+              "مغطّى بالمخزون، أو المنتجات المتبقية متوقّفة/راكدة (انظر "
+              "القسم المستبعد أدناه).",
+        "en": "No product needs purchasing at current stock — either "
+              "demand is fully covered, or the remaining products are "
+              "dormant/discontinued (see the excluded section below).",
+    },
+    "pplan.download_excel": {"ar": "⬇️ تنزيل ملف Excel", "en": "⬇️ Download Excel file"},
+    "pplan.excluded_title": {
+        "ar": "منتجات مستبعدة من أمر الشراء ({count})",
+        "en": "Products excluded from the purchase order ({count})",
+    },
+    "pplan.excluded_help": {
+        "ar": "كميتها المحسوبة أقل من نصف وحدة — غالباً متوقّفة عن البيع أو "
+              "راكدة. موجودة هنا وفي ملف Excel (ورقة منفصلة) للشفافية، لا "
+              "محذوفة بصمت.",
+        "en": "Their computed quantity is under half a unit — usually "
+              "discontinued or dormant. Shown here and in the Excel file "
+              "(separate sheet) for transparency, not silently dropped.",
+    },
+    "pplan.skipped_title": {
+        "ar": "منتجات تعذّر تقييمها كلياً ({count})",
+        "en": "Products that couldn't be evaluated at all ({count})",
+    },
+    "pplan.col_stock": {"ar": "المخزون الحالي", "en": "Current stock"},
+    "pplan.col_class": {"ar": "تصنيف الطلب", "en": "Demand class"},
+    "pplan.col_note": {"ar": "ملاحظة", "en": "Note"},
+    "pplan.col_reason": {"ar": "السبب", "en": "Reason"},
+    "pplan.sheet_orders": {"ar": "أوامر الشراء", "en": "Purchase Orders"},
+    "pplan.sheet_excluded": {"ar": "مستبعد", "en": "Excluded"},
+    "pplan.sheet_skipped": {"ar": "بلا تقييم", "en": "Not Evaluated"},
+    "note.cold_start": {
+        "ar": "⚠️ منتج جديد جداً (3 أشهر فعلية أو أقل) — الكمية تقدير لا تنبؤ",
+        "en": "⚠️ Very new product (3 or fewer active months) — a rough "
+              "estimate, not a real forecast",
+    },
+    "note.recently_dormant": {
+        "ar": "⚠️ لا بيع منذ 12 شهراً أو أكثر — راجع قبل الشراء",
+        "en": "⚠️ No sales in 12+ months — review before purchasing",
+    },
 }
