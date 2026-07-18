@@ -46,4 +46,7 @@ def render_export_buttons(main_product, selected_months, series, forecast_months
             use_container_width=True
         )
     except ImportError:
-        col_exp2.info("💡 لتتمكن من تصدير Excel، قم بتثبيت openpyxl: `pip install openpyxl`")
+        col_exp2.info(
+            "لتتمكن من تصدير Excel، قم بتثبيت openpyxl: `pip install openpyxl`",
+            icon=":material/info:",
+        )
