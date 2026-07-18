@@ -32,6 +32,15 @@ MIN_ACTIONABLE_UNITS = 0.5
 RESULT_KEY = "_purchase_plan_result"
 PARAMS_KEY = "_purchase_plan_params"
 
+# ترتيب الجدول حسب الأولوية لا حسب ترتيب الملف الأصلي: "اطلب الآن" أولاً،
+# فـ"يمكن الانتظار"، فما لا حكم له (لا مهلة توريد أُدخلت أصلاً) — بلا مهلة
+# توريد، كل الأسطر تتساوى هنا وتُرتَّب بالكمية فقط، فلا تأثير عملي لغيابها.
+_URGENCY_ORDER = {"urgent": 0, "can_wait": 1, None: 2}
+
+
+def _sort_key(line: PurchaseOrderLine) -> tuple[int, float]:
+    return (_URGENCY_ORDER[line.urgency], -line.recommended_quantity)
+
 
 def _signature(products: dict[str, list[float]], inventory, prices: dict[str, float]) -> str:
     """بصمة البيانات — نفس مبدأ executive.py::_dataset_signature بالحرف:
@@ -164,9 +173,10 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     if st.session_state.get(PARAMS_KEY) != current_params:
         st.warning(t("pplan.stale_warning"), icon=":material/warning:")
 
-    active_lines = [
-        line for line in plan.lines if line.recommended_quantity >= MIN_ACTIONABLE_UNITS
-    ]
+    active_lines = sorted(
+        (line for line in plan.lines if line.recommended_quantity >= MIN_ACTIONABLE_UNITS),
+        key=_sort_key,
+    )
     excluded_lines = [
         line for line in plan.lines if line.recommended_quantity < MIN_ACTIONABLE_UNITS
     ]
