@@ -1280,14 +1280,16 @@ STRINGS: dict[str, dict[str, str]] = {
     "nav.purchase_plan": {"ar": "خطة الشراء", "en": "Purchase Plan"},
     "pplan.title": {"ar": ":material/shopping_cart: خطة الشراء", "en": ":material/shopping_cart: Purchase Plan"},
     "pplan.subtitle": {
-        "ar": "لكل منتج: كمية الشراء الموصى بها لتغطية عدد الأشهر الذي "
+        "ar": "لكل منتج: كمية الشراء الموصى بها لتغطية عدد {unit} الذي "
               "تحدّده أدناه — قابلة للتصدير Excel مباشرة.",
         "en": "Per product: the recommended purchase quantity to cover "
-              "the number of months you set below — exportable to Excel "
+              "the number of {unit} you set below — exportable to Excel "
               "directly.",
     },
     "pplan.header": {"ar": "إعداد الخطة", "en": "Plan setup"},
-    "pplan.horizon_label": {"ar": "عدد الأشهر المراد تغطيتها", "en": "Months to cover"},
+    "pplan.horizon_label": {
+        "ar": "عدد {unit} المراد تغطيتها", "en": "{unit} to cover",
+    },
     "pplan.horizon_help": {
         "ar": "أفق واحد يُطبَّق على كل المنتجات — الكمية الناتجة لكل منتج "
               "تختلف بحسب طلبه المتوقَّع، لا الأفق نفسه.",

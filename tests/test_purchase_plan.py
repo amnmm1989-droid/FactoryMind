@@ -174,3 +174,18 @@ def test_unit_price_is_none_when_price_unknown():
     line = plan.lines[0]
     assert line.unit_price is None
     assert line.total_cost is None
+
+
+def test_urgency_uses_the_actual_granularity_not_a_hardcoded_month():
+    """طلب أسبوعي 100 ومخزون 50 = تغطية 3.5 يوماً فعلياً (50/100 × 7).
+    افتراض شهري خاطئ (× 30) كان سيحسبها 15 يوماً — عاجل فعلي يظهر
+    "يمكن الانتظار" لو الحبيبة أُهملت."""
+    series = _smooth_series(months=24, base=100.0)  # 100 وحدة/فترة تقريباً
+
+    weekly = build_purchase_plan(
+        {"م": series}, horizon_months=3,
+        inventory=_inventory_with_stock("م", 50.0),
+        lead_time_days=5, granularity="weekly",
+    ).lines[0]
+
+    assert weekly.urgency == "urgent"

@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
+from config import GRANULARITY_DAYS
 from core.exceptions import AppError
 from core.logging_config import get_logger
 from domain.entities import InventoryStatus
@@ -78,12 +79,17 @@ def _confidence_note(series: Sequence[float], profile) -> str | None:
 
 def _urgency(
     current_stock: float | None, forecast_values: Sequence[float],
-    horizon_months: int, lead_time_days: int | None,
+    horizon_months: int, lead_time_days: int | None, granularity: str,
 ) -> str | None:
     """"اطلب الآن" أم "يمكن الانتظار"؟ — تقدير أولوية لا نظام نقطة إعادة
     طلب كامل: يقارن أيام تغطية المخزون الحالي بمهلة التوريد المُدخَلة
     يدوياً، دون افتراض تباين تلك المهلة (يحتاج سجل أوامر شراء حقيقي غير
     متوفر بعد — راجع docs/ROADMAP.md).
+
+    طول الفترة بالأيام يُشتقّ من الحبيبة الفعلية (config.GRANULARITY_DAYS)
+    لا يُفترَض شهرياً: ملف أسبوعي يعني period_demand طلباً أسبوعياً، وضربه
+    بـ30 كان سيحسبه كأنه طلب شهري فيبالغ في أيام التغطية ~4 أضعاف — عاجل
+    فعلاً يظهر "يمكن الانتظار".
 
     None حين تنقص مدخلاته (لا مخزون معروف، لا مهلة أُدخلت، أو لا طلب
     متوقَّع لتُقاس عليه أيام التغطية) — لا صفراً موهماً بعدم إلحاح.
@@ -93,7 +99,8 @@ def _urgency(
     period_demand = sum(forecast_values[:horizon_months]) / horizon_months if horizon_months else 0
     if period_demand <= 0:
         return None
-    days_of_stock = (current_stock / period_demand) * 30
+    period_days = GRANULARITY_DAYS.get(granularity, GRANULARITY_DAYS["monthly"])
+    days_of_stock = (current_stock / period_demand) * period_days
     return "urgent" if days_of_stock <= lead_time_days else "can_wait"
 
 
@@ -171,7 +178,7 @@ def build_purchase_plan(
                 reason=recommendation.reason,
                 urgency=_urgency(
                     current_stock, engine_result.best.forecast_values,
-                    horizon_months, lead_time_days,
+                    horizon_months, lead_time_days, granularity,
                 ),
                 unit_price=unit_price,
                 total_cost=total_cost,

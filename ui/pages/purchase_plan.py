@@ -122,17 +122,22 @@ def _excel_bytes(
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
+    granularity = active_granularity()
+    # الوحدة تتبع حبيبة الملف الفعلية — لا "أشهر" ثابتة، فملف أسبوعي يعني
+    # الرقم أسابيع فعلاً لا أشهراً (راجع _urgency لنفس المبدأ في المحرك).
+    horizon_unit = t(f"granularity.unit.{granularity}")
+
     st.title(t("pplan.title"))
-    st.caption(t("pplan.subtitle"))
+    st.caption(t("pplan.subtitle", unit=horizon_unit))
 
     inventory = active_inventory()
     prices = active_prices()
-    granularity = active_granularity()
 
     with st.sidebar:
         st.header(t("pplan.header"))
         horizon = st.number_input(
-            t("pplan.horizon_label"), min_value=1, max_value=MAX_FORECAST_STEPS,
+            t("pplan.horizon_label", unit=horizon_unit).capitalize(),
+            min_value=1, max_value=MAX_FORECAST_STEPS,
             value=DEFAULT_HORIZON_MONTHS, step=1, help=t("pplan.horizon_help"),
         )
         lead_time_days = st.number_input(
