@@ -61,13 +61,17 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     series = products[product]
     profile = classify_demand(series)
     demand_class = profile.demand_class.value
+    granularity = active_granularity()
 
     st.subheader(t("pi.classification"))
     columns = st.columns(4)
     columns[0].metric(t("pi.class"), t(f"class.{demand_class}"))
     columns[1].metric("ADI", f"{profile.adi:.2f}", help=t("pi.adi_help"))
     columns[2].metric("CV²", f"{profile.cv_squared:.2f}", help=t("pi.cv2_help"))
-    columns[3].metric(t("pi.selling_months"), f"{profile.non_zero_count}/{len(series)}")
+    columns[3].metric(
+        t("pi.selling_periods", unit=t(f"granularity.unit.{granularity}")).capitalize(),
+        f"{profile.non_zero_count}/{len(series)}",
+    )
     st.caption(t(f"class.{demand_class}.help"))
 
     if demand_class == "dead":
@@ -86,7 +90,6 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     )
 
     inventory = active_inventory()
-    granularity = active_granularity()
     try:
         with st.spinner(t("pi.computing_risk")):
             result = forecast_product(product, series, steps=6, models=fast_models(),

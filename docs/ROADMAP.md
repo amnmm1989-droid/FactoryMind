@@ -489,6 +489,36 @@ yearly): each now reads with its true granularity, and the seasonal models
 `freq="QS"` end to end. Covered by
 `tests/test_ingest.py::test_each_erp_export_format_is_read_with_its_true_granularity`.
 
+### The display gap — ✅ done: pages name the file's real unit
+
+Detecting the granularity is not the same as *showing* it. Two blind spots
+survived into the page labels, and a third was introduced by the ERP-header
+fix above:
+
+- **Hardcoded unit words.** Forecasting showed "Forecast horizon (months)"
+  and "Next month forecast"; Product Intelligence "Months with sales" — for
+  every file, weekly or yearly. Now the horizon slider, the no-evaluation
+  notice, and the selling-periods metric take `{unit}` from the session
+  granularity, and the next-period metric is worded period-generic.
+- **Chart-axis collapse (a regression from the ERP-header fix).** Once
+  `parse_month_label` learned to read `W1 2023` (→ `2023-01-01`),
+  `format_month` began translating it to "January 2023" — so `W1`, `W2`,
+  `W5` all rendered as the same "January 2023" on the x-axis. `format_month`
+  now reformats **only bare month labels** (month name + year, or `YYYY-MM`);
+  weekly/quarterly/yearly/daily labels pass through untouched, since they
+  carry no month name to translate. The axis title itself now uses
+  `granularity.one.*` (Week/Quarter/Year…), not a fixed "Month".
+
+Covered by `tests/test_granularity_display_ui.py` (each page × weekly/
+quarterly/yearly) and `tests/test_i18n.py::test_non_monthly_labels_are_not_collapsed_into_a_month`.
+
+**One page left as-is by design:** Advanced Analytics wraps the frozen
+legacy dashboard (`ui/dashboard.py`), whose metric labels ("Months (>0)",
+"per month") and seasonal-by-quarter decomposition assume monthly data. Its
+charts no longer collapse non-monthly labels (the `format_month` fix is
+central), but its wording stays monthly — re-granularising it is a separate
+effort against a page ROADMAP already documents as legacy.
+
 **Why now:** it was structural, and every feature built on the month
 assumption raised its cost. Without it, the claim "fits all manufacturing"
 was **not honest**: food is weekly, aircraft are yearly.

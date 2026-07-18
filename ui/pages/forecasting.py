@@ -29,7 +29,7 @@ from ui.i18n import format_months, format_reason, format_recommendation, t
 
 
 
-def _forecast_chart(months, series, result, forecast_months):
+def _forecast_chart(months, series, result, forecast_months, granularity):
     figure = go.Figure()
     figure.add_trace(go.Scatter(
         x=months, y=series, name=t("fc.actual"), mode="lines+markers",
@@ -53,7 +53,8 @@ def _forecast_chart(months, series, result, forecast_months):
     ))
     figure.update_layout(
         title=t("fc.chart_title", model=best.model_name),
-        xaxis_title=t("common.month"), yaxis_title=t("common.quantity"), height=420,
+        xaxis_title=t(f"granularity.one.{granularity}"),
+        yaxis_title=t("common.quantity"), height=420,
         hovermode="x unified", margin=dict(t=50, b=40),
     )
     return figure
@@ -81,10 +82,13 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     st.title(t("fc.title"))
     st.caption(t("fc.subtitle"))
 
+    granularity = active_granularity()
+    unit = t(f"granularity.unit.{granularity}")
+
     with st.sidebar:
         st.header(t("fc.settings"))
         product = st.selectbox(t("common.product"), sorted(products))
-        steps = st.slider(t("fc.horizon"), 1, MAX_FORECAST_STEPS,
+        steps = st.slider(t("fc.horizon", unit=unit), 1, MAX_FORECAST_STEPS,
                           DEFAULT_FORECAST_STEPS)
         full_family = st.checkbox(
             t("common.all_nine_models"), value=False,
@@ -93,7 +97,6 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     series = products[product]
     models = None if full_family else fast_models()
-    granularity = active_granularity()
 
     try:
         with st.spinner(t("fc.training")):
@@ -109,7 +112,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     columns = st.columns(4)
     columns[0].metric(t("fc.winner"), best.model_name)
-    columns[1].metric(t("fc.next_month"), f"{best.next_period_value:,.0f}")
+    columns[1].metric(t("fc.next_period"), f"{best.next_period_value:,.0f}")
     columns[2].metric(t("fc.demand_class"), t(f"class.{profile.demand_class.value}"))
     columns[3].metric(
         t("fc.evaluated"), f"{result.evaluated_count}/{len(result.evaluations)}",
@@ -118,7 +121,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     st.plotly_chart(
         _forecast_chart(format_months(months[-len(series):]), series, result,
-                        [f"+{i+1}" for i in range(steps)]),
+                        [f"+{i+1}" for i in range(steps)], granularity),
         use_container_width=True,
     )
 
@@ -131,7 +134,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         # المحرك اختار بقاعدته المعلنة: بلا أدلة، الأبسط يفوز.
         st.warning(
             t("fc.no_evaluation", nonzero=profile.non_zero_count,
-              total=len(series), model=best.model_name),
+              total=len(series), model=best.model_name, unit=unit),
             icon=":material/warning:",
         )
     else:

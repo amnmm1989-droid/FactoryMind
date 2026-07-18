@@ -22,6 +22,7 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import streamlit as st
@@ -38,6 +39,16 @@ ARABIC_MONTHS = [
     "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
     "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
 ]
+
+# أشكال "الشهر المجرّد" التي وحدها تُترجَم (راجع _is_bare_month_label):
+# اسم شهر إنجليزي (كامل أو مختصر) + سنة، أو YYYY-MM. لا يوم فيها — "01 Jan
+# 2023" اليومية تحمل يوماً فلا تُطابِق، فتبقى كما هي بلا طمس.
+_BARE_MONTH_NAME = re.compile(
+    r"^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{4}$",
+    re.IGNORECASE,
+)
+_ISO_YEAR_MONTH = re.compile(r"^\d{4}[-/]\d{1,2}$")
+_JUST_A_YEAR = re.compile(r"\d{4}")
 
 
 QUERY_PARAM = "lang"
@@ -137,15 +148,40 @@ def _error_params(context: dict) -> dict:
     return params
 
 
-def format_month(label: str) -> str:
-    """إعادة صياغة تسمية شهر باللغة الحالية.
+def _is_bare_month_label(text: str) -> bool:
+    """هل التسمية *شهرٌ مجرّد* (اسم شهر + سنة، أو YYYY-MM) لا أدقّ ولا أخشن؟
 
-    ما لا يُفهَم يُترك كما هو: تسمية مخصّصة من ملف المستخدم ("W1-2024")
-    ليست خطأً يُصحَّح، بل بياناته.
+    هذا وحده ما يُترجَم: أسماء الأشهر هي التي تختلف بين العربية والإنجليزية.
+    "W1 2023" و"Q1 2023" و"2023" و"01 Jan 2023" ليست أشهراً مجرّدة — كلها
+    تسقط على أول الشهر عند التحليل، فترجمتها إلى اسم شهر تطمس أسبوعها/ربعها/
+    سنتها/يومها وتصيّر فتراتٍ متمايزة تسميةً واحدة مكرّرة. راجع
+    services.ingest.parse_month_label.
+    """
+    from services.ingest import ARABIC_MONTHS as _AR_MONTHS
+
+    if _BARE_MONTH_NAME.match(text) or _ISO_YEAR_MONTH.match(text):
+        return True
+    # عربي: "ديسمبر 2022" — اسم شهر عربي متبوعاً بسنة فقط (لا يوم)
+    for name in _AR_MONTHS:
+        if text.startswith(name) and _JUST_A_YEAR.fullmatch(text[len(name):].strip()):
+            return True
+    return False
+
+
+def format_month(label: str) -> str:
+    """إعادة صياغة تسمية *شهر مجرّد* باللغة الحالية.
+
+    ما ليس شهراً مجرّداً يُترك كما هو: تسمية أسبوع/ربع/سنة/يوم من ملف
+    المستخدم ("W1 2023") ليست خطأً يُصحَّح، بل بياناته — وترجمتها إلى اسم
+    شهر تطمس حبيبتها. (كان الحارس القديم `parsed is None` يكفي حين كانت
+    parse_month_label تعجز عن "W1 2023"؛ بعدما صارت تفهمها لزم فحص الشكل.)
     """
     from services.ingest import parse_month_label
 
-    parsed = parse_month_label(label)
+    text = str(label).strip()
+    if not _is_bare_month_label(text):
+        return label
+    parsed = parse_month_label(text)
     if parsed is None:
         return label
     names = ARABIC_MONTHS if current_language() == "ar" else ENGLISH_MONTHS
@@ -422,6 +458,12 @@ STRINGS: dict[str, dict[str, str]] = {
     "granularity.unit.monthly": {"ar": "شهراً", "en": "months"},
     "granularity.unit.quarterly": {"ar": "ربعاً", "en": "quarters"},
     "granularity.unit.yearly": {"ar": "سنة", "en": "years"},
+    # صيغة المفرد — لعناوين المحاور والتسميات التي تصف فترة واحدة لا عدداً.
+    "granularity.one.daily": {"ar": "اليوم", "en": "Day"},
+    "granularity.one.weekly": {"ar": "الأسبوع", "en": "Week"},
+    "granularity.one.monthly": {"ar": "الشهر", "en": "Month"},
+    "granularity.one.quarterly": {"ar": "الربع", "en": "Quarter"},
+    "granularity.one.yearly": {"ar": "السنة", "en": "Year"},
 
     "error.no_products": {
         "ar": "لا منتجات صالحة في الملف.",
@@ -495,10 +537,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "⏸️ Idle but high risk ({count})",
     },
     "exec.dormant_help": {
-        "ar": "أقل من {threshold} وحدة متوقَّعة الشهر القادم — لا قرار إنتاج. "
+        "ar": "أقل من {threshold} وحدة متوقَّعة الفترة القادمة — لا قرار إنتاج. "
               "خطورتها عالية بسبب تاريخ متذبذب: معلومة تستحق النظر (منتج "
               "يموت؟) لا إجراءً. فُصلت كي لا تزاحم ما يحتاج قراراً فعلياً.",
-        "en": "Fewer than {threshold} units expected next month — no production "
+        "en": "Fewer than {threshold} units expected next period — no production "
               "decision. High risk from a volatile history: worth noticing (a "
               "product dying?) but not an action. Separated so it does not crowd "
               "out what actually needs deciding.",
@@ -586,7 +628,7 @@ STRINGS: dict[str, dict[str, str]] = {
               "and picks the winner on evidence.",
     },
     "fc.settings": {"ar": "إعدادات التنبؤ", "en": "Forecast settings"},
-    "fc.horizon": {"ar": "أفق التنبؤ (أشهر)", "en": "Forecast horizon (months)"},
+    "fc.horizon": {"ar": "أفق التنبؤ ({unit})", "en": "Forecast horizon ({unit})"},
     "fc.full_family_help": {
         "ar": "يضيف ETS/SARIMA/Prophet/XGBoost/RandomForest — أبطأ (~1s).",
         "en": "Adds ETS/SARIMA/Prophet/XGBoost/RandomForest — slower (~1s).",
@@ -601,7 +643,7 @@ STRINGS: dict[str, dict[str, str]] = {
               "its demand class.",
     },
     "fc.winner": {"ar": "النموذج الفائز", "en": "Winning model"},
-    "fc.next_month": {"ar": "تنبؤ الشهر القادم", "en": "Next month forecast"},
+    "fc.next_period": {"ar": "تنبؤ الفترة القادمة", "en": "Next-period forecast"},
     "fc.demand_class": {"ar": "تصنيف الطلب", "en": "Demand class"},
     "fc.evaluated": {"ar": "نماذج قُيِّمت", "en": "Models scored"},
     "fc.evaluated_help": {
@@ -622,9 +664,9 @@ STRINGS: dict[str, dict[str, str]] = {
     "fc.comparison": {"ar": "مقارنة النماذج", "en": "Model comparison"},
     "fc.metric_cumulative": {
         "ar": "المقياس: **الخطأ التراكمي** — سلسلة متقطّعة، والقرار الإنتاجي "
-              "يستهلك إجمالي الأفق لا دقة كل شهر.",
+              "يستهلك إجمالي الأفق لا دقة كل فترة.",
         "en": "Metric: **cumulative error** — an intermittent series, and the "
-              "production decision consumes the horizon total, not per-month "
+              "production decision consumes the horizon total, not per-period "
               "accuracy.",
     },
     "fc.metric_rmse": {
@@ -636,12 +678,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{note} The column marked ★ is the one used for ranking.",
     },
     "fc.no_evaluation": {
-        "ar": "**لم يُقيَّم أي نموذج.** السلسلة ({nonzero} شهراً بمبيعات من "
+        "ar": "**لم يُقيَّم أي نموذج.** السلسلة ({nonzero} {unit} بمبيعات من "
               "{total}) أقصر من أن تُقسَّم إلى تدريب واختبار.\n\nلذا اختار "
               "المحرك **{model}** بقاعدته المعلنة: بلا دليل على أن التعقيد "
               "يفيد، يفوز الأبسط. الرقم أعلاه تنبؤ حقيقي، لكن **بلا مقياس "
               "دقة يسنده** — تعامل معه بحذر.",
-        "en": "**No model could be scored.** The series ({nonzero} selling months "
+        "en": "**No model could be scored.** The series ({nonzero} selling {unit} "
               "of {total}) is too short to split into train and test.\n\nSo the "
               "engine chose **{model}** by its stated rule: without evidence that "
               "complexity helps, the simplest wins. The number above is a real "
@@ -662,14 +704,14 @@ STRINGS: dict[str, dict[str, str]] = {
     "pi.classification": {"ar": "تصنيف الطلب", "en": "Demand classification"},
     "pi.class": {"ar": "التصنيف", "en": "Class"},
     "pi.adi_help": {
-        "ar": "متوسط الفترة بين الطلبات. 1.0 = كل شهر.",
-        "en": "Average interval between demands. 1.0 = every month.",
+        "ar": "متوسط الفترة بين الطلبات. 1.0 = كل فترة.",
+        "en": "Average interval between demands. 1.0 = every period.",
     },
     "pi.cv2_help": {
         "ar": "تقلب أحجام الطلب غير الصفري.",
         "en": "Volatility of non-zero demand sizes.",
     },
-    "pi.selling_months": {"ar": "أشهر بمبيعات", "en": "Months with sales"},
+    "pi.selling_periods": {"ar": "{unit} بمبيعات", "en": "{unit} with sales"},
     "pi.dead_product": {
         "ar": "لا مبيعات لهذا المنتج قط — لا تنبؤ ولا خطورة.",
         "en": "This product has never sold — no forecast, no risk.",
@@ -1014,8 +1056,8 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "pplan.compute": {"ar": "احسب خطة الشراء", "en": "Compute purchase plan"},
     "pplan.empty": {
-        "ar": "اضبط عدد الأشهر واضغط \"احسب خطة الشراء\" من الشريط الجانبي.",
-        "en": "Set the months to cover and click \"Compute purchase plan\" "
+        "ar": "اضبط عدد {unit} واضغط \"احسب خطة الشراء\" من الشريط الجانبي.",
+        "en": "Set the {unit} to cover and click \"Compute purchase plan\" "
               "in the sidebar.",
     },
     "pplan.stale_warning": {

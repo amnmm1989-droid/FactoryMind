@@ -230,6 +230,29 @@ def test_unrecognised_labels_are_left_alone(monkeypatch):
     assert i18n.format_month("W1-2024") == "W1-2024"
 
 
+@pytest.mark.parametrize("label", [
+    "W1 2023", "W12 2023", "Q1 2023", "Q4 2023", "2023", "2024", "01 Jan 2023",
+])
+def test_non_monthly_labels_are_not_collapsed_into_a_month(monkeypatch, label):
+    """الانحدار الذي أدخله دعم W#/Q#: بعدما صارت parse_month_label تفهم
+    "W1 2023" (-> 2023-01-01)، صار format_month يترجمها إلى "January 2023"
+    فتنهار W1/W2/W5 كلها إلى تسمية شهر واحدة. تسمية غير شهرية تبقى كما هي —
+    ترجمتها إلى اسم شهر تطمس حبيبتها."""
+    monkeypatch.setattr(i18n.st, "session_state", {"language": "en"})
+
+    assert i18n.format_month(label) == label
+
+
+def test_distinct_weeks_keep_distinct_labels(monkeypatch):
+    """المحور الفعلي على الرسم: ثلاثة أسابيع في يناير يجب ألا تُعرَض ثلاث
+    مرّات كـ"January 2023"."""
+    monkeypatch.setattr(i18n.st, "session_state", {"language": "en"})
+
+    assert i18n.format_months(["W1 2023", "W2 2023", "W5 2023"]) == [
+        "W1 2023", "W2 2023", "W5 2023",
+    ]
+
+
 def test_formatting_a_list_preserves_order(monkeypatch):
     monkeypatch.setattr(i18n.st, "session_state", {"language": "en"})
 
@@ -392,3 +415,6 @@ def test_every_granularity_bucket_has_a_label_and_unit():
     for name in GRANULARITY_BUCKETS.values():
         assert f"granularity.{name}" in STRINGS
         assert f"granularity.unit.{name}" in STRINGS
+        # صيغة المفرد لعناوين المحاور — كل حبيبة يجب أن تحملها وإلا ظهر
+        # ⟨granularity.one.…⟩ على محور الرسم لملف بتلك الحبيبة.
+        assert f"granularity.one.{name}" in STRINGS

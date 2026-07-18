@@ -172,7 +172,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     plan = st.session_state.get(RESULT_KEY)
     if plan is None:
-        st.info(t("pplan.empty"))
+        st.info(t("pplan.empty", unit=horizon_unit))
         return
 
     if st.session_state.get(PARAMS_KEY) != current_params:
