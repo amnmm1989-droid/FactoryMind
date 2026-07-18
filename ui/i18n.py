@@ -271,7 +271,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not load data: {detail}",
     },
     "common.product": {"ar": "المنتج", "en": "Product"},
-    "common.month": {"ar": "الشهر", "en": "Month"},
     "common.quantity": {"ar": "الكمية", "en": "Quantity"},
     "common.risk": {"ar": "الخطورة", "en": "Risk"},
     "common.level": {"ar": "المستوى", "en": "Level"},
@@ -464,6 +463,12 @@ STRINGS: dict[str, dict[str, str]] = {
     "granularity.one.monthly": {"ar": "الشهر", "en": "Month"},
     "granularity.one.quarterly": {"ar": "الربع", "en": "Quarter"},
     "granularity.one.yearly": {"ar": "السنة", "en": "Year"},
+    # صيغة الجمع — لتسميات تصف عدّة فترات بلا رقم يسبقها ("أسابيع (>0)").
+    "granularity.many.daily": {"ar": "أيام", "en": "days"},
+    "granularity.many.weekly": {"ar": "أسابيع", "en": "weeks"},
+    "granularity.many.monthly": {"ar": "أشهر", "en": "months"},
+    "granularity.many.quarterly": {"ar": "أرباع", "en": "quarters"},
+    "granularity.many.yearly": {"ar": "سنوات", "en": "years"},
 
     "error.no_products": {
         "ar": "لا منتجات صالحة في الملف.",
@@ -793,12 +798,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "الرجاء اختيار منتج واحد على الأقل",
         "en": "Please select at least one product",
     },
-    "old.month_range": {"ar": "نطاق الأشهر", "en": "Month range"},
+    "old.month_range": {"ar": "النطاق ({many})", "en": "Range ({many})"},
     "old.forecast_settings": {
         "ar": ":material/settings: إعدادات التنبؤ",
         "en": ":material/settings: Forecast settings",
     },
-    "old.forecast_months": {"ar": "عدد الأشهر للتنبؤ", "en": "Months to forecast"},
+    "old.forecast_months": {"ar": "عدد {many} للتنبؤ", "en": "{many} to forecast"},
     "old.show_confidence": {"ar": "عرض فترات الثقة", "en": "Show confidence intervals"},
     "old.forecast_model": {"ar": "نموذج التنبؤ", "en": "Forecast model"},
     # قيم لا تسميات — الكود يقارن بالرمز، والتسمية تُشتقّ منه.
@@ -828,12 +833,12 @@ STRINGS: dict[str, dict[str, str]] = {
     "old.min_nonzero": {"ar": "⬇ الأدنى (غير صفري)", "en": "⬇ Lowest (non-zero)"},
     "old.std": {"ar": "الانحراف المعياري", "en": "Std deviation"},
     "old.median": {"ar": "الوسيط", "en": "Median"},
-    "old.nonzero_months": {"ar": "أشهر (>0)", "en": "Months (>0)"},
+    "old.nonzero_months": {"ar": "{many} (>0)", "en": "{many} (>0)"},
     "old.cv": {"ar": "معامل الاختلاف", "en": "Coefficient of variation"},
     "old.last_value": {"ar": "آخر قيمة", "en": "Last value"},
     "old.first_forecast": {
-        "ar": "قيمة التنبؤ (أول شهر)",
-        "en": "Forecast (first month)",
+        "ar": "قيمة التنبؤ (أول فترة)",
+        "en": "Forecast (first period)",
     },
     "old.accuracy_metrics": {
         "ar": ":material/target: مقاييس دقة التنبؤ (ETS)",
@@ -844,12 +849,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": ":material/trending_up: Trend analysis",
     },
     "old.direction": {"ar": "الاتجاه", "en": "Direction"},
-    "old.slope": {"ar": "الميل (لكل شهر)", "en": "Slope (per month)"},
+    "old.slope": {"ar": "الميل (لكل فترة)", "en": "Slope (per period)"},
     "old.r_squared": {"ar": "R² (قوة النموذج)", "en": "R² (fit strength)"},
     "old.p_value": {"ar": "قيمة p (الدلالة)", "en": "p-value (significance)"},
     "old.outliers_found": {
-        "ar": "تم اكتشاف {count} نقطة شاذة (أشهر: {months})",
-        "en": "{count} outliers detected (months: {months})",
+        "ar": "تم اكتشاف {count} نقطة شاذة ({many}: {months})",
+        "en": "{count} outliers detected ({many}: {months})",
     },
     "old.main_chart": {
         "ar": ":material/show_chart: الاتجاه الفعلي والتنبؤ",
@@ -859,8 +864,8 @@ STRINGS: dict[str, dict[str, str]] = {
     # عنصر Streamlit — رمز :material/...: لن يُعرَض هناك كأيقونة بل كنص خام.
     "old.correlation_title": {"ar": "مصفوفة الارتباط", "en": "Correlation matrix"},
     "old.seasonal_title": {
-        "ar": ":material/calendar_month: التحليل الموسمي (حسب الربع)",
-        "en": ":material/calendar_month: Seasonal analysis (by quarter)",
+        "ar": ":material/calendar_month: التحليل الموسمي (٤ مقاطع متساوية من المدى)",
+        "en": ":material/calendar_month: Seasonal analysis (4 equal segments of the range)",
     },
     "old.distribution_title": {
         "ar": ":material/bar_chart: تحليل التوزيع الإحصائي",
@@ -887,8 +892,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Advanced analysis and forecasting — powered by ETS, SARIMA and linear regression",
     },
     "old.analysed_range": {
-        "ar": ":material/calendar_month: تم تحليل البيانات من {start} إلى {end} (عدد الأشهر: {count})",
-        "en": ":material/calendar_month: Analysed data from {start} to {end} ({count} months)",
+        "ar": ":material/calendar_month: تم تحليل البيانات من {start} إلى {end} ({count} {unit})",
+        "en": ":material/calendar_month: Analysed data from {start} to {end} ({count} {unit})",
     },
 
     # ---- رسالة التوصية (من ProductionRecommendation.message_code) ----
@@ -963,14 +968,14 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "chart.outliers": {"ar": "نقاط شاذة", "en": "Outliers"},
     "chart.lower": {"ar": "حد أدنى 95%", "en": "Lower 95%"},
-    "chart.monthly_comparison": {"ar": "مقارنة الأداء الشهري", "en": "Monthly performance comparison"},
-    "chart.quarter": {"ar": "الربع", "en": "Quarter"},
+    "chart.performance_comparison": {"ar": "مقارنة الأداء", "en": "Performance comparison"},
+    "chart.quarter": {"ar": "المقطع", "en": "Segment"},
     "chart.average": {"ar": "المتوسط", "en": "Average"},
-    "chart.quarterly_average": {"ar": "متوسط الكمية حسب الربع", "en": "Average quantity by quarter"},
-    "chart.q1": {"ar": "الربع 1", "en": "Q1"},
-    "chart.q2": {"ar": "الربع 2", "en": "Q2"},
-    "chart.q3": {"ar": "الربع 3", "en": "Q3"},
-    "chart.q4": {"ar": "الربع 4", "en": "Q4"},
+    "chart.quarterly_average": {"ar": "متوسط الكمية لكل مقطع", "en": "Average quantity per segment"},
+    "chart.q1": {"ar": "المقطع 1", "en": "Segment 1"},
+    "chart.q2": {"ar": "المقطع 2", "en": "Segment 2"},
+    "chart.q3": {"ar": "المقطع 3", "en": "Segment 3"},
+    "chart.q4": {"ar": "المقطع 4", "en": "Segment 4"},
     "chart.histogram": {"ar": "مدرج تكراري", "en": "Histogram"},
     "chart.frequency": {"ar": "التكرار", "en": "Frequency"},
     "chart.boxplot": {"ar": "صندوق الحظائر (Boxplot)", "en": "Boxplot"},

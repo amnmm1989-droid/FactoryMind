@@ -18,15 +18,19 @@ from ui.i18n import format_month, format_months, t
 
 logger = get_logger(__name__)
 
-def render_dashboard(months, products, options):
+def render_dashboard(months, products, options, granularity="monthly"):
     """
     عرض لوحة التحكم الكاملة
     options: dict يحتوي على الخيارات المختارة من الشريط الجانبي
+    granularity: حبيبة الملف الفعلية — تُسمّى بها الوحدات المعروضة وتُمرَّر
+        إلى analyze_product فتخطو تسميات التنبؤ بالحبيبة الصحيحة.
 
     ملاحظة (Phase 1): منطق الحساب (إحصائيات، تنبؤ، اتجاه، قيم شاذة)
     انتقل بالكامل إلى services.product_analysis_service.analyze_product.
     هذا الملف أصبح مسؤولاً عن العرض (rendering) فقط، ولا يحسب شيئاً بنفسه.
     """
+    many = t(f"granularity.many.{granularity}")
+    unit = t(f"granularity.unit.{granularity}")
     selected_products = options['selected_products']
     from_idx = options['from_idx']
     to_idx = options['to_idx']
@@ -60,6 +64,7 @@ def render_dashboard(months, products, options):
             include_sarima=(forecast_model == "sarima"),
             include_trend=show_trend,
             include_outliers=show_outliers,
+            granularity=granularity,
         )
     except InsufficientDataError as e:
         logger.warning("Dashboard render aborted: %s", e)
@@ -88,7 +93,7 @@ def render_dashboard(months, products, options):
     col6.metric(t("old.median"), f"{stats.median:,.0f}")
 
     col7, col8, col9, col10 = st.columns(4)
-    col7.metric(t("old.nonzero_months"), f"{stats.non_zero_count}")
+    col7.metric(t("old.nonzero_months", many=many).capitalize(), f"{stats.non_zero_count}")
     col8.metric(t("old.cv"), f"{stats.cv:.2%}")
     col9.metric(t("old.last_value"), f"{stats.last_val:,.0f}")
     col10.metric(t("old.first_forecast"), f"{forecast_vals[0]:,.0f}")
@@ -116,7 +121,7 @@ def render_dashboard(months, products, options):
         outlier_indices = analysis.outliers.outlier_indices
         if outlier_indices:
             st.warning(t("old.outliers_found",
-                         count=len(outlier_indices),
+                         count=len(outlier_indices), many=many,
                          months="، ".join(format_months(
                              [selected_months[i] for i in outlier_indices]))),
                        icon=":material/warning:")
@@ -128,14 +133,15 @@ def render_dashboard(months, products, options):
     fig = create_main_chart(
         selected_months, selected_data_main,
         forecast_months, forecast_vals, lower_vals, upper_vals,
-        sarima_forecast, outlier_indices, main_product, show_confidence
+        sarima_forecast, outlier_indices, main_product, show_confidence,
+        granularity,
     )
     st.plotly_chart(fig, use_container_width=True)
 
     # ========== مقارنة المنتجات ==========
     if len(selected_products) > 1:
         st.subheader(t("old.comparison_selected"))
-        fig_compare = create_comparison_chart(selected_months, all_products_data)
+        fig_compare = create_comparison_chart(selected_months, all_products_data, granularity)
         st.plotly_chart(fig_compare, use_container_width=True)
 
     # ========== مصفوفة الارتباط ==========
@@ -165,7 +171,8 @@ def render_dashboard(months, products, options):
 
     # ========== جدول البيانات التفصيلية ==========
     st.subheader(t("old.details_table"))
-    render_details_table(selected_months, selected_data_main, forecast_months, forecast_vals)
+    render_details_table(selected_months, selected_data_main, forecast_months,
+                         forecast_vals, granularity)
 
     # ========== تصدير البيانات ==========
     render_export_buttons(main_product, selected_months, selected_data_main,
@@ -177,4 +184,4 @@ def render_dashboard(months, products, options):
     st.caption(t("old.analysed_range",
                  start=format_month(selected_months[0]),
                  end=format_month(selected_months[-1]),
-                 count=len(selected_months)))
+                 count=len(selected_months), unit=unit))

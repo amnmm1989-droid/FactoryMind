@@ -512,12 +512,28 @@ fix above:
 Covered by `tests/test_granularity_display_ui.py` (each page × weekly/
 quarterly/yearly) and `tests/test_i18n.py::test_non_monthly_labels_are_not_collapsed_into_a_month`.
 
-**One page left as-is by design:** Advanced Analytics wraps the frozen
-legacy dashboard (`ui/dashboard.py`), whose metric labels ("Months (>0)",
-"per month") and seasonal-by-quarter decomposition assume monthly data. Its
-charts no longer collapse non-monthly labels (the `format_month` fix is
-central), but its wording stays monthly — re-granularising it is a separate
-effort against a page ROADMAP already documents as legacy.
+**The legacy page too — ✅ done.** Advanced Analytics wraps the older
+dashboard (`ui/dashboard.py` + `ui/sidebar.py` + `ui/charts.py` +
+`ui/tables.py`), which said "Months (>0)", "Months to forecast", "per month"
+and a chart x-axis of "Month" regardless of the file. `granularity` now
+threads from `active_granularity()` through `render_sidebar`/`render_dashboard`
+into `analyze_product` → `prepare_forecast_months`, so:
+
+- Metric, slider, and footer labels name the file's unit
+  (`granularity.many.*` for "Weeks (>0)"/"Quarters to forecast",
+  `granularity.unit.*` for the counted "26 weeks"); the two genuinely
+  period-agnostic labels ("first period", "per period") read generically.
+- `prepare_forecast_months` steps by the real period (a weekly file's
+  forecast is `W13 2023…`, not `2026-04`); the monthly default is byte-for-
+  byte unchanged, preserving its test contract.
+- Chart axes and the details-table column use `granularity.one.*`.
+- The "seasonal (by quarter)" section is relabelled "4 equal segments" — its
+  computation always split the range into four equal chunks, never calendar
+  quarters, so the old wording was wrong at every granularity.
+
+Verified live across weekly/quarterly/yearly with zero "month" leakage;
+covered by `tests/test_granularity_display_ui.py::test_advanced_analytics_labels_follow_the_granularity`
+and `tests/test_ingest.py::test_forecast_labels_step_by_the_files_granularity`.
 
 **Why now:** it was structural, and every feature built on the month
 assumption raised its cost. Without it, the claim "fits all manufacturing"

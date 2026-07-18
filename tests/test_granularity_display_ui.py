@@ -11,6 +11,8 @@
 """
 from __future__ import annotations
 
+import re
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -37,13 +39,21 @@ def _render(page_module: str, gran: str) -> AppTest:
         import importlib
 
         import streamlit as st
+        # الصفحة القديمة (advanced_analytics) تقرأ مفاتيح جلسة يهيّئها
+        # app.py؛ نهيّئها هنا كي تُختبَر بمعزل عن app.py.
+        for key, default in [
+            ("show_seasonal", True), ("show_correlation", True),
+            ("show_distribution", True), ("show_trend", True),
+            ("selected_products", []),
+        ]:
+            st.session_state.setdefault(key, default)
         ds = st.session_state["_ds"]
         importlib.import_module(st.session_state["_page"]).render(
             ds.months, ds.products
         )
 
     ds = _dataset(gran)
-    at = AppTest.from_function(script, default_timeout=90)
+    at = AppTest.from_function(script, default_timeout=120)
     at.session_state[SESSION_KEY] = ds
     at.session_state["_ds"] = ds
     at.session_state["_page"] = page_module
@@ -93,3 +103,33 @@ def test_purchase_plan_horizon_names_the_files_unit(gran, unit):
     captions = " ".join(c.value for c in at.caption)
     assert unit in slider_and_number or unit in captions
     assert "months" not in slider_and_number
+
+
+# ---------------------------------------------------------------------------
+# الصفحة القديمة (Advanced Analytics) — كانت مجمّدة شهرياً، الآن تتبع الحبيبة
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("gran,unit_plural,unit_cap", [
+    ("weekly", "weeks", "Weeks"),
+    ("quarterly", "quarters", "Quarters"),
+    ("yearly", "years", "Years"),
+])
+def test_advanced_analytics_labels_follow_the_granularity(gran, unit_plural, unit_cap):
+    """كل تسميات الصفحة القديمة (مقاييس، شريط جانبي، تذييل) يجب أن تسمّي
+    وحدة الملف — لا "شهر" ثابتة كانت تظهر لأي ملف."""
+    at = _render("ui.pages.advanced_analytics", gran)
+
+    everything = (
+        " ".join(m.label for m in at.metric)
+        + " ".join(s.label for s in list(at.slider) + list(at.select_slider))
+        + " ".join(c.value for c in at.caption)
+    )
+
+    assert f"{unit_cap} (>0)" in everything          # مقياس "أشهر (>0)" سابقاً
+    assert f"{unit_cap} to forecast" in everything    # شريط التنبؤ
+    assert f"Range ({unit_plural})" in everything      # نطاق المدى
+    # لا تسرّب "month/شهر" في أي تسمية لملف غير شهري — بعد إسقاط أسماء
+    # أيقونات material (":material/calendar_month:" تحمل "month" كاسم رمز
+    # لا كنص مرئي للمستخدم).
+    visible = re.sub(r":material/[a-z_]+:", "", everything)
+    assert "month" not in visible.lower()
+    assert "شهر" not in visible

@@ -519,6 +519,34 @@ def test_unparseable_last_month_yields_explicit_offsets():
     assert prepare_forecast_months(0, ["W52"], 2) == ["+1", "+2"]
 
 
+@pytest.mark.parametrize("gran,months,expected", [
+    # الأسبوعي يخطو أسبوعاً لا شهراً: W12 -> W13/W14/W15، لا "أبريل"
+    ("weekly", ["W10 2023", "W11 2023", "W12 2023"], ["W13 2023", "W14 2023", "W15 2023"]),
+    # الربعي يخطو ربعاً: Q4 2023 -> Q1/Q2/Q3 2024
+    ("quarterly", ["Q2 2023", "Q3 2023", "Q4 2023"], ["Q1 2024", "Q2 2024", "Q3 2024"]),
+    # السنوي يخطو سنة
+    ("yearly", ["2021", "2022", "2023"], ["2024", "2025", "2026"]),
+    # اليومي يخطو يوماً
+    ("daily", ["01 Jan 2023", "02 Jan 2023", "03 Jan 2023"], ["2023-01-04", "2023-01-05"]),
+])
+def test_forecast_labels_step_by_the_files_granularity(gran, months, expected):
+    """الانحدار: كانت الدالة تضيف *أشهراً* دائماً، فتنبؤ ملف أسبوعي يُسمّى
+    بأشهر — تُرسَم نقاطه على مواضع خاطئة تماماً على المحور."""
+    from services.analytics import prepare_forecast_months
+
+    steps = len(expected)
+    assert prepare_forecast_months(len(months) - 1, months, steps, gran) == expected
+
+
+def test_monthly_forecast_labels_are_unchanged_by_the_new_parameter():
+    """الافتراضي الشهري يجب أن يبقى ISO كما كان — عقد الاختبارات القائمة."""
+    from services.analytics import prepare_forecast_months
+
+    months = ["May 2026", "June 2026", "July 2026"]
+    assert prepare_forecast_months(2, months, 2, "monthly") == ["2026-08", "2026-09"]
+    assert prepare_forecast_months(2, months, 2) == ["2026-08", "2026-09"]
+
+
 def test_the_template_is_parseable_by_the_parser_that_ships_with_it():
     """نموذج يرفضه محلّله لا يعلّم أحداً شيئاً."""
     dataset = parse_upload(to_csv_template(), "template.csv")

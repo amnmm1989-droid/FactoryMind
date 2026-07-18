@@ -59,6 +59,7 @@ def analyze_product(
     include_sarima: bool = False,
     include_trend: bool = True,
     include_outliers: bool = True,
+    granularity: str = "monthly",
 ) -> ProductAnalysis:
     """يُشغّل التحليل الكامل لمنتج واحد ضمن نطاق زمني محدد.
 
@@ -102,7 +103,9 @@ def analyze_product(
             logger.warning("SARIMA forecast warning | product=%s | %s", product_name, sarima_error)
         sarima_values = list(sarima_forecast) if sarima_forecast is not None else None
 
-    forecast_months = prepare_forecast_months(to_idx, full_months, forecast_steps)
+    forecast_months = prepare_forecast_months(
+        to_idx, full_months, forecast_steps, granularity
+    )
 
     # ----- تحليل الاتجاه (اختياري) -----
     trend = None

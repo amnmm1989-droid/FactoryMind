@@ -8,8 +8,14 @@ MODEL_CODES = ("ets", "sarima")
 ANALYSIS_CODES = ("trend", "seasonal", "correlation", "distribution", "outliers")
 from config import DEFAULT_FORECAST_STEPS, MAX_FORECAST_STEPS
 
-def render_sidebar(months, product_names):
-    """عرض الشريط الجانبي وإرجاع الخيارات المختارة"""
+def render_sidebar(months, product_names, granularity="monthly"):
+    """عرض الشريط الجانبي وإرجاع الخيارات المختارة.
+
+    granularity: حبيبة الملف الفعلية — تُسمّى بها الوحدات ("أسابيع" لا
+    "أشهر" ثابتة) في نطاق المدى وعدد فترات التنبؤ.
+    """
+    many = t(f"granularity.many.{granularity}")
+
     with st.sidebar:
         st.header(t("old.control_panel"))
 
@@ -33,13 +39,17 @@ def render_sidebar(months, product_names):
         # "old.bad_range" السابق صار مستحيل الحدوث لا مجرد نادر — حُذف معه.
         month_indices = list(range(len(months)))
         from_idx, to_idx = st.select_slider(
-            t("old.month_range"), options=month_indices,
+            t("old.month_range", many=many), options=month_indices,
             value=(0, len(months) - 1), format_func=lambda i: format_month(months[i]),
         )
 
         # إعدادات التنبؤ
         st.subheader(t("old.forecast_settings"))
-        forecast_steps = st.slider(t("old.forecast_months"), min_value=1, max_value=MAX_FORECAST_STEPS, value=DEFAULT_FORECAST_STEPS, step=1)
+        forecast_steps = st.slider(
+            t("old.forecast_months", many=many).capitalize(),
+            min_value=1, max_value=MAX_FORECAST_STEPS,
+            value=DEFAULT_FORECAST_STEPS, step=1,
+        )
         show_confidence = st.toggle(t("old.show_confidence"), value=True)
         # رموز لا تسميات: dashboard.py يقارن بالقيمة، وترجمة التسمية كانت
         # ستكسر المقارنة بصمت فلا يعمل SARIMA أبداً بلا أي خطأ.

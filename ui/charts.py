@@ -12,9 +12,11 @@ from ui.i18n import format_months, t
 
 def create_main_chart(selected_months, series, forecast_months, forecast_vals,
                       lower_vals, upper_vals,
-                      sarima_forecast, outliers, main_product, show_confidence):
+                      sarima_forecast, outliers, main_product, show_confidence,
+                      granularity="monthly"):
     """إنشاء الرسم البياني الرئيسي (البيانات الفعلية + التنبؤ)"""
-    month, quantity, kind = t("common.month"), t("common.quantity"), t("chart.series")
+    month = t(f"granularity.one.{granularity}")
+    quantity, kind = t("common.quantity"), t("chart.series")
     display_months = format_months(list(selected_months))
     # أشهر التنبؤ تصل بصيغة ISO من services/analytics — تُصاغ هنا
     forecast_months = format_months(list(forecast_months))
@@ -57,9 +59,10 @@ def create_main_chart(selected_months, series, forecast_months, forecast_vals,
     return fig
 
 
-def create_comparison_chart(selected_months, all_products_data):
+def create_comparison_chart(selected_months, all_products_data, granularity="monthly"):
     """إنشاء رسم بياني لمقارنة المنتجات"""
-    month, quantity, product = t("common.month"), t("common.quantity"), t("common.product")
+    month = t(f"granularity.one.{granularity}")
+    quantity, product = t("common.quantity"), t("common.product")
     display_months = format_months(list(selected_months))
 
     df_compare = pd.concat([
@@ -68,7 +71,7 @@ def create_comparison_chart(selected_months, all_products_data):
     ])
 
     fig = px.line(df_compare, x=month, y=quantity, color=product,
-                  title=t("chart.monthly_comparison"))
+                  title=t("chart.performance_comparison"))
     fig.update_layout(height=400)
     return fig
 

@@ -17,7 +17,8 @@ CHANGE_PCT = "_change_pct"
 CUMULATIVE = "_cumulative"
 
 
-def render_details_table(selected_months, series, forecast_months, forecast_vals):
+def render_details_table(selected_months, series, forecast_months, forecast_vals,
+                         granularity="monthly"):
     """عرض جدول البيانات التفصيلية مع التغيرات"""
     df_details = pd.DataFrame({
         MONTH: format_months(list(selected_months)),
@@ -49,7 +50,7 @@ def render_details_table(selected_months, series, forecast_months, forecast_vals
 
     st.dataframe(
         df_details.rename(columns={
-            MONTH: t("common.month"),
+            MONTH: t(f"granularity.one.{granularity}"),
             QUANTITY: t("common.quantity"),
             CHANGE: t("table.change"),
             CHANGE_PCT: t("table.change_pct"),
