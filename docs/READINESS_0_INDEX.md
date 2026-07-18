@@ -39,7 +39,7 @@ explicitly where it appears.
 | **0 — Metrics** | RMSE/MAPE aren't what professionals measure by; WAPE is the actual standard | Cheapest phase, highest immediate credibility |
 | **1 — Connection** | Column guessing stays guessing; SAP/Odoo need visible mapping, not luck | Opens every export not yet tested |
 | **2 — Intelligence** | No coherence between product, category, and total forecasts; nothing for a new product | Brings the engine closer to o9/Blue Yonder level |
-| **3 — Collaboration** | No accounts, no roles, no continuous measure of "are our recommendations followed?" | Turns it from an individual tool into a team tool |
+| **3 — Collaboration** | ~~Removed~~ — built around Production Planning, which was removed by an explicit scope decision; see `ROADMAP.md`'s Audience section | N/A |
 | **4 — Scale** | 29 products run in under a second; 30,000 (M5 size) never tested | A prerequisite for any real mid-sized customer |
 
 Every number in the table above is backed by a source or a code reading —

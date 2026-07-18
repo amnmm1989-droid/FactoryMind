@@ -1,11 +1,10 @@
 # tests/test_purchase_plan_ui.py
 """
-صفحة خطة الشراء (ui/pages/purchase_plan.py) — مدفوعة عبر AppTest، نفس
-تقنية tests/test_calibration_ui.py: صفحة مستقلة لا تعبر st.navigation في
-app.py، فتُشغَّل عبر AppTest.from_function مباشرة.
+صفحة خطة الشراء (ui/pages/purchase_plan.py) — مدفوعة عبر AppTest: صفحة
+مستقلة لا تعبر st.navigation في app.py، فتُشغَّل عبر AppTest.from_function
+مباشرة.
 
-لا قاعدة بيانات هنا خلافاً لصفحة المعايرة: خطة الشراء لا تُحفَظ، فلا حاجة
-لعزل db_path.
+لا قاعدة بيانات هنا: خطة الشراء لا تُحفَظ، فلا حاجة لعزل db_path.
 """
 from __future__ import annotations
 

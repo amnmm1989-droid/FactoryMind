@@ -7,9 +7,8 @@ AppTest.from_file لا صفحة معزولة، لأن التسلسل (رفع →
 التوصية المحفوظة عبر الدفعة) يعبر st.session_state وrun_batch معاً —
 لا يُختبَر بمعزل عن Streamlit فعلياً.
 
-⚠️ عزل القاعدة إلزامي هنا كما في tests/test_adherence_dashboard_ui.py:
-بلا monkeypatch على config.DATABASE_PATH، الحساب يكتب في data/app.db
-الحقيقية.
+⚠️ عزل القاعدة إلزامي هنا (نفس نمط isolated_db أدناه): بلا monkeypatch
+على config.DATABASE_PATH، الحساب يكتب في data/app.db الحقيقية.
 """
 from __future__ import annotations
 
