@@ -527,6 +527,21 @@ STRINGS: dict[str, dict[str, str]] = {
               "model beat the naive baseline in {beat} of them ({pct:.0f}%). "
               "For the rest, naive was enough — complexity bought nothing.",
     },
+    "exec.glance_title": {
+        "ar": "نظرة سريعة عبر الأقسام الأخرى", "en": "Quick glance across other functions",
+    },
+    "exec.glance_adherence": {
+        "ar": "✅ التزام {pct:.0f}% بتوصيات الإنتاج (من {judged} خطة قابلة للمقارنة)",
+        "en": "✅ {pct:.0f}% adherence to production recommendations (of {judged} comparable plans)",
+    },
+    "exec.glance_customers": {
+        "ar": "🩸 {bleeding} من {total} عميل نموّه سلبي بوضوح هذا الملف",
+        "en": "🩸 {bleeding} of {total} customers show clearly negative growth in this file",
+    },
+    "exec.glance_purchase": {
+        "ar": "🛒 {urgent} من {total} منتج في آخر خطة شراء محسوبة يحتاج طلباً عاجلاً",
+        "en": "🛒 {urgent} of {total} products in the last computed purchase plan need an urgent order",
+    },
     "exec.inventory_caveat": {
         "ar": ":material/warning: عامل نفاد المخزون غير محسوب — لا ملف مخزون مرفوع. لذا "
               "ثقة التقييم 80% (4 عوامل من 5) لكل المنتجات. ارفع ملف "
