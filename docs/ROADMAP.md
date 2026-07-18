@@ -464,6 +464,31 @@ Verified live: a genuinely weekly file (`2025-01-06, 2025-01-13, ...`)
 uploads, reads back "Your file: 2 products × **8 weeks**" (not "months"),
 and the Executive page computes real recommendations from it end to end.
 
+### The label-format gap — ✅ done: reading ERP period headers
+
+The verification above used **ISO-date** headers (`2025-01-06`). Real ERP
+exports don't label periods that way: Odoo writes `W1 2023` for weeks,
+`Q1 2023` for quarters, and a bare `2023` for years. `pd.to_datetime`
+understands none of the first two, so weekly and quarterly files were
+**rejected wholesale** — every column unreadable → `no_months`. And a bare
+`2023` parses to `2023-01-01`; with every period landing on the 1st,
+`detect_granularity` called three years "monthly" — silently, the worst
+kind. So "all five granularities supported" held for the *detector* but not
+for the *files a factory actually uploads*.
+
+Fixed at the two points that were format-blind:
+
+| File | What changed |
+|---|---|
+| `services/ingest.py::parse_full_date` | Parses `W# YYYY` (→ ISO-week Monday) and `Q# YYYY` (→ first month of the quarter); an impossible week (`W53` in a 52-week year) returns `None` → dropped column with a warning, not a crash |
+| `services/ingest.py::detect_granularity_from_labels` | New: reads granularity from the *label shape* (`W#`/`Q#`/bare year) and runs **before** the gap detector — because quarterly and yearly both fall on day 1, where the gap detector cannot tell them from monthly. Absent a uniform explicit marker it returns `None` and the gap detector takes over unchanged |
+
+Verified against the five real export files (daily/weekly/monthly/quarterly/
+yearly): each now reads with its true granularity, and the seasonal models
+(SARIMA/ETS/Prophet) run on quarterly data with `seasonal_periods=4`,
+`freq="QS"` end to end. Covered by
+`tests/test_ingest.py::test_each_erp_export_format_is_read_with_its_true_granularity`.
+
 **Why now:** it was structural, and every feature built on the month
 assumption raised its cost. Without it, the claim "fits all manufacturing"
 was **not honest**: food is weekly, aircraft are yearly.

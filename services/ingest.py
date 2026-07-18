@@ -158,6 +158,14 @@ class StockSnapshot:
     prices: dict[str, float] = field(default_factory=dict)
 
 
+# تسميات الأسبوع والربع كما تُصدِّرها ERP (Odoo: "W1 2023"، "Q1 2023").
+# pandas لا يفهم أياً منهما — كان الملف الأسبوعي والربعي يُرفَضان كلياً
+# (كل الأعمدة غير مقروءة -> no_months) قبل هذا. نحوّلهما إلى تاريخ فعلي:
+# الأسبوع إلى اثنين أسبوعه ISO، والربع إلى أول شهر فيه.
+WEEK_LABEL = re.compile(r"^[Ww]\s?(\d{1,2})\s+(1[89]\d{2}|20\d{2})$")
+QUARTER_LABEL = re.compile(r"^[Qq]\s?([1-4])\s+(1[89]\d{2}|20\d{2})$")
+
+
 def parse_full_date(label: str) -> date | None:
     """تحويل تسمية إلى تاريخ **باليوم** — لا يُقصّ.
 
@@ -166,7 +174,8 @@ def parse_full_date(label: str) -> date | None:
     الزمنية *قبل* أن تُقاس. الكشف يحتاج التواريخ كاملة.
 
     تسمية شهرية بلا يوم ("يناير 2023") تُرجع اليوم الأول — وهو الصحيح:
-    البيانات الشهرية لا يوم لها.
+    البيانات الشهرية لا يوم لها. وكذلك "Q1 2023" -> أول الربع، و"W1 2023"
+    -> اثنين الأسبوع، فتُقرأ ملفات ERP الأسبوعية والربعية بدل رفضها.
     """
     text = str(label).strip()
     if not text:
@@ -179,6 +188,22 @@ def parse_full_date(label: str) -> date | None:
             if year_match:
                 return date(int(year_match.group(1)), number, 1)
             return None
+
+    # أسبوعي "W# YYYY": اثنين أسبوع ISO. رقم أسبوع لا وجود له في تلك السنة
+    # (W53 في سنة من 52 أسبوعاً) يُعيد None فيُحذَف العمود بتحذير لا بانهيار.
+    week_match = WEEK_LABEL.match(text)
+    if week_match:
+        week, year = int(week_match.group(1)), int(week_match.group(2))
+        try:
+            return date.fromisocalendar(year, week, 1)
+        except ValueError:
+            return None
+
+    # ربعي "Q# YYYY": Q1->يناير، Q2->أبريل، Q3->يوليو، Q4->أكتوبر.
+    quarter_match = QUARTER_LABEL.match(text)
+    if quarter_match:
+        quarter, year = int(quarter_match.group(1)), int(quarter_match.group(2))
+        return date(year, (quarter - 1) * 3 + 1, 1)
 
     # الباقي: pandas أقدر على أشكال التاريخ الإنجليزية والرقمية
     try:
@@ -235,6 +260,37 @@ def detect_granularity(dates: list[date]) -> str | None:
     return GRANULARITY_BUCKETS[
         min(GRANULARITY_BUCKETS, key=lambda b: abs(smallest_gap - b))
     ]
+
+
+# سنة مجرّدة "2023" — لا شهر ولا يوم، فهي سنوية ببنيتها. مفصولة عن
+# WEEK/QUARTER لأن تلك تحمل علامة صريحة (W/Q) بينما هذه أربعة أرقام فقط.
+YEAR_LABEL = re.compile(r"^(1[89]\d{2}|20\d{2})$")
+
+
+def detect_granularity_from_labels(labels: list[str]) -> str | None:
+    """الحبيبة من *شكل التسمية* لا من فجوات التواريخ.
+
+    التسمية أصدق من الفجوة حين تحمل علامة صريحة: "Q1 2023" ربعي يقيناً،
+    و"2023" سنوي يقيناً، مهما بدت فجواتهما. وهذا يحسم عطلاً لا يقدر عليه
+    detect_granularity وحده: الربعي والسنوي كلاهما يسقط على أول الشهر
+    (اليوم = 1)، فكاشف الفجوات يسمّي كليهما "شهرياً" خطأً.
+
+    يُرجع None حين لا تحمل التسميات علامة صريحة موحّدة (أشهر، تواريخ
+    كاملة، أو خليط) — فيتولّى detect_granularity القياس بالفجوات.
+    """
+    stripped = [str(label).strip() for label in labels]
+    non_empty = [label for label in stripped if label]
+    if not non_empty:
+        return None
+
+    for pattern, granularity in (
+        (WEEK_LABEL, "weekly"),
+        (QUARTER_LABEL, "quarterly"),
+        (YEAR_LABEL, "yearly"),
+    ):
+        if all(pattern.match(label) for label in non_empty):
+            return granularity
+    return None
 
 
 def _read_file(content: bytes, filename: str) -> pd.DataFrame:
@@ -383,16 +439,21 @@ def _finalize(
     مصدر الأعمدة — فلا يجوز أن تتكرر.
     """
     # التواريخ كاملةً أولاً: الحبيبة تُقاس منها، وقصّ اليوم يمحوها.
+    labels = [str(column) for column in pivoted.columns]
     parsed_full: list[tuple[str, date | None]] = [
-        (str(column), parse_full_date(column)) for column in pivoted.columns
+        (label, parse_full_date(label)) for label in labels
     ]
     full_dates = [parsed for _, parsed in parsed_full if parsed]
 
     # الحبيبة الفعلية — تُكتشَف لا تُفرَض. كل الحبيبات الخمس مقبولة (بند 1
-    # في docs/ROADMAP.md)؛ الغموض وحده (تاريخان لا يكفيان لقياس فارق) يقع
-    # افتراضياً على الشهري، وهو ما كانت تفعله البوابة القديمة عملياً على
-    # أي حال حين تعذّر عليها القياس.
-    granularity = detect_granularity(full_dates) or DEFAULT_GRANULARITY
+    # في docs/ROADMAP.md). العلامة الصريحة في التسمية (W#/Q#/سنة مجرّدة)
+    # أصدق من الفجوة فتُقدَّم، ثم الفجوات، ثم الشهري عند الغموض التام
+    # (تاريخان لا يكفيان لقياس فارق) — وهو ما كانت البوابة القديمة تفعله.
+    granularity = (
+        detect_granularity_from_labels(labels)
+        or detect_granularity(full_dates)
+        or DEFAULT_GRANULARITY
+    )
 
     # قصّ اليوم إلى بداية الشهر مناسب للشهري فقط — تصديرة قد تضع أي يوم
     # داخل عمود شهر واحد، واليوم عندها ضجيج لا معلومة. لغير الشهري اليوم

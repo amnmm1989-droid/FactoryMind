@@ -61,8 +61,39 @@ def test_understood_month_labels(label, expected):
 
 @pytest.mark.parametrize("label", ["الشهر الأول", "P1", "أسبوع 3", "Q1", "", "إجمالي"])
 def test_unreadable_labels_return_none_rather_than_a_guess(label):
-    """تخمين 'Q1' كشهر يُنتج موسمية على تقويم مخترع — الرفض أصدق."""
+    """تخمين 'Q1' كشهر يُنتج موسمية على تقويم مخترع — الرفض أصدق.
+
+    لاحظ "Q1" (بلا سنة): تبقى غير مقروءة رغم دعم "Q1 2023" — العلامة
+    وحدها لا تكفي، لا بد من سنة تُثبِّتها على التقويم.
+    """
     assert parse_month_label(label) is None
+
+
+# ---------------------------------------------------------------------------
+# تسميات الأسبوع والربع كما تُصدِّرها ERP (Odoo: "W1 2023"، "Q1 2023")
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("label,expected", [
+    ("W1 2023", date(2023, 1, 2)),      # اثنين الأسبوع الأول ISO لعام 2023
+    ("W26 2026", date(2026, 6, 22)),
+    ("w1 2023", date(2023, 1, 2)),      # حرف صغير
+    ("Q1 2023", date(2023, 1, 1)),      # الربع الأول -> يناير
+    ("Q2 2023", date(2023, 4, 1)),      # الربع الثاني -> أبريل
+    ("Q3 2023", date(2023, 7, 1)),
+    ("Q4 2023", date(2023, 10, 1)),
+    ("q4 2023", date(2023, 10, 1)),     # حرف صغير
+])
+def test_erp_week_and_quarter_labels_parse_to_real_dates(label, expected):
+    """قبل هذا كانت pandas تُعيد None لكليهما، فيُرفَض الملف كاملاً."""
+    from services.ingest import parse_full_date
+
+    assert parse_full_date(label) == expected
+
+
+def test_an_impossible_iso_week_is_dropped_not_crashed():
+    """W53 في سنة من 52 أسبوعاً: None فيُحذَف العمود بتحذير — لا انهيار."""
+    from services.ingest import parse_full_date
+
+    assert parse_full_date("W53 2023") is None
 
 
 def test_arabic_month_without_a_year_is_rejected():
@@ -583,6 +614,32 @@ def test_identical_labels_measure_nothing():
     assert detect_granularity([date(2024, 1, 1)] * 3) is None
 
 
+@pytest.mark.parametrize("labels,expected", [
+    (["W1 2023", "W2 2023", "W3 2023"], "weekly"),
+    (["Q1 2023", "Q2 2023", "Q3 2023"], "quarterly"),
+    (["2023", "2024", "2025"], "yearly"),
+])
+def test_explicit_period_markers_are_read_from_the_label(labels, expected):
+    """العلامة الصريحة تحسم ما تعجز الفجوة عنه: الربعي والسنوي كلاهما يسقط
+    على أول الشهر، فكاشف الفجوات يسمّيهما "شهرياً" — التسمية وحدها تفرّق."""
+    from services.ingest import detect_granularity_from_labels
+
+    assert detect_granularity_from_labels(labels) == expected
+
+
+@pytest.mark.parametrize("labels", [
+    ["January 2023", "February 2023"],   # أشهر — لا علامة صريحة
+    ["2023-01", "2023-02"],              # تواريخ — لا علامة صريحة
+    ["Q1 2023", "January 2023"],         # خليط — لا نمط موحّد
+    [],
+])
+def test_labels_without_a_uniform_marker_defer_to_gap_detection(labels):
+    """لا علامة صريحة موحّدة -> None، فيقيس detect_granularity بالفجوات."""
+    from services.ingest import detect_granularity_from_labels
+
+    assert detect_granularity_from_labels(labels) is None
+
+
 def test_weekly_data_is_accepted_and_tagged_with_its_real_granularity():
     """الانحدار الأساسي لهذه المرحلة (قبل بند 1 من ROADMAP): 30 أسبوعاً
     كانت تُقرأ 30 شهراً، وSEASONAL_PERIODS=12 يبحث عن دورة كل 12 *أسبوعاً*
@@ -610,6 +667,76 @@ def test_quarterly_data_is_accepted_and_tagged():
 
 def test_yearly_data_is_accepted_and_tagged():
     dataset = parse_upload(_series((2015, 1, 1), 365, 4), "yearly.csv")
+
+    assert dataset.granularity == "yearly"
+
+
+# ---------------------------------------------------------------------------
+# الأشكال الخمسة كما تُصدِّرها ERP فعلاً — ملفات xlsx برؤوس أعمدة نصية
+# ("W1 2023"، "Q1 2023"، "2023") لا تواريخ ISO. هذا ما كان يكسر: الاختبارات
+# السابقة تستعمل _series (تواريخ ISO) فتلتقطها كاشفة الفجوات؛ أما تسميات ERP
+# فكانت pandas تردّها None (أسبوعي/ربعي -> رفض كامل)، أو تسقط على أول الشهر
+# (سنوي -> يُصنَّف شهرياً خطأً). راجع الملفات الخمسة على سطح مكتب المستخدم.
+# ---------------------------------------------------------------------------
+def _wide_xlsx(period_labels: list[str]) -> bytes:
+    """ملف Excel عريض بشكل تصديرة ERP: عمود Product + عمود لكل فترة.
+
+    يعبر pd.read_excel فعلاً (لا CSV) لأن الملفات الخمسة xlsx — وقراءة Excel
+    قد تُحوّل رأس "2023" إلى عدد لا نص، وهو مسار يجب أن يُختبَر لا يُفترَض.
+    """
+    import io
+
+    import pandas as pd
+
+    columns: dict[str, list] = {"Product": ["Bearing Assembly Type A", "Safety Valve"]}
+    for i, label in enumerate(period_labels):
+        columns[label] = [100 + i * 3, 40 + i * 2]
+    buffer = io.BytesIO()
+    pd.DataFrame(columns).to_excel(buffer, index=False)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("labels,expected", [
+    (["01 Jan 2023", "02 Jan 2023", "03 Jan 2023", "04 Jan 2023"], "daily"),
+    (["W1 2023", "W2 2023", "W3 2023", "W4 2023"], "weekly"),
+    (["January 2023", "February 2023", "March 2023"], "monthly"),
+    (["Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023"], "quarterly"),
+    (["2023", "2024", "2025"], "yearly"),
+])
+def test_each_erp_export_format_is_read_with_its_true_granularity(labels, expected):
+    """الأشكال الخمسة، كلٌّ بحبيبته: يومي/أسبوعي/شهري/ربعي/سنوي."""
+    dataset = parse_upload(_wide_xlsx(labels), f"{expected}.xlsx")
+
+    assert dataset.granularity == expected
+    assert dataset.month_count == len(labels)
+    assert dataset.product_count == 2
+
+
+def test_erp_weekly_file_is_no_longer_rejected_wholesale():
+    """الانحدار المباشر: "W1 2023" كانت pandas تردّها None، فكل الأعمدة
+    غير مقروءة -> DataValidationError(no_months) والملف يُرفَض كاملاً."""
+    dataset = parse_upload(
+        _wide_xlsx([f"W{i} 2023" for i in range(1, 13)]), "weekly.xlsx"
+    )
+
+    assert dataset.granularity == "weekly"
+    assert dataset.month_count == 12
+
+
+def test_erp_quarterly_file_is_no_longer_rejected_wholesale():
+    dataset = parse_upload(
+        _wide_xlsx(["Q1 2023", "Q2 2023", "Q3 2023", "Q4 2023", "Q1 2024"]),
+        "quarterly.xlsx",
+    )
+
+    assert dataset.granularity == "quarterly"
+    assert dataset.month_count == 5
+
+
+def test_erp_yearly_file_is_no_longer_mislabelled_as_monthly():
+    """قبل هذا: "2023"/"2024"/"2025" تسقط على 2023-01-01... وكلها أول الشهر
+    فيسمّيها كاشف الفجوات "monthly" — ٣ سنوات تُعامَل كـ٣ أشهر بصمت."""
+    dataset = parse_upload(_wide_xlsx(["2023", "2024", "2025"]), "yearly.xlsx")
 
     assert dataset.granularity == "yearly"
 
