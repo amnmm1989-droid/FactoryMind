@@ -25,7 +25,7 @@ from services.batch import fast_models, run_batch
 from services.decision_engine import borrow_recommendation
 from services.reconciliation import category_totals
 from ui.data_source import active_categories, active_dataset, active_granularity, active_inventory
-from ui.i18n import t
+from ui.i18n import format_reason, t
 
 def _level_badge(level: RiskLevel) -> str:
     return t(f"risk.{level.value}")
@@ -100,6 +100,7 @@ def _to_frame(recommendations) -> pd.DataFrame:
             t("common.demand_change"): round(r.expected_demand_change_pct, 1),
             t("common.confidence"): f"{r.risk.confidence:.0%}",
             t("common.wape"): _format_wape(r.forecast_wape),
+            t("common.reason"): format_reason(r),
         }
         for r in recommendations
     ])

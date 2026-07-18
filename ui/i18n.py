@@ -242,6 +242,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.model": {"ar": "النموذج", "en": "Model"},
     "common.confidence": {"ar": "ثقة التقييم", "en": "Assessment confidence"},
     "common.wape": {"ar": "دقّة WAPE", "en": "WAPE accuracy"},
+    "common.reason": {"ar": "السبب", "en": "Reason"},
     "common.demand_change": {"ar": "تغيّر الطلب %", "en": "Demand change %"},
     "common.recommended_qty": {"ar": "الكمية الموصى بها", "en": "Recommended qty"},
     "common.duration_ms": {"ar": "زمن (ms)", "en": "Time (ms)"},

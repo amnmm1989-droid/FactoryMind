@@ -107,6 +107,17 @@ def test_to_frame_shows_a_dash_when_wape_was_never_computed():
     assert frame.iloc[0][t("common.wape")] == "—"
 
 
+def test_to_frame_carries_the_plain_language_reason_column():
+    """رقم الخطورة وحده لا يشرح نفسه — عمود السبب يحمل الجملة المبنية من
+    format_reason، لا يبقى غائباً كما كان قبل هذا التغيير."""
+    from ui.i18n import t
+
+    frame = _to_frame([_recommendation()])
+
+    assert t("common.reason") in frame.columns
+    assert frame.iloc[0][t("common.reason")] == "اختبار"
+
+
 # ---------------------------------------------------------------------------
 # انحدار وجده تشغيل حقيقي: اختيار قديم في session_state بعد رفع ملف جديد
 # ---------------------------------------------------------------------------
