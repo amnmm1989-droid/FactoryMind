@@ -5,6 +5,7 @@ from ui.i18n import format_month, t
 
 # رموز مستقرة لا تتغيّر بتغيّر اللغة — انظر التعليق عند الاستخدام
 MODEL_CODES = ("ets", "sarima")
+ANALYSIS_CODES = ("trend", "seasonal", "correlation", "distribution", "outliers")
 from config import DEFAULT_FORECAST_STEPS, MAX_FORECAST_STEPS
 
 def render_sidebar(months, product_names):
@@ -27,22 +28,19 @@ def render_sidebar(months, product_names):
             st.warning(t("old.pick_one"))
             st.stop()
 
-        # نطاق الأشهر
+        # نطاق الأشهر — شريط نطاق واحد بدل قائمتين منسدلتين. البداية لا
+        # يمكن أن تتجاوز النهاية هنا بنيوياً (يمنعه المقبض نفسه)، فتحقّق
+        # "old.bad_range" السابق صار مستحيل الحدوث لا مجرد نادر — حُذف معه.
         month_indices = list(range(len(months)))
-        from_idx = st.selectbox(t("old.from_month"), month_indices,
-                                 format_func=lambda i: format_month(months[i]), index=0)
-        to_idx = st.selectbox(t("old.to_month"), month_indices,
-                               format_func=lambda i: format_month(months[i]),
-                               index=len(months)-1)
-
-        if from_idx > to_idx:
-            st.error(t("old.bad_range"))
-            st.stop()
+        from_idx, to_idx = st.select_slider(
+            t("old.month_range"), options=month_indices,
+            value=(0, len(months) - 1), format_func=lambda i: format_month(months[i]),
+        )
 
         # إعدادات التنبؤ
         st.subheader(t("old.forecast_settings"))
         forecast_steps = st.slider(t("old.forecast_months"), min_value=1, max_value=MAX_FORECAST_STEPS, value=DEFAULT_FORECAST_STEPS, step=1)
-        show_confidence = st.checkbox(t("old.show_confidence"), value=True)
+        show_confidence = st.toggle(t("old.show_confidence"), value=True)
         # رموز لا تسميات: dashboard.py يقارن بالقيمة، وترجمة التسمية كانت
         # ستكسر المقارنة بصمت فلا يعمل SARIMA أبداً بلا أي خطأ.
         forecast_model = st.selectbox(
@@ -50,17 +48,26 @@ def render_sidebar(months, product_names):
             format_func=lambda code: t(f"model.{code}"),
         )
 
-        # تحليلات إضافية
-        st.subheader(t("old.extra_analyses"))
-        show_trend = st.checkbox(t("old.trend"), value=st.session_state.get('show_trend', True))
+        # تحليلات إضافية — شرائح اختيار متعدد واحدة بدل خمسة مربعات اختيار
+        # منفصلة؛ 2-5 خيارات مرئية كلها دفعة واحدة هي بالضبط ما صُمِّم له
+        # st.pills. الرموز مستقرة لنفس سبب MODEL_CODES أعلاه.
+        default_analyses = [
+            code for code in ANALYSIS_CODES
+            if st.session_state.get(f"show_{code}", True)
+        ]
+        selected_analyses = st.pills(
+            t("old.extra_analyses"), ANALYSIS_CODES, selection_mode="multi",
+            default=default_analyses, format_func=lambda code: t(f"old.{code}"),
+        )
+        show_trend = "trend" in selected_analyses
+        show_seasonal = "seasonal" in selected_analyses
+        show_correlation = "correlation" in selected_analyses
+        show_distribution = "distribution" in selected_analyses
+        show_outliers = "outliers" in selected_analyses
         st.session_state.show_trend = show_trend
-        show_seasonal = st.checkbox(t("old.seasonal"), value=st.session_state.get('show_seasonal', True))
         st.session_state.show_seasonal = show_seasonal
-        show_correlation = st.checkbox(t("old.correlation"), value=st.session_state.get('show_correlation', True))
         st.session_state.show_correlation = show_correlation
-        show_distribution = st.checkbox(t("old.distribution"), value=st.session_state.get('show_distribution', True))
         st.session_state.show_distribution = show_distribution
-        show_outliers = st.checkbox(t("old.outliers"), value=True)
 
         st.markdown("---")
         run = st.button(

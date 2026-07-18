@@ -948,12 +948,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "الرجاء اختيار منتج واحد على الأقل",
         "en": "Please select at least one product",
     },
-    "old.from_month": {"ar": "من شهر", "en": "From month"},
-    "old.to_month": {"ar": "إلى شهر", "en": "To month"},
-    "old.bad_range": {
-        "ar": "تاريخ البداية يجب أن يكون قبل النهاية",
-        "en": "The start month must come before the end month",
-    },
+    "old.month_range": {"ar": "نطاق الأشهر", "en": "Month range"},
     "old.forecast_settings": {
         "ar": ":material/settings: إعدادات التنبؤ",
         "en": ":material/settings: Forecast settings",
