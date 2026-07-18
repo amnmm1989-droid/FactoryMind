@@ -63,7 +63,9 @@ def render_sidebar(months, product_names):
         show_outliers = st.checkbox(t("old.outliers"), value=True)
 
         st.markdown("---")
-        run = st.button(t("old.run"), use_container_width=True)
+        run = st.button(
+            t("old.run"), icon=":material/play_arrow:", use_container_width=True
+        )
 
         return {
             'selected_products': selected_products,

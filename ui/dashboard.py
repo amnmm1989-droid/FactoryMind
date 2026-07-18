@@ -63,7 +63,7 @@ def render_dashboard(months, products, options):
         )
     except InsufficientDataError as e:
         logger.warning("Dashboard render aborted: %s", e)
-        st.error(f"⚠️ {e.message}")
+        st.error(e.message, icon=":material/error:")
         st.stop()
 
     forecast_vals = analysis.ets.forecast_values
@@ -115,12 +115,13 @@ def render_dashboard(months, products, options):
     if show_outliers and analysis.outliers:
         outlier_indices = analysis.outliers.outlier_indices
         if outlier_indices:
-            st.warning("⚠️ " + t("old.outliers_found",
-                                 count=len(outlier_indices),
-                                 months="، ".join(format_months(
-                                     [selected_months[i] for i in outlier_indices]))))
+            st.warning(t("old.outliers_found",
+                         count=len(outlier_indices),
+                         months="، ".join(format_months(
+                             [selected_months[i] for i in outlier_indices]))),
+                       icon=":material/warning:")
         else:
-            st.success(t("old.no_outliers"))
+            st.success(t("old.no_outliers"), icon=":material/check_circle:")
 
     # ========== الرسم البياني الرئيسي ==========
     st.subheader(t("old.main_chart"))

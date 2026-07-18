@@ -155,7 +155,7 @@ def _plans_frame(rows: list[dict]) -> pd.DataFrame:
 
 def _render_actuals_report(report) -> None:
     if report.updated:
-        st.success(t("plan.actuals_applied", count=report.updated))
+        st.success(t("plan.actuals_applied", count=report.updated), icon=":material/check_circle:")
     if report.no_plan:
         with st.expander(t("plan.actuals_no_plan", count=len(report.no_plan))):
             st.caption(t("plan.actuals_no_plan_help"))
@@ -289,7 +289,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     _, _, is_user_data = active_dataset()
     if is_user_data or is_hosted():
         reason = t("plan.reason_user_data" if is_user_data else "plan.reason_hosted")
-        st.info(t("plan.local_only", reason=reason), icon="ℹ️")
+        st.info(t("plan.local_only", reason=reason), icon=":material/info:")
         # تعليمات يتبعها زائر فعلاً، فتُختبَر لا تُكتب من الذاكرة:
         # كانت تقول `python migrate.py` — لم تعد لازمة بعد أن صار الإقلاع
         # يبني القاعدة — وتُغفل تثبيت الاعتماديات، فالاستنساخ يفشل بلا
@@ -307,7 +307,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     if active_inventory():
         st.caption(t("plan.inventory_active"))
     else:
-        st.warning(t("plan.inventory_warning"), icon="⚠️")
+        st.warning(t("plan.inventory_warning"), icon=":material/warning:")
 
     recommendations = RecommendationRepository()
     plans = ProductionPlanRepository()

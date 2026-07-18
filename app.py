@@ -80,11 +80,11 @@ except MigrationError as exc:
     # يبقى المسار الصريح: الآن لا يعني "لم تُشغّل migrate.py" بل أنها
     # حاولت وفشلت (قرص للقراءة فقط، انحراف checksum، migration معطوب).
     # وهي حالات تستحق رسالة صريحة لا "no such table" غامضاً بعد حين.
-    st.error(f"⚠️ {exc.message}")
+    st.error(exc.message, icon=":material/error:")
     st.code("python migrate.py", language="bash")
     st.stop()
 except Exception as exc:  # noqa: BLE001
-    st.error(t("app.load_failed", detail=exc))
+    st.error(t("app.load_failed", detail=exc), icon=":material/error:")
     st.stop()
 
 
@@ -106,19 +106,19 @@ def _page(module_name: str):
 # الدالة حين لا يُعطى، وكل ما يُرجعه _page() اسمه `run`، فتتصادم الصفحات
 # الخمس على المسار نفسه وترفع StreamlitAPIException.
 navigation = st.navigation([
-    st.Page(_page("executive"), title=t("nav.executive"), icon="📊",
+    st.Page(_page("executive"), title=t("nav.executive"), icon=":material/dashboard:",
             url_path="executive", default=True),
-    st.Page(_page("forecasting"), title=t("nav.forecasting"), icon="🔮",
+    st.Page(_page("forecasting"), title=t("nav.forecasting"), icon=":material/insights:",
             url_path="forecasting"),
-    st.Page(_page("production_planning"), title=t("nav.planning"), icon="🏭",
+    st.Page(_page("production_planning"), title=t("nav.planning"), icon=":material/factory:",
             url_path="production-planning"),
-    st.Page(_page("product_intelligence"), title=t("nav.intelligence"), icon="🧠",
+    st.Page(_page("product_intelligence"), title=t("nav.intelligence"), icon=":material/psychology:",
             url_path="product-intelligence"),
-    st.Page(_page("advanced_analytics"), title=t("nav.advanced"), icon="📈",
+    st.Page(_page("advanced_analytics"), title=t("nav.advanced"), icon=":material/analytics:",
             url_path="advanced-analytics"),
-    st.Page(_page("customer_intelligence"), title=t("nav.customers"), icon="🤝",
+    st.Page(_page("customer_intelligence"), title=t("nav.customers"), icon=":material/handshake:",
             url_path="customer-intelligence"),
-    st.Page(_page("purchase_plan"), title=t("nav.purchase_plan"), icon="🛒",
+    st.Page(_page("purchase_plan"), title=t("nav.purchase_plan"), icon=":material/shopping_cart:",
             url_path="purchase-plan"),
 ])
 navigation.run()

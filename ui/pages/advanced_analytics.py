@@ -23,6 +23,6 @@ from ui.sidebar import render_sidebar
 def render(months: list[str], products: dict[str, list[float]]) -> None:
     # العنوان كان في app.py قبل Phase 6؛ نُقل هنا كي تبقى الصفحة كما كانت
     st.title(t("adv.title"))
-    st.info(t("adv.notice"), icon="ℹ️")
+    st.info(t("adv.notice"), icon=":material/info:")
     options = render_sidebar(months, sorted(products))
     render_dashboard(months, products, options)

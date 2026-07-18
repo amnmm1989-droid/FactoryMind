@@ -115,7 +115,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         st.info(
             t("pi.missing_factors",
               names="، ".join(_factor_label(n) for n in risk.missing_factors)),
-            icon="ℹ️",
+            icon=":material/info:",
         )
 
     with st.expander(t("pi.weights")):

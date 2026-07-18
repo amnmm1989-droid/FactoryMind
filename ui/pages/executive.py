@@ -284,7 +284,9 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             t("common.all_nine_models"), value=False,
             help=t("common.all_nine_help"),
         )
-        compute = st.button(t("exec.recompute"), use_container_width=True)
+        compute = st.button(
+            t("exec.recompute"), icon=":material/refresh:", use_container_width=True
+        )
 
     if ephemeral:
         # بصمة البيانات جزء من مفتاح الـ cache — وليست ترفاً.

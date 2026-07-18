@@ -132,7 +132,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         st.warning(
             t("fc.no_evaluation", nonzero=profile.non_zero_count,
               total=len(series), model=best.model_name),
-            icon="⚠️",
+            icon=":material/warning:",
         )
     else:
         metric_note = t(

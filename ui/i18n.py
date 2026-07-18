@@ -231,8 +231,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "🔮 Manufacturing Demand Forecasting",
     },
     "app.load_failed": {
-        "ar": "⚠️ تعذّر تحميل البيانات: {detail}",
-        "en": "⚠️ Could not load data: {detail}",
+        "ar": "تعذّر تحميل البيانات: {detail}",
+        "en": "Could not load data: {detail}",
     },
     "common.product": {"ar": "المنتج", "en": "Product"},
     "common.month": {"ar": "الشهر", "en": "Month"},
@@ -291,14 +291,14 @@ STRINGS: dict[str, dict[str, str]] = {
     "nav.customers": {"ar": "ذكاء العميل", "en": "Customer Intelligence"},
 
     # ---- البيانات والرفع ----
-    "data.header": {"ar": "📁 البيانات", "en": "📁 Data"},
+    "data.header": {"ar": ":material/folder: البيانات", "en": ":material/folder: Data"},
     "data.your_file": {
         "ar": "ملفك: **{products}** منتج × **{months}** {unit}",
         "en": "Your file: **{products}** products × **{months}** {unit}",
     },
     "data.notes": {
-        "ar": "⚠️ ملاحظات على الملف ({count})",
-        "en": "⚠️ Notes on your file ({count})",
+        "ar": ":material/warning: ملاحظات على الملف ({count})",
+        "en": ":material/warning: Notes on your file ({count})",
     },
     "data.back_to_demo": {"ar": "العودة لبيانات العرض", "en": "Back to demo data"},
     "data.demo_active": {
@@ -312,15 +312,15 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "data.template": {"ar": "⬇ نموذج CSV", "en": "⬇ CSV template"},
     "data.privacy_hosted": {
-        "ar": "🔒 ملفك يُحلَّل في الذاكرة ولا يُحفَظ على الخادم. "
+        "ar": ":material/lock: ملفك يُحلَّل في الذاكرة ولا يُحفَظ على الخادم. "
               "يختفي بإغلاق التبويب، ولا يراه زائر آخر.",
-        "en": "🔒 Your file is analysed in memory and never written to the server. "
+        "en": ":material/lock: Your file is analysed in memory and never written to the server. "
               "It disappears when you close the tab, and no other visitor sees it.",
     },
     "data.privacy_local": {
-        "ar": "🔒 ملفك في ذاكرة الجلسة ولا يُكتب في قاعدة البيانات. "
+        "ar": ":material/lock: ملفك في ذاكرة الجلسة ولا يُكتب في قاعدة البيانات. "
               "يختفي بإعادة التشغيل.",
-        "en": "🔒 Your file lives in session memory and is never written to the database. "
+        "en": ":material/lock: Your file lives in session memory and is never written to the database. "
               "It disappears on restart.",
     },
     "data.read_failed": {
@@ -332,8 +332,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Columns found: {columns}",
     },
     "data.map_columns": {
-        "ar": "🔗 ربط الأعمدة يدوياً",
-        "en": "🔗 Map columns manually",
+        "ar": ":material/link: ربط الأعمدة يدوياً",
+        "en": ":material/link: Map columns manually",
     },
     "data.map_columns_help": {
         "ar": "لم نتعرّف على أعمدة ملفك تلقائياً. اختر أيّ عمود هو أيّ —"
@@ -357,7 +357,7 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # ---- ملف المخزون (اختياري، يتبع أداة رفع المبيعات في الشريط) ----
-    "stock.header": {"ar": "📦 المخزون", "en": "📦 Stock"},
+    "stock.header": {"ar": ":material/inventory_2: المخزون", "en": ":material/inventory_2: Stock"},
     "stock.none_active": {
         "ar": "لا ملف مخزون مرفوع — الكميات المقترحة تعرض الطلب المتوقَّع "
               "كاملاً، وعامل نفاد المخزون غير محسوب.",
@@ -382,7 +382,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not read the stock file: {detail}",
     },
     "stock.map_columns": {
-        "ar": "🔗 ربط الأعمدة يدوياً", "en": "🔗 Map columns manually",
+        "ar": ":material/link: ربط الأعمدة يدوياً", "en": ":material/link: Map columns manually",
     },
     "stock.map_columns_help": {
         "ar": "لم نتعرّف على أعمدة ملفك تلقائياً. اختر أيّ عمود هو المنتج، "
@@ -456,16 +456,19 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # ---- النظرة التنفيذية ----
-    "exec.title": {"ar": "📊 النظرة التنفيذية", "en": "📊 Executive Overview"},
+    "exec.title": {
+        "ar": ":material/dashboard: النظرة التنفيذية",
+        "en": ":material/dashboard: Executive Overview",
+    },
     "exec.computing": {"ar": "جارٍ الحساب...", "en": "Computing..."},
-    "exec.recompute": {"ar": "🔄 حساب الكتالوج", "en": "🔄 Compute catalogue"},
+    "exec.recompute": {"ar": "حساب الكتالوج", "en": "Compute catalogue"},
     "exec.ephemeral_user": {
-        "ar": "🔒 محسوب في الذاكرة ولا يُحفَظ — بياناتك ملكك.",
-        "en": "🔒 Computed in memory, never stored — your data is yours.",
+        "ar": ":material/lock: محسوب في الذاكرة ولا يُحفَظ — بياناتك ملكك.",
+        "en": ":material/lock: Computed in memory, never stored — your data is yours.",
     },
     "exec.ephemeral_hosted": {
-        "ar": "🔒 محسوب في الذاكرة ولا يُحفَظ — الوضع المستضاف.",
-        "en": "🔒 Computed in memory, never stored — hosted mode.",
+        "ar": ":material/lock: محسوب في الذاكرة ولا يُحفَظ — الوضع المستضاف.",
+        "en": ":material/lock: Computed in memory, never stored — hosted mode.",
     },
     "exec.empty": {
         "ar": "لا توصيات بعد. اضغط **حساب الكتالوج** في الشريط الجانبي — "
@@ -516,26 +519,26 @@ STRINGS: dict[str, dict[str, str]] = {
               "out what actually needs deciding.",
     },
     "exec.fva_summary": {
-        "ar": "📐 على {total} منتجاً بمقارنة صالحة: النموذج المختار تفوّق على "
+        "ar": ":material/query_stats: على {total} منتجاً بمقارنة صالحة: النموذج المختار تفوّق على "
               "التكرار الساذج (Naive) في {beat} منها ({pct:.0f}%). الباقي — "
               "الساذج كافٍ، ولا تعقيد اشترى شيئاً.",
-        "en": "📐 Across {total} products with a valid comparison: the chosen "
+        "en": ":material/query_stats: Across {total} products with a valid comparison: the chosen "
               "model beat the naive baseline in {beat} of them ({pct:.0f}%). "
               "For the rest, naive was enough — complexity bought nothing.",
     },
     "exec.inventory_caveat": {
-        "ar": "⚠️ عامل نفاد المخزون غير محسوب — لا ملف مخزون مرفوع. لذا "
+        "ar": ":material/warning: عامل نفاد المخزون غير محسوب — لا ملف مخزون مرفوع. لذا "
               "ثقة التقييم 80% (4 عوامل من 5) لكل المنتجات. ارفع ملف "
               "المخزون من الشريط الجانبي لتفعيله.",
-        "en": "⚠️ Stock-depletion risk is not computed — no stock file "
+        "en": ":material/warning: Stock-depletion risk is not computed — no stock file "
               "uploaded. That is why every product shows 80% confidence "
               "(4 factors of 5). Upload a stock file from the sidebar to "
               "enable it.",
     },
     "exec.inventory_active": {
-        "ar": "📦 عامل نفاد المخزون محسوب من ملف المخزون المرفوع لهذه "
+        "ar": ":material/inventory_2: عامل نفاد المخزون محسوب من ملف المخزون المرفوع لهذه "
               "الجلسة — الكميات المعروضة تخصم المخزون المتاح.",
-        "en": "📦 Stock-depletion risk is computed from this session's "
+        "en": ":material/inventory_2: Stock-depletion risk is computed from this session's "
               "uploaded stock file — quantities shown net off available stock.",
     },
 
@@ -571,7 +574,7 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # ---- التوفيق الهرمي — إجمالي كل فئة، Bottom-Up ----
-    "exec.category_totals": {"ar": "📐 حسب الفئة", "en": "📐 By category"},
+    "exec.category_totals": {"ar": ":material/category: حسب الفئة", "en": ":material/category: By category"},
     "exec.category_totals_help": {
         "ar": "إجمالي كل فئة هو مجموع توصيات منتجاتها بالضبط — لا تقريباً، "
               "ولا تنبؤاً مستقلاً يُصالَح لاحقاً. منتج بلا فئة معروفة "
@@ -586,7 +589,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.product_count": {"ar": "عدد المنتجات", "en": "Products"},
 
     # ---- التنبؤ ----
-    "fc.title": {"ar": "🔮 التنبؤ", "en": "🔮 Forecasting"},
+    "fc.title": {"ar": ":material/insights: التنبؤ", "en": ":material/insights: Forecasting"},
     "fc.subtitle": {
         "ar": "يُشغّل كل النماذج المنطبقة، يقيّمها على بيانات لم ترَها، "
               "ويختار الأفضل بالأدلة.",
@@ -665,7 +668,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "fc.cumulative_error": {"ar": "خطأ تراكمي", "en": "Cumulative error"},
 
     # ---- تخطيط الإنتاج ----
-    "plan.title": {"ar": "🏭 تخطيط الإنتاج", "en": "🏭 Production Planning"},
+    "plan.title": {"ar": ":material/factory: تخطيط الإنتاج", "en": ":material/factory: Production Planning"},
     "plan.subtitle": {
         "ar": "التوصية اقتراح النظام؛ الخطة قرارك. الفصل بينهما يسمح بقياس "
               "جودة التوصيات لاحقاً.",
@@ -707,9 +710,9 @@ STRINGS: dict[str, dict[str, str]] = {
               "from the sidebar to enable netting.",
     },
     "plan.inventory_active": {
-        "ar": "📦 **الكميات تخصم المخزون المتاح** من ملف المخزون المرفوع "
+        "ar": ":material/inventory_2: **الكميات تخصم المخزون المتاح** من ملف المخزون المرفوع "
               "لهذه الجلسة.",
-        "en": "📦 **Quantities net off available stock** from this "
+        "en": ":material/inventory_2: **Quantities net off available stock** from this "
               "session's uploaded stock file.",
     },
     "plan.create": {"ar": "إنشاء خطة", "en": "Create a plan"},
@@ -745,7 +748,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "plan.updated": {"ar": "آخر تحديث", "en": "Last updated"},
 
     # ---- الالتزام — "كم مرة تُتَّبع توصياتنا؟" (سؤال 007 الأصلي) ----
-    "plan.adherence_title": {"ar": "📊 الالتزام بالتوصيات", "en": "📊 Recommendation adherence"},
+    "plan.adherence_title": {
+        "ar": ":material/checklist: الالتزام بالتوصيات",
+        "en": ":material/checklist: Recommendation adherence",
+    },
     "plan.adherence_summary": {
         "ar": "من {judged} خطة قابلة للمقارنة بتوصية: اتُّبعت التوصية في "
               "{followed} ({pct:.0f}%)، وخولفت في {overridden}. {unlinked} "
@@ -765,7 +771,8 @@ STRINGS: dict[str, dict[str, str]] = {
 
     # ---- معايرة أوزان الخطورة — "هل تتنبأ العوامل فعلاً بصعوبة التخطيط؟" ----
     "plan.calibration_title": {
-        "ar": "📐 معايرة أوزان الخطورة", "en": "📐 Risk weight calibration",
+        "ar": ":material/balance: معايرة أوزان الخطورة",
+        "en": ":material/balance: Risk weight calibration",
     },
     "plan.calibration_none": {
         "ar": "{total} خطة لها كمية فعلية مسجَّلة — لا يكفي لاختبار أي عامل "
@@ -799,7 +806,7 @@ STRINGS: dict[str, dict[str, str]] = {
 
     # ---- الإنتاج الفعلي — "هل النتائج أفضل حين تُتَّبع التوصية؟" ----
     "plan.actuals_header": {
-        "ar": "📥 رفع الإنتاج الفعلي", "en": "📥 Upload actual production",
+        "ar": ":material/upload: رفع الإنتاج الفعلي", "en": ":material/upload: Upload actual production",
     },
     "plan.actuals_help": {
         "ar": "نفس شكل ملف المبيعات: منتج × شهر — لكن الكمية هنا ما أُنتج "
@@ -812,12 +819,12 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "plan.actuals_template": {"ar": "⬇ نموذج CSV", "en": "⬇ CSV template"},
     "plan.actuals_applied": {
-        "ar": "✅ حُدِّثت **{count}** خطة بكميتها الفعلية.",
-        "en": "✅ **{count}** plans updated with their actual quantity.",
+        "ar": "حُدِّثت **{count}** خطة بكميتها الفعلية.",
+        "en": "**{count}** plans updated with their actual quantity.",
     },
     "plan.actuals_no_plan": {
-        "ar": "⚠️ {count} خلية بلا خطة محفوظة لها",
-        "en": "⚠️ {count} cells with no saved plan to attach to",
+        "ar": ":material/warning: {count} خلية بلا خطة محفوظة لها",
+        "en": ":material/warning: {count} cells with no saved plan to attach to",
     },
     "plan.actuals_no_plan_help": {
         "ar": "إنتاج فعلي حدث فعلاً، لكن لا خطة (كمية مخطَّطة) محفوظة لهذا "
@@ -848,7 +855,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "status.cancelled": {"ar": "ملغاة", "en": "Cancelled"},
 
     # ---- ذكاء المنتج ----
-    "pi.title": {"ar": "🧠 ذكاء المنتج", "en": "🧠 Product Intelligence"},
+    "pi.title": {"ar": ":material/psychology: ذكاء المنتج", "en": ":material/psychology: Product Intelligence"},
     "pi.classification": {"ar": "تصنيف الطلب", "en": "Demand classification"},
     "pi.class": {"ar": "التصنيف", "en": "Class"},
     "pi.adi_help": {
@@ -897,9 +904,9 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "pi.stored_history": {"ar": "سجل النماذج المحفوظ", "en": "Stored model history"},
     "pi.history_local_only": {
-        "ar": "🔒 سجل النماذج التاريخي متاح في الوضع المحلي فقط — بياناتك لا "
+        "ar": ":material/lock: سجل النماذج التاريخي متاح في الوضع المحلي فقط — بياناتك لا "
               "تُحفَظ. كل ما فوق محسوب لجلستك الآن.",
-        "en": "🔒 Historical model records are local-mode only — your data is not "
+        "en": ":material/lock: Historical model records are local-mode only — your data is not "
               "stored. Everything above was computed for this session.",
     },
     "pi.no_history": {
@@ -918,8 +925,8 @@ STRINGS: dict[str, dict[str, str]] = {
 
     # ---- التحليل المتقدّم ----
     "adv.title": {
-        "ar": "🔮 نظام تحليل وتنبؤ أوامر التصنيع – الإصدار الاحترافي",
-        "en": "🔮 Advanced Analytics",
+        "ar": ":material/analytics: نظام تحليل وتنبؤ أوامر التصنيع – الإصدار الاحترافي",
+        "en": ":material/analytics: Advanced Analytics",
     },
     "adv.notice": {
         "ar": "هذه الصفحة تُشغّل **ETS** دائماً — ترتيبه الثامن من تسعة على "
@@ -932,7 +939,7 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # ---- الشريط الجانبي القديم (التحليل المتقدّم) ----
-    "old.control_panel": {"ar": "🎛️ لوحة التحكم", "en": "🎛️ Controls"},
+    "old.control_panel": {"ar": ":material/tune: لوحة التحكم", "en": ":material/tune: Controls"},
     "old.select_products": {
         "ar": "اختر المنتج (يمكن اختيار عدة)",
         "en": "Select products (multiple allowed)",
@@ -947,7 +954,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "تاريخ البداية يجب أن يكون قبل النهاية",
         "en": "The start month must come before the end month",
     },
-    "old.forecast_settings": {"ar": "🔮 إعدادات التنبؤ", "en": "🔮 Forecast settings"},
+    "old.forecast_settings": {
+        "ar": ":material/settings: إعدادات التنبؤ",
+        "en": ":material/settings: Forecast settings",
+    },
     "old.forecast_months": {"ar": "عدد الأشهر للتنبؤ", "en": "Months to forecast"},
     "old.show_confidence": {"ar": "عرض فترات الثقة", "en": "Show confidence intervals"},
     "old.forecast_model": {"ar": "نموذج التنبؤ", "en": "Forecast model"},
@@ -956,37 +966,43 @@ STRINGS: dict[str, dict[str, str]] = {
     # فترجمة التسمية كانت ستكسر المقارنة بصمت: SARIMA لا يعمل، بلا خطأ.
     "model.ets": {"ar": "ETS (التنعيم الأسي)", "en": "ETS (exponential smoothing)"},
     "model.sarima": {"ar": "SARIMA (إذا توفر)", "en": "SARIMA (if available)"},
-    "old.extra_analyses": {"ar": "📊 تحليلات إضافية", "en": "📊 Extra analyses"},
+    "old.extra_analyses": {
+        "ar": ":material/checklist: تحليلات إضافية",
+        "en": ":material/checklist: Extra analyses",
+    },
     "old.trend": {"ar": "تحليل الاتجاه", "en": "Trend analysis"},
     "old.seasonal": {"ar": "التحليل الموسمي", "en": "Seasonal analysis"},
     "old.correlation": {"ar": "مصفوفة الارتباط بين المنتجات", "en": "Product correlation matrix"},
     "old.distribution": {"ar": "تحليل التوزيع الإحصائي", "en": "Statistical distribution"},
     "old.outliers": {"ar": "كشف النقاط الشاذة", "en": "Outlier detection"},
-    "old.run": {"ar": "🔄 تشغيل التحليل المتقدم", "en": "🔄 Run advanced analysis"},
+    "old.run": {"ar": "تشغيل التحليل المتقدم", "en": "Run advanced analysis"},
 
     # ---- لوحة التحليل المتقدّم ----
     "old.product_analysis": {
-        "ar": "📊 تحليل المنتج: {product}",
-        "en": "📊 Product analysis: {product}",
+        "ar": ":material/query_stats: تحليل المنتج: {product}",
+        "en": ":material/query_stats: Product analysis: {product}",
     },
-    "old.total": {"ar": "📦 الإجمالي", "en": "📦 Total"},
-    "old.average": {"ar": "📈 المتوسط", "en": "📈 Average"},
+    "old.total": {"ar": "الإجمالي", "en": "Total"},
+    "old.average": {"ar": "المتوسط", "en": "Average"},
     "old.max": {"ar": "⬆ الأعلى", "en": "⬆ Highest"},
     "old.min_nonzero": {"ar": "⬇ الأدنى (غير صفري)", "en": "⬇ Lowest (non-zero)"},
-    "old.std": {"ar": "📊 الانحراف المعياري", "en": "📊 Std deviation"},
-    "old.median": {"ar": "📌 الوسيط", "en": "📌 Median"},
-    "old.nonzero_months": {"ar": "📅 أشهر (>0)", "en": "📅 Months (>0)"},
-    "old.cv": {"ar": "📉 معامل الاختلاف", "en": "📉 Coefficient of variation"},
-    "old.last_value": {"ar": "🔮 آخر قيمة", "en": "🔮 Last value"},
+    "old.std": {"ar": "الانحراف المعياري", "en": "Std deviation"},
+    "old.median": {"ar": "الوسيط", "en": "Median"},
+    "old.nonzero_months": {"ar": "أشهر (>0)", "en": "Months (>0)"},
+    "old.cv": {"ar": "معامل الاختلاف", "en": "Coefficient of variation"},
+    "old.last_value": {"ar": "آخر قيمة", "en": "Last value"},
     "old.first_forecast": {
-        "ar": "📈 قيمة التنبؤ (أول شهر)",
-        "en": "📈 Forecast (first month)",
+        "ar": "قيمة التنبؤ (أول شهر)",
+        "en": "Forecast (first month)",
     },
     "old.accuracy_metrics": {
-        "ar": "📈 مقاييس دقة التنبؤ (ETS)",
-        "en": "📈 Forecast accuracy metrics (ETS)",
+        "ar": ":material/target: مقاييس دقة التنبؤ (ETS)",
+        "en": ":material/target: Forecast accuracy metrics (ETS)",
     },
-    "old.trend_analysis": {"ar": "📈 تحليل الاتجاه", "en": "📈 Trend analysis"},
+    "old.trend_analysis": {
+        "ar": ":material/trending_up: تحليل الاتجاه",
+        "en": ":material/trending_up: Trend analysis",
+    },
     "old.direction": {"ar": "الاتجاه", "en": "Direction"},
     "old.slope": {"ar": "الميل (لكل شهر)", "en": "Slope (per month)"},
     "old.r_squared": {"ar": "R² (قوة النموذج)", "en": "R² (fit strength)"},
@@ -995,28 +1011,44 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "تم اكتشاف {count} نقطة شاذة (أشهر: {months})",
         "en": "{count} outliers detected (months: {months})",
     },
-    "old.main_chart": {"ar": "📈 الاتجاه الفعلي والتنبؤ", "en": "📈 Actual trend and forecast"},
-    "old.correlation_title": {"ar": "🔗 مصفوفة الارتباط", "en": "🔗 Correlation matrix"},
-    "old.seasonal_title": {"ar": "📅 التحليل الموسمي (حسب الربع)", "en": "📅 Seasonal analysis (by quarter)"},
-    "old.distribution_title": {"ar": "📊 تحليل التوزيع الإحصائي", "en": "📊 Statistical distribution"},
-    "old.details_table": {"ar": "📋 البيانات التفصيلية مع التغيرات", "en": "📋 Detailed data with changes"},
+    "old.main_chart": {
+        "ar": ":material/show_chart: الاتجاه الفعلي والتنبؤ",
+        "en": ":material/show_chart: Actual trend and forecast",
+    },
+    # لا أيقونة هنا عمداً: تُستهلَك كعنوان رسم Plotly (ui/charts.py) لا
+    # عنصر Streamlit — رمز :material/...: لن يُعرَض هناك كأيقونة بل كنص خام.
+    "old.correlation_title": {"ar": "مصفوفة الارتباط", "en": "Correlation matrix"},
+    "old.seasonal_title": {
+        "ar": ":material/calendar_month: التحليل الموسمي (حسب الربع)",
+        "en": ":material/calendar_month: Seasonal analysis (by quarter)",
+    },
+    "old.distribution_title": {
+        "ar": ":material/bar_chart: تحليل التوزيع الإحصائي",
+        "en": ":material/bar_chart: Statistical distribution",
+    },
+    "old.details_table": {
+        "ar": ":material/table_chart: البيانات التفصيلية مع التغيرات",
+        "en": ":material/table_chart: Detailed data with changes",
+    },
     "old.export": {"ar": "⬇️ تصدير التقارير", "en": "⬇️ Export reports"},
     "old.download_csv": {"ar": "⬇ تحميل CSV (البيانات الفعلية)", "en": "⬇ Download CSV (actual data)"},
     "old.download_excel": {"ar": "⬇ تحميل Excel (مع التنبؤ)", "en": "⬇ Download Excel (with forecast)"},
-    "old.no_outliers": {"ar": "✅ لم يتم اكتشاف نقاط شاذة", "en": "✅ No outliers detected"},
+    "old.no_outliers": {"ar": "لم يتم اكتشاف نقاط شاذة", "en": "No outliers detected"},
     "old.comparison_selected": {
-        "ar": "📊 مقارنة المنتجات المختارة", "en": "📊 Selected product comparison",
+        "ar": ":material/compare_arrows: مقارنة المنتجات المختارة",
+        "en": ":material/compare_arrows: Selected product comparison",
     },
     "old.correlation_products": {
-        "ar": "📊 مصفوفة الارتباط بين المنتجات", "en": "📊 Product correlation matrix",
+        "ar": ":material/link: مصفوفة الارتباط بين المنتجات",
+        "en": ":material/link: Product correlation matrix",
     },
     "old.footer": {
-        "ar": "🔮 نظام تحليل وتنبؤ متقدم – يعمل بنماذج ETS، SARIMA، والانحدار الخطي",
-        "en": "🔮 Advanced analysis and forecasting — powered by ETS, SARIMA and linear regression",
+        "ar": "نظام تحليل وتنبؤ متقدم – يعمل بنماذج ETS، SARIMA، والانحدار الخطي",
+        "en": "Advanced analysis and forecasting — powered by ETS, SARIMA and linear regression",
     },
     "old.analysed_range": {
-        "ar": "📅 تم تحليل البيانات من {start} إلى {end} (عدد الأشهر: {count})",
-        "en": "📅 Analysed data from {start} to {end} ({count} months)",
+        "ar": ":material/calendar_month: تم تحليل البيانات من {start} إلى {end} (عدد الأشهر: {count})",
+        "en": ":material/calendar_month: Analysed data from {start} to {end} ({count} months)",
     },
 
     # ---- رسالة التوصية (من ProductionRecommendation.message_code) ----
@@ -1072,8 +1104,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{count} of 5 factors not computed",
     },
     "reason.borrowed": {
-        "ar": "⚠️ مُستعار بالكامل من «{source}» — لا تاريخ مبيعات لهذا المنتج",
-        "en": "⚠️ Entirely borrowed from \"{source}\" — this product has no sales history",
+        "ar": ":material/warning: مُستعار بالكامل من «{source}» — لا تاريخ مبيعات لهذا المنتج",
+        "en": ":material/warning: Entirely borrowed from \"{source}\" — this product has no sales history",
     },
 
     # ---- الاتجاه (من models/statistics.py) ----
@@ -1153,14 +1185,14 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # ---- ذكاء العميل — البُعد الثالث (Roadmap بند 5) ----
-    "cust.title": {"ar": "🤝 ذكاء العميل", "en": "🤝 Customer Intelligence"},
+    "cust.title": {"ar": ":material/handshake: ذكاء العميل", "en": ":material/handshake: Customer Intelligence"},
     "cust.subtitle": {
         "ar": "تحليل فقط — لا إنشاء طلبات. مدير المبيعات يستقبل الطلبات، "
               "لا يُصدرها.",
         "en": "Analysis only — no order creation. The sales manager "
               "receives orders; they don't place them.",
     },
-    "cust.header": {"ar": "🤝 مبيعات حسب العميل", "en": "🤝 Sales by customer"},
+    "cust.header": {"ar": ":material/groups: مبيعات حسب العميل", "en": ":material/groups: Sales by customer"},
     "cust.none_active": {
         "ar": "لا ملف مبيعات حسب العميل مرفوع بعد.",
         "en": "No sales-by-customer file uploaded yet.",
@@ -1172,9 +1204,9 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "cust.template": {"ar": "⬇ نموذج CSV", "en": "⬇ CSV template"},
     "cust.privacy_note": {
-        "ar": "🔒 يُحلَّل في ذاكرة الجلسة ولا يُكتب في قاعدة البيانات. "
+        "ar": ":material/lock: يُحلَّل في ذاكرة الجلسة ولا يُكتب في قاعدة البيانات. "
               "يختفي بإغلاق التبويب أو إعادة التشغيل.",
-        "en": "🔒 Analysed in session memory, never written to the "
+        "en": ":material/lock: Analysed in session memory, never written to the "
               "database. It disappears when you close the tab or restart.",
     },
     "cust.loaded": {
@@ -1201,7 +1233,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "cust.share": {"ar": "الحصة", "en": "Share"},
     "cust.cumulative_share": {"ar": "الحصة التراكمية", "en": "Cumulative share"},
     "cust.concentration_title": {
-        "ar": "📊 تركّز الاعتماد على العملاء", "en": "📊 Customer concentration",
+        "ar": ":material/pie_chart: تركّز الاعتماد على العملاء",
+        "en": ":material/pie_chart: Customer concentration",
     },
     "cust.concentration_summary": {
         "ar": "أعلى {count} عميل يمثّلان **{pct:.0f}%** من إجمالي الكمية "
@@ -1213,7 +1246,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "لا كمية مسجَّلة في الملف — لا حصص يمكن حسابها.",
         "en": "No quantity recorded in the file — no shares to compute.",
     },
-    "cust.bleeding_title": {"ar": "🩸 عملاء ينزفون", "en": "🩸 Bleeding customers"},
+    "cust.bleeding_title": {
+        "ar": ":material/trending_down: عملاء ينزفون",
+        "en": ":material/trending_down: Bleeding customers",
+    },
     "cust.bleeding_help": {
         "ar": "عملاء انخفضت مشترياتهم أكثر من {threshold:.0f}% بين النصف "
               "الأول والثاني من نافذة الملف — الأشد انحداراً أولاً.",
@@ -1229,7 +1265,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "cust.first_half": {"ar": "متوسط النصف الأول", "en": "First-half avg"},
     "cust.second_half": {"ar": "متوسط النصف الثاني", "en": "Second-half avg"},
     "cust.growth": {"ar": "النمو", "en": "Growth"},
-    "cust.growth_title": {"ar": "📈 النمو حسب العميل", "en": "📈 Growth by customer"},
+    "cust.growth_title": {
+        "ar": ":material/trending_up: النمو حسب العميل",
+        "en": ":material/trending_up: Growth by customer",
+    },
     "cust.growth_help": {
         "ar": "كل العملاء، الأسرع نمواً أولاً. \"—\" تعني: لا مشتريات في "
               "النصف الأول، فنسبة النمو من صفر غير معرَّفة — لا صفر ولا "
@@ -1243,7 +1282,7 @@ STRINGS: dict[str, dict[str, str]] = {
     # خطة الشراء — لمدير المشتريات: كم يشتري من كل منتج لتغطية أفق يختاره
     # -------------------------------------------------------------------
     "nav.purchase_plan": {"ar": "خطة الشراء", "en": "Purchase Plan"},
-    "pplan.title": {"ar": "🛒 خطة الشراء", "en": "🛒 Purchase Plan"},
+    "pplan.title": {"ar": ":material/shopping_cart: خطة الشراء", "en": ":material/shopping_cart: Purchase Plan"},
     "pplan.subtitle": {
         "ar": "لكل منتج: كمية الشراء الموصى بها لتغطية عدد الأشهر الذي "
               "تحدّده أدناه — قابلة للتصدير Excel مباشرة.",
@@ -1260,16 +1299,16 @@ STRINGS: dict[str, dict[str, str]] = {
               "quantity differs per product based on its own forecast, "
               "not the horizon itself.",
     },
-    "pplan.compute": {"ar": "🔄 احسب خطة الشراء", "en": "🔄 Compute purchase plan"},
+    "pplan.compute": {"ar": "احسب خطة الشراء", "en": "Compute purchase plan"},
     "pplan.empty": {
         "ar": "اضبط عدد الأشهر واضغط \"احسب خطة الشراء\" من الشريط الجانبي.",
         "en": "Set the months to cover and click \"Compute purchase plan\" "
               "in the sidebar.",
     },
     "pplan.stale_warning": {
-        "ar": "⚠️ البيانات تغيّرت منذ آخر حساب — النتائج أدناه قد لا تطابق "
+        "ar": "البيانات تغيّرت منذ آخر حساب — النتائج أدناه قد لا تطابق "
               "الملف الحالي. اضغط \"احسب خطة الشراء\" لتحديثها.",
-        "en": "⚠️ Data changed since the last computation — results below "
+        "en": "Data changed since the last computation — results below "
               "may not match the current file. Click \"Compute purchase "
               "plan\" to refresh them.",
     },

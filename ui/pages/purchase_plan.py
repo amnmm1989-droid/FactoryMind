@@ -114,7 +114,9 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         full_family = st.checkbox(
             t("common.all_nine_models"), value=False, help=t("common.all_nine_help"),
         )
-        compute = st.button(t("pplan.compute"), use_container_width=True)
+        compute = st.button(
+            t("pplan.compute"), icon=":material/refresh:", use_container_width=True
+        )
 
     current_signature = _signature(products, inventory)
     current_params = (int(horizon), full_family, granularity, current_signature)
@@ -140,7 +142,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         return
 
     if st.session_state.get(PARAMS_KEY) != current_params:
-        st.warning(t("pplan.stale_warning"))
+        st.warning(t("pplan.stale_warning"), icon=":material/warning:")
 
     active_lines = [
         line for line in plan.lines if line.recommended_quantity >= MIN_ACTIONABLE_UNITS
