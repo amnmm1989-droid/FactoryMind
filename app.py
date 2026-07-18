@@ -74,7 +74,6 @@ try:
     # resolve_db_path() لا DATABASE_PATH المستوردة: القيمة تُقرأ الآن، وهي
     # مفتاح الـ cache أعلاه — فلا يخلط إقلاعان قاعدتين.
     _ensure_database(resolve_db_path())
-    render_upload_widget()
     months, products, is_user_data = active_dataset()
 except MigrationError as exc:
     # يبقى المسار الصريح: الآن لا يعني "لم تُشغّل migrate.py" بل أنها
@@ -122,3 +121,8 @@ navigation = st.navigation([
             url_path="purchase-plan"),
 ])
 navigation.run()
+
+# بعد الصفحة لا قبلها: ضوابط الصفحة (أفق، اختيار منتج، زر حساب) تُلمَس في
+# كل زيارة؛ رفع الملف والمخزون يُلمَس مرة عند الإعداد. رفعه هنا يجعل ما
+# يتكرر استخدامه أول ما يظهر، لا آخره خلف رسائل نجاح ورفع سابقتين.
+render_upload_widget()
