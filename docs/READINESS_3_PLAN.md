@@ -26,8 +26,8 @@ Forecast Value Added tracking.
 3. [x] **FVA panel**: after each batch, compare the winning model
    specifically against `NaiveForecaster` — not the best of the nine. Stored
    in `forecasts.fva` (migration 009) and surfaced as a live summary caption
-   on the executive page, turning the README's static claim ("60% naive
-   models win") into a metric that shifts with each user's data.
+   on the executive page, turning what used to be a static win/loss table
+   in the README into a metric that shifts with each user's data.
 
 **Acceptance criterion**: an executive page showing "our actual accuracy
 this month: WAPE X%, and complex models beat the moving average in Y% of

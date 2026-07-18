@@ -25,9 +25,10 @@ survives reloads and can be shared as-is.
 | **Sales** | Sales by customer | Which customers grow, which bleed |
 | **Plant** | Manufacturing orders | Whether execution matches the plan |
 
-Today **the production manager is fully served**; the rest need file formats
-not yet supported — see [`docs/ROADMAP.md`](docs/ROADMAP.md) and the
-competitive readiness plan in [`docs/READINESS_0_INDEX.md`](docs/READINESS_0_INDEX.md).
+All four are served today — see [`docs/ROADMAP.md`](docs/ROADMAP.md) for
+what each upload unlocks, and the competitive readiness plan in
+[`docs/READINESS_0_INDEX.md`](docs/READINESS_0_INDEX.md) for what's still
+gated behind an owner decision (accounts).
 
 ## What it explicitly does NOT do
 
@@ -42,20 +43,27 @@ competitive readiness plan in [`docs/READINESS_0_INDEX.md`](docs/READINESS_0_IND
 Most forecasting tools promise "95% accuracy". This one tells you when
 forecasting will **not** help you.
 
-On this project's own validation catalogue, we ran nine models (ETS, SARIMA,
-Prophet, XGBoost, RandomForest, Croston, TSB, and two naive baselines) across
-43 data-rich series and measured the outcome:
+We run nine models (ETS, SARIMA, Prophet, XGBoost, RandomForest, Croston,
+TSB, and two naive baselines) on the bundled demo catalogue and measure the
+outcome — reproducible any time with
+[`scripts/measure_model_accuracy.py`](scripts/measure_model_accuracy.py),
+not a number frozen in prose:
 
-| Model | Wins |
+| Model | Wins (of 28 evaluable products) |
 |---|---|
-| Simple moving average | 10 |
-| **Last value repeated (Naive)** | **16** |
-| Prophet | **0** |
-| ETS | 1 |
+| **Last value repeated (Naive)** | **6** (21%) |
+| Prophet | 5 (18%) |
+| XGBoost | 5 (18%) |
+| ETS | 4 (14%) |
+| Croston | 4 (14%) |
 
-**Naive models win in 60% of cases.** That is not an implementation flaw —
-44 monthly points simply do not carry enough signal for complex models. The
-tool measures this and tells you, instead of selling an illusion.
+**No single model dominates this catalogue** — Naive holds a slight
+plurality, but Prophet and XGBoost win nearly as often, and ETS has the
+*best* average rank overall. The honest finding isn't "simple always wins";
+it's that **the winner genuinely depends on the product**, which is the
+whole reason this engine tries all nine and measures instead of assuming
+one family is always right. On products it does win, the winning model beat
+the naive baseline 85% of the time (Forecast Value Added).
 
 And the catalogue classification (using the standard ADI/CV² criteria)
 answers the most important question:
@@ -74,23 +82,30 @@ buys accuracy. FactoryMind practices it by construction.
 
 A tool that tells you when not to trust it should start with itself:
 
-- **Monthly data only.** A weekly or daily file is **explicitly rejected**
-  with an explanation — never silently accepted and misread. Aggregate to
-  months in your ERP, then export. (Weekly/daily support is the first item
-  on the roadmap.)
-- **Columns are guessed by name.** Odoo exports (`product_id`), SAP exports
-  (`Material`), and common manufacturing names (`Part Number`) are read, in
-  Arabic and English. The **wide** layout (name column + month columns)
-  passes regardless of what its first column is called. But a **long** layout
-  with a column name outside the known list is not understood — and the error
-  message blames the months, not the column. **No hints are added by
-  guesswork** — send a real export and its name gets added. A visual
-  column-mapping screen remains the general fix (roadmap).
-- **The stock-depletion factor is not computed** — there is no stock file
-  yet. Every assessment therefore shows 80% confidence (4 factors of 5), and
-  the tool says so on every screen.
-- **Risk weights are an initial calibration** with no validation data. They
-  get tuned once actual production is uploaded and compared with plans.
+- **Reorder timing isn't real yet.** Stock depletion risk is computed once
+  you upload a stock file, but `safety_stock`/`reorder_point` stay at zero —
+  they need lead-time *and its variability* (multiple order→delivery date
+  pairs per product), which no current upload supplies. A single "typical
+  lead time" file is a scoped, not-yet-built next step; true variability
+  needs a heavier purchase-order/receipt log most ERPs don't export as one
+  flat file.
+- **Risk weights are a documented initial calibration, not an auto-tuned
+  one.** `services/risk_service/calibration.py` correlates each factor
+  against real planning outcomes once you upload actual production — but it
+  only *reports* the correlation for a human to act on. It never rewrites
+  the live weights itself, on principle: reshaping every product's risk
+  score from a sample that might be a few dozen rows isn't a decision this
+  tool makes silently.
+- **Accounts don't exist.** Every plan is per-session; there's no login, so
+  "who decided this" isn't tracked across planners. This is a deliberate,
+  not-yet-made decision — it needs an external identity provider (Google/
+  Microsoft/Okta) and, more importantly, your explicit sign-off to re-scope
+  the privacy promise below (an account is persistent by definition; your
+  sales file still wouldn't be).
+- **Forecasts see quantity history only.** No price, promotions, or
+  macroeconomic signal — every model here is univariate by design. That's
+  not a gap to be filled; it's what "reads a sales export" structurally
+  means.
 
 ## 🔒 Your data
 
@@ -153,7 +168,7 @@ of memory — inside the free 1 GB limit.
 ## 📁 Project structure
 
 ```
-app.py                 Entry point (composition root; boots the DB, routes 5 pages)
+app.py                 Entry point (composition root; boots the DB, routes 6 pages)
 config.py              Settings — single source, read at call time not import time
 migrate.py             Migration runner — idempotent and atomic, checksum drift detection
 
@@ -169,7 +184,7 @@ services/
   batch.py             Whole-catalogue computation
 models/                Original statistical models (ETS, SARIMA, trend)
 ui/
-  pages/               The five pages
+  pages/               The six pages
   data_source.py       Session data: user upload or bundled demo
   i18n.py              Every user-visible string, in both languages
 data/                  data.json (synthetic demo) + app.db (generated, untracked)

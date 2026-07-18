@@ -64,9 +64,10 @@ within our current scope without widening it (Phase 2 in
 These are not aspiration but measured reality today, and must remain the
 core of any marketing message:
 
-1. **Honesty over illusion.** The README shows that naive models win 60% of
-   cases on this catalogue — and no commercial tool publishes such a number
-   about itself. This is the **Forecast Value Added (FVA)** discipline that
+1. **Honesty over illusion.** The README shows real, rerunnable model-vs-
+   model results on this catalogue (`scripts/measure_model_accuracy.py`) —
+   and no commercial tool publishes such a number about itself, reproducible
+   or not. This is the **Forecast Value Added (FVA)** discipline that
    the most mature planning teams practise: measuring every intervention
    against a naive baseline, not assuming complexity means accuracy.
    FactoryMind already practises it without naming it; naming it and turning

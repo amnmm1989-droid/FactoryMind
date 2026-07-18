@@ -16,9 +16,11 @@ suffers from here (hence the divide-by-zero protection was needed at all).
 
 Also: no continuous tracking of **Forecast Value Added** — measuring each
 model or human intervention against a naive baseline over time. The README
-presents this as a one-off report ("naive models win 60%"), but it is not
-stored as a live metric accumulating with every batch
-(`services/batch.py`).
+presented this as a one-off report (a static win/loss table, since found to
+have gone stale — see the correction note in `docs/ROADMAP.md` Phase 3), but
+it was not stored as a live metric accumulating with every batch
+(`services/batch.py`). *(Resolved: see `READINESS_3_PLAN.md` task 3 — FVA is
+now a live per-batch caption, not a frozen table.)*
 
 ## 2. No alignment across aggregation levels (Hierarchical Reconciliation)
 

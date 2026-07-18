@@ -35,11 +35,16 @@ does not store what they store, and does not compete with them.
 
 **The tool's value is that it knows when it does not know.**
 
-Not a slogan — a measurement: on this catalogue, **84%** of products are
-intermittent, naive models win **60%** of the richest series, and Prophet
-won **zero of 43**. A tool claiming "95% accuracy" lies to its user; a tool
-that says "this product cannot be forecast — don't plan on it" gives them
-something they will not find elsewhere.
+Not a slogan — a measurement: on the demo catalogue shipped today, most
+products are intermittent (see the classification breakdown further down —
+⚠️ its exact split has drifted from what this file claims in places; see the
+correction note under Phase 3), and no single model family dominates the
+rest — Naive holds a slim plurality of individual wins, but Prophet,
+XGBoost, and ETS are close behind (see Phase 3's "measured result" below,
+rerunnable with `scripts/measure_model_accuracy.py`). A tool claiming "95%
+accuracy" lies to its user; a tool that says "this product cannot be
+forecast — don't plan on it" gives them something they will not find
+elsewhere.
 
 Every new screen honours this: uncomputed factors are shown, confidence is
 stated, and a number without an accuracy measure says so.
@@ -142,33 +147,53 @@ the best by evidence.
 ### Two additions to the original plan — and why
 
 **1. Baseline models (Naive + MovingAverage).** The plan asked for five
-models that all need ≥ 24 points. But the median product here has **9
-non-zero months out of 44**, and 39% of the validation catalogue has only
-1–5 months. Without baselines the engine fails on 39% of the catalogue —
-and there is no reference to measure whether complex models earn their
-complexity.
+models that all need ≥ 24 points, but not every product in a real catalogue
+has that much non-zero history. Without baselines the engine would fail
+outright on the sparser part of any catalogue — and there'd be no reference
+to measure whether complex models earn their complexity at all.
 
-**2. Eligibility by non-zero points, not series length.** Every product has
-exactly 44 points, so a length criterion says every product qualifies for
-SARIMA. They don't.
+**2. Eligibility by non-zero points, not series length.** Every product in
+this demo has exactly 44 points, so a length criterion alone says every
+product qualifies for SARIMA. They don't — 44 mostly-zero points is not the
+same as 44 points of signal.
 
-### The measured result (43 products with ≥ 24 non-zero months)
+### The measured result — corrected
+
+> **A correction, stated plainly.** This section used to cite a table
+> measured on "43 products with ≥ 24 non-zero months" from what it called
+> "the validation catalogue." That catalogue no longer exists in this
+> repository — `data/data.json` today has **29 products total**, so a
+> 43-product subset of it is arithmetically impossible. The claim had
+> quietly gone stale, undetected, until a direct question about the
+> engine's accuracy prompted someone to actually re-run the measurement
+> instead of re-reading the old prose. Replaced below with what
+> [`scripts/measure_model_accuracy.py`](../scripts/measure_model_accuracy.py)
+> measures on the catalogue that actually ships today — rerunnable any time
+> the engine or the demo data changes, not hand-copied again.
+
+**28 of 29 demo products are evaluable** (one is entirely dead — zero sales
+in all 44 months, no model applies):
 
 | Model | Wins | Mean rank |
 |---|---|---|
-| MovingAverage | 10 | **2.47** |
-| Naive | **16** | 3.05 |
-| RandomForest | 6 | 3.65 |
-| XGBoost | 8 | 4.16 |
-| ETS | 1 | 4.63 |
-| Prophet | **0** | 4.81 |
-| SARIMA | 2 | 5.23 |
+| Naive | 6 (21%) | 5.69 |
+| Prophet | 5 (18%) | **3.91** |
+| XGBoost | 5 (18%) | 4.65 |
+| ETS | 4 (14%) | **3.65** |
+| Croston | 4 (14%) | 5.81 |
+| TSB | 2 (7%) | 5.54 |
+| SARIMA | 1 (4%) | 4.74 |
+| MovingAverage | 1 (4%) | 5.15 |
+| RandomForest | 0 (0%) | 4.26 |
 
-**Naive models win 60% of cases on the richest data available.** Prophet
-never won. Not an implementation flaw — it is what the data says: 44 monthly
-points cannot support learning complex patterns. The real value of this
-phase is that the system now **knows and measures that**, instead of
-assuming complex means better.
+**No model dominates.** Naive holds a slim plurality of individual wins, but
+Prophet and XGBoost win nearly as often, and ETS/Prophet have the *best*
+mean ranks of all nine — the opposite of "complex models never help" this
+section used to claim. The winning model beats the naive baseline (FVA > 0)
+on 85% of evaluable products. The honest reading isn't "simple wins" or
+"complex wins" — it's that **no single family is right often enough to
+justify skipping the other eight**, which is the actual argument for
+running all nine and measuring, not assuming.
 
 ### Documented deviation
 
