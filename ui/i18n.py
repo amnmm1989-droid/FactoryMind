@@ -408,20 +408,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Could not recognise the product column or the stock column "
               "in this file.",
     },
-    "error.no_actuals_columns": {
-        "ar": "لم يُفهَم عمود المنتج أو الشهر أو الكمية في هذا الملف.",
-        "en": "Could not recognise the product, month, or quantity column "
-              "in this file.",
-    },
-    "error.no_customer_columns": {
-        "ar": "لم يُفهَم عمود المنتج أو العميل أو الشهر أو الكمية في هذا الملف.",
-        "en": "Could not recognise the product, customer, month, or "
-              "quantity column in this file.",
-    },
-    "error.no_customers": {
-        "ar": "لا عملاء صالحون في الملف.",
-        "en": "No valid customers in the file.",
-    },
     "error.too_few_months": {
         "ar": "{months} {unit} فقط — الحد الأدنى {minimum}.",
         "en": "Only {months} {unit} — the minimum is {minimum}.",
@@ -961,11 +947,6 @@ STRINGS: dict[str, dict[str, str]] = {
               "متعددة، غالباً).",
         "en": "{count} duplicate rows for the same product — their stock was "
               "summed (likely multiple warehouses).",
-    },
-    "warn.customer_duplicate_rows": {
-        "ar": "{count} صفاً مكرّراً (منتج+عميل+شهر) — جُمعت كمياتها.",
-        "en": "{count} duplicate rows (product+customer+month) — their "
-              "quantities were summed.",
     },
     "warn.dropped_columns": {
         "ar": "{count} عموداً لم يُفهَم كتاريخ فأُهمل: {names}",

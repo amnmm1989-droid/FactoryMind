@@ -78,6 +78,49 @@ def test_no_key_is_orphaned():
     assert orphans == [], f"مفاتيح لا يستدعيها أحد: {orphans}"
 
 
+def test_no_error_or_warning_key_outlives_the_code_that_raised_it():
+    """test_no_key_is_orphaned له عمى بنيوي هنا تحديداً: "error.{code}" و
+    "warn.{code}" يُستثنيان من اليتم بمجرّد وجود نمط f"error.{{" أو
+    'warn.' + في أي مكان — وهذا النمط نفسه حاضر دوماً في ui/i18n.py
+    وui/data_source.py بغضّ النظر عن أي "code" بعينه لا يزال يُنتَج فعلاً.
+
+    فحُذفت services/ingest.py::parse_customer_upload وparse_actuals_upload
+    (Customer Intelligence وProduction Planning، حُذفتا سويّاً)، وبقيت
+    أربعة مفاتيح تصف رسائل لا يمكن لأي كود اليوم أن يُنتج شرطها: يتم غير
+    مرئي لاختبار اليتم العام، مرئي فقط حين يُطابَق "code" الفعلي المذكور
+    في STRINGS مع "code" الحقيقي الذي لا يزال يُرفَع في الكود.
+
+    هذا الاختبار يقرأ الرمز الحرفي بعد كل "error." أو "warn." في STRINGS،
+    ويتحقّق أنه ما زال يُرفَع فعلاً كـ context={"code": "..."} أو
+    Warning_("...", ...) في مكان ما من الكود.
+    """
+    everywhere = [
+        path
+        for path in Path(".").rglob("*.py")
+        if ".venv" not in str(path) and "__pycache__" not in str(path)
+        and path != Path("ui/i18n.py")
+    ]
+    source = "\n".join(p.read_text(encoding="utf-8") for p in everywhere)
+
+    raised_error_codes = set(re.findall(r'"code":\s*"([a-z_]+)"', source))
+    raised_warning_codes = set(re.findall(r'Warning_\(\s*"([a-z_]+)"', source))
+
+    dead = []
+    for key in STRINGS:
+        if key.startswith("error."):
+            code = key[len("error."):]
+            if code not in raised_error_codes:
+                dead.append(key)
+        elif key.startswith("warn."):
+            code = key[len("warn."):]
+            if code not in raised_warning_codes:
+                dead.append(key)
+
+    assert dead == [], (
+        f"مفاتيح error./warn. لا يرفعها أي كود بعد الآن: {dead}"
+    )
+
+
 def test_the_browser_tab_title_is_translated():
     """العنوان يتبع الرابط، ولا يعود نصاً مثبَّتاً بلغة واحدة."""
     assert i18n.STRINGS["app.title"]["ar"] != i18n.STRINGS["app.title"]["en"]
