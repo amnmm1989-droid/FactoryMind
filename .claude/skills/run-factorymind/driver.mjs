@@ -95,8 +95,8 @@ async function launch() {
  * إلى الرئيسية — التي هي executive نفسها، فيبدو كل شيء سليماً.
  */
 const PAGES = [
-  '', 'forecasting', 'production-planning',
-  'product-intelligence', 'advanced-analytics',
+  '', 'forecasting', 'product-intelligence',
+  'advanced-analytics', 'purchase-plan',
 ];
 const PAGE_LABEL = (path) => path || 'executive (الجذر)';
 

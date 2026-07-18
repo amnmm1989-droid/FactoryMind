@@ -91,7 +91,7 @@ print(forecast_product(name, series, steps=3, use_cache=False).best_model_name)
 ## Run (agent path) — الواجهة
 
 خمس صفحات (`st.navigation`): `executive` (الافتراضية) · `forecasting` ·
-`production-planning` · `product-intelligence` · `advanced-analytics`.
+`product-intelligence` · `advanced-analytics` · `purchase-plan`.
 
 ```bash
 node .claude/skills/run-factorymind/driver.mjs pages              # يزور الخمس ويلتقط لقطة لكل واحدة
@@ -108,11 +108,11 @@ node .claude/skills/run-factorymind/driver.mjs flow               # تدفق: ت
 استثناءً. مخرجات حقيقية:
 
 ```
-executive (الجذر)         4 مؤشر   0 رسم  📊 النظرة التنفيذية    ok
-forecasting               4 مؤشر   1 رسم  🔮 التنبؤ              ok
-production-planning       0 مؤشر   0 رسم  🏭 تخطيط الإنتاج       ok
-product-intelligence      6 مؤشر   2 رسم  🧠 ذكاء المنتج         ok
-advanced-analytics       17 مؤشر   5 رسم  🔮 نظام تحليل وتنبؤ    ok
+executive (الجذر)         4 مؤشر   0 رسم  النظرة التنفيذية       ok
+forecasting               4 مؤشر   1 رسم  التنبؤ                 ok
+product-intelligence      6 مؤشر   2 رسم  ذكاء المنتج            ok
+advanced-analytics       17 مؤشر   5 رسم  نظام تحليل وتنبؤ       ok
+purchase-plan              4 مؤشر   0 رسم  خطة الشراء             ok
 ```
 
 `flow` يذهب تلقائياً إلى `advanced-analytics` — الصفحة الوحيدة التي تملك
