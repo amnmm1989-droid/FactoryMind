@@ -47,6 +47,9 @@ class PurchaseOrderLine:
     risk_level: str
     confidence_note: str | None  # "cold_start" | "recently_dormant" | None
     reason: str
+    urgency: str | None = None  # "urgent" | "can_wait" | None (بلا مهلة توريد معروفة)
+    unit_price: float | None = None
+    total_cost: float | None = None
 
 
 @dataclass
@@ -73,11 +76,34 @@ def _confidence_note(series: Sequence[float], profile) -> str | None:
     return None
 
 
+def _urgency(
+    current_stock: float | None, forecast_values: Sequence[float],
+    horizon_months: int, lead_time_days: int | None,
+) -> str | None:
+    """"اطلب الآن" أم "يمكن الانتظار"؟ — تقدير أولوية لا نظام نقطة إعادة
+    طلب كامل: يقارن أيام تغطية المخزون الحالي بمهلة التوريد المُدخَلة
+    يدوياً، دون افتراض تباين تلك المهلة (يحتاج سجل أوامر شراء حقيقي غير
+    متوفر بعد — راجع docs/ROADMAP.md).
+
+    None حين تنقص مدخلاته (لا مخزون معروف، لا مهلة أُدخلت، أو لا طلب
+    متوقَّع لتُقاس عليه أيام التغطية) — لا صفراً موهماً بعدم إلحاح.
+    """
+    if lead_time_days is None or current_stock is None:
+        return None
+    period_demand = sum(forecast_values[:horizon_months]) / horizon_months if horizon_months else 0
+    if period_demand <= 0:
+        return None
+    days_of_stock = (current_stock / period_demand) * 30
+    return "urgent" if days_of_stock <= lead_time_days else "can_wait"
+
+
 def build_purchase_plan(
     products: dict[str, Sequence[float]],
     *,
     horizon_months: int,
     inventory: dict[str, InventoryStatus] | None = None,
+    prices: dict[str, float] | None = None,
+    lead_time_days: int | None = None,
     granularity: str = "monthly",
     use_fast_models: bool = True,
     on_progress: Callable[[int, int, str], None] | None = None,
@@ -87,6 +113,13 @@ def build_purchase_plan(
     الكمية لكل سطر = مجموع الطلب المتوقَّع خلال horizon_months، ناقص
     المخزون الحالي إن عُرف (نفس منطق recommend_production بالحرف — هذا
     غلاف يكرره على الكتالوج كاملاً بأفق قابل للاختيار).
+
+    prices: {اسم المنتج: سعر الوحدة}، إن وُجد عمود سعر اختياري في ملف
+        المخزون. منتج غائب عن القاموس (أو القاموس None كله) يمرّ بلا
+        تكلفة محسوبة — نفس معاملة inventory تماماً، غياب لا صفر.
+    lead_time_days: مهلة توريد نمطية واحدة تُطبَّق على كل الكتالوج (رقم
+        يدخله المستخدم يدوياً، لا ملف) — تكفي لتصنيف كل سطر "اطلب الآن"
+        أم "يمكن الانتظار"، راجع _urgency.
 
     منتج بلا بيانات كافية (AppError) يُسجَّل في plan.skipped ولا يُسقط
     الخطة كاملة — نفس مبدأ services/batch.py.
@@ -114,13 +147,19 @@ def build_purchase_plan(
                 name, list(series), engine_result.best, product_inventory,
                 horizon_months=horizon_months, granularity=granularity,
             )
+            current_stock = (
+                product_inventory.current_stock if product_inventory else None
+            )
+            unit_price = prices.get(name) if prices else None
+            total_cost = (
+                recommendation.recommended_quantity * unit_price
+                if unit_price is not None else None
+            )
             plan.lines.append(PurchaseOrderLine(
                 product_name=name,
                 horizon_months=horizon_months,
                 recommended_quantity=recommendation.recommended_quantity,
-                current_stock=(
-                    product_inventory.current_stock if product_inventory else None
-                ),
+                current_stock=current_stock,
                 demand_class=(
                     engine_result.profile.demand_class.value
                     if engine_result.profile else "unknown"
@@ -130,6 +169,12 @@ def build_purchase_plan(
                 risk_level=recommendation.risk.level.value,
                 confidence_note=_confidence_note(series, engine_result.profile),
                 reason=recommendation.reason,
+                urgency=_urgency(
+                    current_stock, engine_result.best.forecast_values,
+                    horizon_months, lead_time_days,
+                ),
+                unit_price=unit_price,
+                total_cost=total_cost,
             ))
         except AppError as exc:
             plan.skipped.append((name, exc.message))

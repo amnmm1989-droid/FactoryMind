@@ -20,7 +20,7 @@ import streamlit as st
 
 from config import MAX_FORECAST_STEPS
 from services.decision_engine import PurchaseOrderLine, build_purchase_plan
-from ui.data_source import active_granularity, active_inventory
+from ui.data_source import active_granularity, active_inventory, active_prices
 from ui.i18n import t
 
 DEFAULT_HORIZON_MONTHS = 6
@@ -33,10 +33,11 @@ RESULT_KEY = "_purchase_plan_result"
 PARAMS_KEY = "_purchase_plan_params"
 
 
-def _signature(products: dict[str, list[float]], inventory) -> str:
+def _signature(products: dict[str, list[float]], inventory, prices: dict[str, float]) -> str:
     """بصمة البيانات — نفس مبدأ executive.py::_dataset_signature بالحرف:
     تتغيّر بتغيّر الأرقام لا الأسماء فقط، فرفع ملف محدَّث يُبطل الخطة
-    القديمة بدل عرضها كأنها لا تزال صحيحة."""
+    القديمة بدل عرضها كأنها لا تزال صحيحة. الأسعار تدخل البصمة لنفس
+    السبب: ملف مخزون جديد بأسعار محدَّثة يجب أن يُعيد حساب التكلفة."""
     import hashlib
 
     digest = hashlib.sha256()
@@ -50,6 +51,12 @@ def _signature(products: dict[str, list[float]], inventory) -> str:
         digest.update(name.encode("utf-8"))
         digest.update(b"|")
         digest.update(f"{inventory[name].current_stock:.4f}".encode("utf-8"))
+        digest.update(b"\n")
+    for name in sorted(prices):
+        digest.update(b"price:")
+        digest.update(name.encode("utf-8"))
+        digest.update(b"|")
+        digest.update(f"{prices[name]:.4f}".encode("utf-8"))
         digest.update(b"\n")
     return digest.hexdigest()
 
@@ -70,6 +77,13 @@ def _to_frame(lines: list[PurchaseOrderLine]) -> pd.DataFrame:
             t("common.model"): line.model_name,
             t("common.wape"): f"{line.wape:.0f}%" if line.wape is not None else "—",
             t("common.level"): t(f"risk.{line.risk_level}"),
+            t("pplan.col_urgency"): t(f"urgency.{line.urgency}") if line.urgency else "—",
+            t("pplan.col_price"): (
+                f"{line.unit_price:,.2f}" if line.unit_price is not None else "—"
+            ),
+            t("pplan.col_cost"): (
+                f"{line.total_cost:,.0f}" if line.total_cost is not None else "—"
+            ),
             t("pplan.col_note"): _confidence_label(line.confidence_note),
         }
         for line in lines
@@ -103,6 +117,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     st.caption(t("pplan.subtitle"))
 
     inventory = active_inventory()
+    prices = active_prices()
     granularity = active_granularity()
 
     with st.sidebar:
@@ -111,6 +126,10 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             t("pplan.horizon_label"), min_value=1, max_value=MAX_FORECAST_STEPS,
             value=DEFAULT_HORIZON_MONTHS, step=1, help=t("pplan.horizon_help"),
         )
+        lead_time_days = st.number_input(
+            t("pplan.lead_time_label"), min_value=0, value=0, step=1,
+            help=t("pplan.lead_time_help"),
+        )
         full_family = st.checkbox(
             t("common.all_nine_models"), value=False, help=t("common.all_nine_help"),
         )
@@ -118,8 +137,8 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             t("pplan.compute"), icon=":material/refresh:", use_container_width=True
         )
 
-    current_signature = _signature(products, inventory)
-    current_params = (int(horizon), full_family, granularity, current_signature)
+    current_signature = _signature(products, inventory, prices)
+    current_params = (int(horizon), int(lead_time_days), full_family, granularity, current_signature)
 
     if compute:
         progress = st.progress(0.0, text=t("exec.computing"))
@@ -129,6 +148,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
         plan = build_purchase_plan(
             products, horizon_months=int(horizon), inventory=inventory,
+            prices=prices, lead_time_days=int(lead_time_days) or None,
             granularity=granularity, use_fast_models=not full_family,
             on_progress=on_progress,
         )
@@ -160,6 +180,14 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         t("pplan.kpi_total_qty"),
         f"{sum(line.recommended_quantity for line in active_lines):,.0f}",
     )
+
+    priced_lines = [line for line in active_lines if line.total_cost is not None]
+    if priced_lines:
+        st.caption(t(
+            "pplan.kpi_total_cost",
+            total=sum(line.total_cost for line in priced_lines),
+            priced=len(priced_lines), total_lines=len(active_lines),
+        ))
 
     if not inventory:
         st.caption(t("pplan.no_stock_note"))

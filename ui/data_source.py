@@ -131,6 +131,20 @@ def active_inventory() -> dict[str, InventoryStatus] | None:
     }
 
 
+def active_prices() -> dict[str, float]:
+    """أسعار وحدة الجلسة الحالية، من عمود سعر اختياري في ملف المخزون.
+
+    {} لا استثناء: أغلب ملفات المخزون لا تحمل عمود سعر (اختياري بالكامل)،
+    وهذا متوقَّع لا نقص — خطة الشراء (services/decision_engine/
+    purchase_plan.py) تتعامل مع {} بصمت فلا يظهر عمود التكلفة أصلاً حين
+    لا أسعار معروفة، بدل تكلفة صفرية موهمة.
+    """
+    snapshot: StockSnapshot | None = st.session_state.get(SESSION_KEY_STOCK)
+    if snapshot is None:
+        return {}
+    return snapshot.prices
+
+
 def clear_stock_upload() -> None:
     st.session_state.pop(SESSION_KEY_STOCK, None)
 

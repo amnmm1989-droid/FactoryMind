@@ -1295,6 +1295,19 @@ STRINGS: dict[str, dict[str, str]] = {
               "quantity differs per product based on its own forecast, "
               "not the horizon itself.",
     },
+    "pplan.lead_time_label": {
+        "ar": "مهلة التوريد النمطية (أيام) — اختياري",
+        "en": "Typical supplier lead time (days) — optional",
+    },
+    "pplan.lead_time_help": {
+        "ar": "0 يعني غير معروفة. رقم واحد يُطبَّق على كل المنتجات — تقدير "
+              "أولوية تقريبي، لا نظام نقطة إعادة طلب حقيقي (يحتاج مهلة "
+              "خاصة بكل مورّد وتباينها، غير متوفرة بعد).",
+        "en": "0 means unknown. One number applied to every product — a "
+              "rough priority estimate, not a real reorder-point system "
+              "(that needs per-supplier lead time and its variability, "
+              "not available yet).",
+    },
     "pplan.compute": {"ar": "احسب خطة الشراء", "en": "Compute purchase plan"},
     "pplan.empty": {
         "ar": "اضبط عدد الأشهر واضغط \"احسب خطة الشراء\" من الشريط الجانبي.",
@@ -1348,6 +1361,15 @@ STRINGS: dict[str, dict[str, str]] = {
     "pplan.col_class": {"ar": "تصنيف الطلب", "en": "Demand class"},
     "pplan.col_note": {"ar": "ملاحظة", "en": "Note"},
     "pplan.col_reason": {"ar": "السبب", "en": "Reason"},
+    "pplan.col_urgency": {"ar": "الأولوية", "en": "Priority"},
+    "pplan.col_price": {"ar": "سعر الوحدة", "en": "Unit price"},
+    "pplan.col_cost": {"ar": "التكلفة التقديرية", "en": "Estimated cost"},
+    "urgency.urgent": {"ar": "🔴 اطلب الآن", "en": "🔴 Order now"},
+    "urgency.can_wait": {"ar": "🟢 يمكن الانتظار", "en": "🟢 Can wait"},
+    "pplan.kpi_total_cost": {
+        "ar": "الإنفاق التقديري: {total:,.0f} (لـ {priced} من {total_lines} منتجاً بسعر معروف)",
+        "en": "Estimated spend: {total:,.0f} ({priced} of {total_lines} products with a known price)",
+    },
     "pplan.sheet_orders": {"ar": "أوامر الشراء", "en": "Purchase Orders"},
     "pplan.sheet_excluded": {"ar": "مستبعد", "en": "Excluded"},
     "pplan.sheet_skipped": {"ar": "بلا تقييم", "en": "Not Evaluated"},

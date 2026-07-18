@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import pytest
+
 from services.decision_engine.purchase_plan import (
     COLD_START_MAX_NON_ZERO,
     RECENT_DORMANCY_WINDOW,
@@ -50,8 +52,6 @@ def test_insufficient_data_is_skipped_not_dropped_silently():
 
 
 def test_invalid_horizon_raises():
-    import pytest
-
     with pytest.raises(ValueError):
         build_purchase_plan({"م": _smooth_series()}, horizon_months=0)
 
@@ -103,3 +103,74 @@ def test_current_stock_is_recorded_and_deducted_when_inventory_known():
     assert without_stock.current_stock is None
     assert with_stock.current_stock == 1000.0
     assert with_stock.recommended_quantity <= without_stock.recommended_quantity
+
+
+def _inventory_with_stock(product: str, stock: float):
+    from domain.entities import InventoryStatus
+
+    return {
+        product: InventoryStatus(
+            product_name=product, current_stock=stock, minimum_stock=0.0,
+            safety_stock=0.0, reorder_point=0.0, lead_time_days=0,
+        )
+    }
+
+
+def test_urgency_is_none_without_lead_time_or_stock():
+    """بلا مهلة توريد مُدخَلة أو بلا مخزون معروف — لا حكم أولوية، لا تخمين."""
+    series = _smooth_series()
+
+    no_lead_time = build_purchase_plan(
+        {"م": series}, horizon_months=3, inventory=_inventory_with_stock("م", 100.0),
+    ).lines[0]
+    no_stock = build_purchase_plan(
+        {"م": series}, horizon_months=3, lead_time_days=30,
+    ).lines[0]
+
+    assert no_lead_time.urgency is None
+    assert no_stock.urgency is None
+
+
+def test_urgency_flags_urgent_when_stock_covers_less_than_lead_time():
+    """مخزون يكفي أياماً أقل من مهلة التوريد — اطلب الآن."""
+    series = _smooth_series(base=300.0)  # طلب شهري مرتفع نسبياً
+
+    plan = build_purchase_plan(
+        {"م": series}, horizon_months=3,
+        inventory=_inventory_with_stock("م", 10.0),  # مخزون ضئيل جداً
+        lead_time_days=60,
+    )
+
+    assert plan.lines[0].urgency == "urgent"
+
+
+def test_urgency_flags_can_wait_when_stock_covers_more_than_lead_time():
+    """مخزون يغطي أياماً أكثر من مهلة التوريد بكثير — يمكن الانتظار."""
+    series = _smooth_series(base=10.0)  # طلب شهري منخفض
+
+    plan = build_purchase_plan(
+        {"م": series}, horizon_months=3,
+        inventory=_inventory_with_stock("م", 10000.0),  # مخزون ضخم
+        lead_time_days=5,
+    )
+
+    assert plan.lines[0].urgency == "can_wait"
+
+
+def test_unit_price_and_total_cost_computed_when_price_known():
+    series = _smooth_series()
+    plan = build_purchase_plan(
+        {"م": series}, horizon_months=3, prices={"م": 12.5},
+    )
+
+    line = plan.lines[0]
+    assert line.unit_price == 12.5
+    assert line.total_cost == pytest.approx(line.recommended_quantity * 12.5)
+
+
+def test_unit_price_is_none_when_price_unknown():
+    plan = build_purchase_plan({"م": _smooth_series()}, horizon_months=3)
+
+    line = plan.lines[0]
+    assert line.unit_price is None
+    assert line.total_cost is None

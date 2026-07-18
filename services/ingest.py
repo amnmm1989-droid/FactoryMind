@@ -82,6 +82,12 @@ STOCK_HINTS = (
     "المخزون", "الرصيد", "الكمية المتاحة", "الكمية الحالية",
 )
 
+# عمود سعر الوحدة — اختياري بالكامل في ملف المخزون، لخطة الشراء
+# (services/decision_engine/purchase_plan.py) فقط: يحوّل كمية موصى بها
+# إلى تكلفة تقديرية. غيابه لا يمنع رفع الملف — نفس مبدأ CATEGORY_HINTS:
+# معلومة إضافية اختيارية، لا شرط.
+PRICE_HINTS = ("price", "unit price", "unit cost", "cost", "السعر", "سعر الوحدة", "التكلفة")
+
 # عمود العميل — البُعد الثالث (ملف المبيعات حسب العميل، Roadmap بند 5).
 CUSTOMER_HINTS = (
     "customer", "client", "account", "buyer", "sold to", "sold-to",
@@ -158,6 +164,10 @@ class StockSnapshot:
 
     levels: dict[str, float]              # {اسم المنتج: المخزون الحالي}
     warnings: list[Warning_] = field(default_factory=list)
+    # {} لا تعني فشلاً — تعني أن الملف لا يحمل عمود سعر، وهذا متوقَّع؛
+    # نفس مبدأ categories في Dataset. منتج غائب هنا يُستبعد من حساب
+    # التكلفة في خطة الشراء لا يُحتسب بسعر صفر مخترَع.
+    prices: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -618,11 +628,17 @@ def to_csv_template() -> bytes:
 
 
 def _stock_from_columns(
-    frame: pd.DataFrame, product_column: str, stock_column: str
+    frame: pd.DataFrame, product_column: str, stock_column: str,
+    price_column: str | None = None,
 ) -> StockSnapshot:
     """من عمودين معلومَي الاسم إلى {منتج: مخزون} — تخميناً أو يدوياً، كما
     _from_long لملف المبيعات. الجمع عند التكرار لا الأخذ الأول: صفّان
     لنفس المنتج غالباً مستودعان لا خطأ إدخال، ومخزونهما الحقيقي مجموعهما.
+
+    price_column اختياري بالكامل — لا يشارك في اكتشاف الشكل ولا يُرفَض
+    غيابه، كـ CATEGORY_HINTS في ملف المبيعات. حين يوجد: أول قيمة غير
+    فارغة لكل منتج تُؤخَذ سعره — السعر صفة شبه ثابتة للمنتج لا قيمة
+    تتكرر لتُجمَع كالمخزون.
     """
     warnings: list[Warning_] = []
     duplicates = int(frame.duplicated(subset=[product_column]).sum())
@@ -652,11 +668,22 @@ def _stock_from_columns(
             "لا منتجات صالحة في ملف المخزون", context={"code": "no_products"}
         )
 
-    return StockSnapshot(levels=levels, warnings=warnings)
+    prices: dict[str, float] = {}
+    if price_column is not None:
+        first_price = pd.to_numeric(
+            frame.groupby(product_column)[price_column].first(), errors="coerce"
+        )
+        for name, value in first_price.items():
+            label = str(name).strip()
+            if label and label in levels and pd.notna(value) and value >= 0:
+                prices[label] = float(value)
+
+    return StockSnapshot(levels=levels, warnings=warnings, prices=prices)
 
 
 def parse_stock_upload(content: bytes, filename: str) -> StockSnapshot:
-    """قراءة ملف مخزون (عمودان: منتج + مخزون حالي) — الأعمدة تُخمَّن بالاسم.
+    """قراءة ملف مخزون (عمودان: منتج + مخزون حالي، وعمود سعر اختياري
+    ثالث) — الأعمدة تُخمَّن بالاسم.
 
     Raises:
         DataValidationError: ملف غير مقروء، أو فارغ، أو تعذّر تخمين عمود
@@ -678,7 +705,8 @@ def parse_stock_upload(content: bytes, filename: str) -> StockSnapshot:
             context={"code": "no_stock_columns", "columns": columns[:6]},
         )
 
-    return _stock_from_columns(frame, product_column, stock_column)
+    price_column = _find_column(columns, PRICE_HINTS)
+    return _stock_from_columns(frame, product_column, stock_column, price_column)
 
 
 def parse_stock_upload_with_mapping(
@@ -709,11 +737,13 @@ def parse_stock_upload_with_mapping(
 
 
 def stock_csv_template() -> bytes:
-    """نموذج فارغ لملف المخزون — عمودان لا أكثر."""
+    """نموذج فارغ لملف المخزون — عمودان إلزاميان، وعمود سعر اختياري ثالث
+    (يُستخدم في خطة الشراء لحساب التكلفة التقديرية إن وُجد)."""
     frame = pd.DataFrame(
         {
             "المنتج": ["Hydraulic Pump 50mm", "Safety Valve 2in"],
             "المخزون الحالي": [50, 0],
+            "سعر الوحدة (اختياري)": [120.0, 45.0],
         }
     )
     return frame.to_csv(index=False).encode("utf-8-sig")

@@ -740,14 +740,34 @@ def test_negative_stock_is_clipped_to_zero_and_warned():
     assert any(w.code == "negatives" for w in snapshot.warnings)
 
 
-def test_stock_template_has_the_two_expected_columns():
+def test_stock_template_has_the_two_required_columns_plus_optional_price():
     import io
 
     import pandas as pd
 
     frame = pd.read_csv(io.BytesIO(stock_csv_template()), encoding="utf-8-sig")
 
-    assert list(frame.columns) == ["المنتج", "المخزون الحالي"]
+    assert list(frame.columns) == ["المنتج", "المخزون الحالي", "سعر الوحدة (اختياري)"]
+
+
+def test_stock_file_with_a_price_column_populates_prices():
+    data = csv(
+        "Product,Current Stock,Unit Price\n"
+        "Hydraulic Pump,50,120.5\n"
+        "Safety Valve,0,45\n"
+    )
+
+    snapshot = parse_stock_upload(data, "stock_with_price.csv")
+
+    assert snapshot.levels == {"Hydraulic Pump": 50.0, "Safety Valve": 0.0}
+    assert snapshot.prices == {"Hydraulic Pump": 120.5, "Safety Valve": 45.0}
+
+
+def test_stock_file_without_a_price_column_leaves_prices_empty():
+    """لا عمود سعر = {} لا فشل — نفس مبدأ الفئة الاختيارية في ملف المبيعات."""
+    snapshot = parse_stock_upload(STOCK_CSV, "stock.csv")
+
+    assert snapshot.prices == {}
 
 
 # ---------------------------------------------------------------------------
