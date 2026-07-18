@@ -107,6 +107,29 @@ def test_to_frame_shows_a_dash_when_wape_was_never_computed():
 
 
 # ---------------------------------------------------------------------------
+# انحدار وجده تشغيل حقيقي: اختيار قديم في session_state بعد رفع ملف جديد
+# ---------------------------------------------------------------------------
+def test_stale_selected_products_does_not_crash_the_sidebar():
+    """رفع ملف جديد بمنتجات مختلفة تماماً بعد اختيار سابق محفوظ في
+    session_state كان يرفع StreamlitAPIException — القيمة الافتراضية
+    (منتج من الرفع السابق) لم تعد ضمن خيارات الرفع الجديد."""
+    from streamlit.testing.v1 import AppTest
+
+    def script() -> None:
+        from ui.pages.advanced_analytics import render
+
+        months = ["2026-01", "2026-02", "2026-03"]
+        products = {"New Product A": [1.0, 2.0, 3.0], "New Product B": [4.0, 5.0, 6.0]}
+        render(months, products)
+
+    at = AppTest.from_function(script, default_timeout=30)
+    at.session_state["selected_products"] = ["Bearing Assembly Type A"]
+    at.run()
+
+    assert not at.exception
+
+
+# ---------------------------------------------------------------------------
 # العقد مع app.py
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("module_name", PAGE_MODULES)

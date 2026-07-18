@@ -12,11 +12,14 @@ def render_sidebar(months, product_names):
     with st.sidebar:
         st.header(t("old.control_panel"))
 
-        # اختيار المنتج (متعدد)
+        # اختيار المنتج (متعدد) — session_state قد يحمل اختياراً من رفع
+        # سابق بمنتجات مختلفة تماماً؛ التصفية هنا تمنع StreamlitAPIException
+        # عند تمرير قيمة افتراضية لم تعد ضمن الخيارات الحالية.
+        valid_previous = [p for p in st.session_state.selected_products if p in product_names]
         selected_products = st.multiselect(
             t("old.select_products"),
             product_names,
-            default=st.session_state.selected_products if st.session_state.selected_products else [product_names[0]]
+            default=valid_previous if valid_previous else [product_names[0]]
         )
         st.session_state.selected_products = selected_products
 
