@@ -11,7 +11,7 @@
 
 **FactoryMind belongs to no single row entirely.** Its philosophy is closest
 to Netstock (SMB, no implementation expert required) but it is free and open
-like frePPLe, and its forecast engine (8 models + demand classification) is
+like frePPLe, and its forecast engine (9 models + demand classification) is
 deeper than what any SMB tool publicly exposes.
 
 ## What each segment does excellently — that we don't yet

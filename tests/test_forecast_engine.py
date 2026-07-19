@@ -639,3 +639,42 @@ def test_fva_uses_the_same_metric_the_winner_was_selected_by():
             naive_eval.metrics.cumulative_error - winner_eval.metrics.cumulative_error
         )
         assert result.best.fva == pytest.approx(expected)
+
+
+# ---------------------------------------------------------------------------
+# الوثائق لا تنحرف عن السجل
+# ---------------------------------------------------------------------------
+def test_the_documented_model_count_matches_the_registry():
+    """عدد النماذج المذكور في الوثائق يجب أن يساوي المسجَّل فعلاً.
+
+    الانحدار الذي يحرسه: حُذف SARIMA فصار العدد ثمانية وحُدِّثت الوثائق،
+    ثم أُضيف ADIDA فصار تسعة — وبقيت الوثائق تقول ثمانية في خمسة مواضع.
+    اختبار الأيتام يلتقط مفتاحاً *غير مستعمَل*، ولا يلتقط رقماً *مستعمَلاً*
+    كفّ عن الصدق. هذا يلتقطه.
+    """
+    import re
+    from pathlib import Path
+
+    actual = len(default_models())
+    documented = []
+    for path in [Path("README.md"), Path("docs/ARCHITECTURE.md"),
+                 Path("docs/READINESS_1_MARKET.md")]:
+        if not path.exists():
+            continue
+        for match in re.finditer(r"(\d+) models\b", path.read_text(encoding="utf-8")):
+            documented.append((str(path), int(match.group(1))))
+
+    wrong = [(p, n) for p, n in documented if n != actual]
+    assert wrong == [], (
+        f"الوثائق تقول {wrong} بينما السجل فيه {actual} نموذجاً"
+    )
+
+
+def test_every_registered_model_is_named_in_the_readme():
+    """نموذج يعمل ولا تذكره الوثائق = ميزة لا يعرف بها المشتري."""
+    from pathlib import Path
+
+    readme = Path("README.md").read_text(encoding="utf-8")
+    missing = [m.name for m in default_models() if m.name not in readme]
+
+    assert missing == [], f"نماذج مسجَّلة غائبة عن README: {missing}"

@@ -43,8 +43,8 @@ gated behind an owner decision (accounts).
 Most forecasting tools promise "95% accuracy". This one tells you when
 forecasting will **not** help you.
 
-We run eight models (ETS, Prophet, XGBoost, RandomForest, Croston,
-TSB, and two naive baselines) on the bundled demo catalogue and measure the
+We run nine models (Naive, MovingAverage, Croston, TSB, ADIDA, ETS,
+Prophet, XGBoost, RandomForest) on the bundled demo catalogue and measure the
 outcome — reproducible any time with
 [`scripts/measure_model_accuracy.py`](scripts/measure_model_accuracy.py),
 not a number frozen in prose:
@@ -174,7 +174,7 @@ migrations/            NNN_*.sql — sole owner of the database schema
 repositories/          Data access (products/sales, forecasts, recommendations, plans)
 services/
   ingest.py            Reads and validates the user's file (CSV/Excel)
-  forecast_engine/     8 models + demand classification + evidence-based selection
+  forecast_engine/     9 models + demand classification + evidence-based selection
   risk_service/        0–100 risk from five factors (unknown = None, never 0)
   decision_engine/     Forecast → production recommendation
   batch.py             Whole-catalogue computation
