@@ -272,6 +272,7 @@ STRINGS: dict[str, dict[str, str]] = {
     },
     "common.product": {"ar": "المنتج", "en": "Product"},
     "common.quantity": {"ar": "الكمية", "en": "Quantity"},
+    "common.period": {"ar": "الفترة", "en": "Period"},
     "common.risk": {"ar": "الخطورة", "en": "Risk"},
     "common.level": {"ar": "المستوى", "en": "Level"},
     "common.model": {"ar": "النموذج", "en": "Model"},
@@ -779,13 +780,13 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": ":material/analytics: Advanced Analytics",
     },
     "adv.notice": {
-        "ar": "هذه الصفحة تُشغّل **ETS** دائماً — ترتيبه الثامن من تسعة على "
-              "هذا الكتالوج. لاختيار النموذج بالأدلة استخدم صفحة **التنبؤ**. "
-              "تبقى هنا لتحليلاتها الإحصائية (الارتباط، التوزيع، الموسمية).",
-        "en": "This page always runs **ETS** — which ranks 8th of 9 on this "
-              "catalogue. For evidence-based model selection use **Forecasting**. "
-              "It stays for its statistical analyses (correlation, distribution, "
-              "seasonality).",
+        "ar": "هذه الصفحة **وصفية**: تستكشف التاريخ الفعلي وتُصدّره — مقارنة "
+              "منتجات، كشف قيم شاذة، وإحصاءات وصفية. **لا تتنبّأ**: التنبؤ "
+              "يختار نموذجه بالأدلة في صفحة **التنبؤ**.",
+        "en": "This page is **descriptive**: it explores and exports actual "
+              "history — product comparison, outlier detection, and summary "
+              "statistics. It does **not** forecast: model selection is "
+              "evidence-based on the **Forecasting** page.",
     },
 
     # ---- الشريط الجانبي القديم (التحليل المتقدّم) ----
@@ -799,26 +800,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Please select at least one product",
     },
     "old.month_range": {"ar": "النطاق ({many})", "en": "Range ({many})"},
-    "old.forecast_settings": {
-        "ar": ":material/settings: إعدادات التنبؤ",
-        "en": ":material/settings: Forecast settings",
-    },
-    "old.forecast_months": {"ar": "عدد {many} للتنبؤ", "en": "{many} to forecast"},
-    "old.show_confidence": {"ar": "عرض فترات الثقة", "en": "Show confidence intervals"},
-    "old.forecast_model": {"ar": "نموذج التنبؤ", "en": "Forecast model"},
     # قيم لا تسميات — الكود يقارن بالرمز، والتسمية تُشتقّ منه.
     # قبل هذا كان dashboard.py يقارن بالنص الحرفي "SARIMA (إذا توفر)"،
     # فترجمة التسمية كانت ستكسر المقارنة بصمت: SARIMA لا يعمل، بلا خطأ.
-    "model.ets": {"ar": "ETS (التنعيم الأسي)", "en": "ETS (exponential smoothing)"},
-    "model.sarima": {"ar": "SARIMA (إذا توفر)", "en": "SARIMA (if available)"},
-    "old.extra_analyses": {
-        "ar": ":material/checklist: تحليلات إضافية",
-        "en": ":material/checklist: Extra analyses",
-    },
-    "old.trend": {"ar": "تحليل الاتجاه", "en": "Trend analysis"},
-    "old.seasonal": {"ar": "التحليل الموسمي", "en": "Seasonal analysis"},
-    "old.correlation": {"ar": "مصفوفة الارتباط بين المنتجات", "en": "Product correlation matrix"},
-    "old.distribution": {"ar": "تحليل التوزيع الإحصائي", "en": "Statistical distribution"},
     "old.outliers": {"ar": "كشف النقاط الشاذة", "en": "Outlier detection"},
     "old.run": {"ar": "تشغيل التحليل المتقدم", "en": "Run advanced analysis"},
 
@@ -836,56 +820,28 @@ STRINGS: dict[str, dict[str, str]] = {
     "old.nonzero_months": {"ar": "{many} (>0)", "en": "{many} (>0)"},
     "old.cv": {"ar": "معامل الاختلاف", "en": "Coefficient of variation"},
     "old.last_value": {"ar": "آخر قيمة", "en": "Last value"},
-    "old.first_forecast": {
-        "ar": "قيمة التنبؤ (أول فترة)",
-        "en": "Forecast (first period)",
-    },
-    "old.accuracy_metrics": {
-        "ar": ":material/target: مقاييس دقة التنبؤ (ETS)",
-        "en": ":material/target: Forecast accuracy metrics (ETS)",
-    },
-    "old.trend_analysis": {
-        "ar": ":material/trending_up: تحليل الاتجاه",
-        "en": ":material/trending_up: Trend analysis",
-    },
-    "old.direction": {"ar": "الاتجاه", "en": "Direction"},
-    "old.slope": {"ar": "الميل (لكل فترة)", "en": "Slope (per period)"},
-    "old.r_squared": {"ar": "R² (قوة النموذج)", "en": "R² (fit strength)"},
-    "old.p_value": {"ar": "قيمة p (الدلالة)", "en": "p-value (significance)"},
     "old.outliers_found": {
         "ar": "تم اكتشاف {count} نقطة شاذة ({many}: {months})",
         "en": "{count} outliers detected ({many}: {months})",
     },
     "old.main_chart": {
-        "ar": ":material/show_chart: الاتجاه الفعلي والتنبؤ",
-        "en": ":material/show_chart: Actual trend and forecast",
+        "ar": ":material/show_chart: التاريخ الفعلي",
+        "en": ":material/show_chart: Actual history",
     },
     # لا أيقونة هنا عمداً: تُستهلَك كعنوان رسم Plotly (ui/charts.py) لا
     # عنصر Streamlit — رمز :material/...: لن يُعرَض هناك كأيقونة بل كنص خام.
-    "old.correlation_title": {"ar": "مصفوفة الارتباط", "en": "Correlation matrix"},
-    "old.seasonal_title": {
-        "ar": ":material/calendar_month: التحليل الموسمي (٤ مقاطع متساوية من المدى)",
-        "en": ":material/calendar_month: Seasonal analysis (4 equal segments of the range)",
-    },
-    "old.distribution_title": {
-        "ar": ":material/bar_chart: تحليل التوزيع الإحصائي",
-        "en": ":material/bar_chart: Statistical distribution",
-    },
     "old.details_table": {
         "ar": ":material/table_chart: البيانات التفصيلية مع التغيرات",
         "en": ":material/table_chart: Detailed data with changes",
     },
     "old.export": {"ar": "⬇️ تصدير التقارير", "en": "⬇️ Export reports"},
     "old.download_csv": {"ar": "⬇ تحميل CSV (البيانات الفعلية)", "en": "⬇ Download CSV (actual data)"},
-    "old.download_excel": {"ar": "⬇ تحميل Excel (مع التنبؤ)", "en": "⬇ Download Excel (with forecast)"},
+    "old.download_excel": {"ar": "⬇ تحميل Excel", "en": "⬇ Download Excel"},
+    "old.sheet_data": {"ar": "البيانات", "en": "Data"},
     "old.no_outliers": {"ar": "لم يتم اكتشاف نقاط شاذة", "en": "No outliers detected"},
     "old.comparison_selected": {
         "ar": ":material/compare_arrows: مقارنة المنتجات المختارة",
         "en": ":material/compare_arrows: Selected product comparison",
-    },
-    "old.correlation_products": {
-        "ar": ":material/link: مصفوفة الارتباط بين المنتجات",
-        "en": ":material/link: Product correlation matrix",
     },
     "old.footer": {
         "ar": "نظام تحليل وتنبؤ متقدم – يعمل بنماذج ETS، SARIMA، والانحدار الخطي",
@@ -954,32 +910,14 @@ STRINGS: dict[str, dict[str, str]] = {
     },
 
     # ---- الاتجاه (من models/statistics.py) ----
-    "trend.up": {"ar": "📈 صاعد", "en": "📈 Rising"},
-    "trend.down": {"ar": "📉 هابط", "en": "📉 Falling"},
-    "trend.flat": {"ar": "➡️ مستقر", "en": "➡️ Flat"},
 
     # ---- الرسوم والجداول ----
-    "chart.series": {"ar": "النوع", "en": "Series"},
-    "chart.ets_forecast": {"ar": "تنبؤ ETS", "en": "ETS forecast"},
-    "chart.sarima_forecast": {"ar": "تنبؤ SARIMA", "en": "SARIMA forecast"},
-    "chart.trend_and_forecast": {
-        "ar": "الاتجاه والتنبؤ - {product}",
-        "en": "Trend and forecast - {product}",
+    "chart.history_of": {
+        "ar": "التاريخ الفعلي - {product}",
+        "en": "Actual history - {product}",
     },
     "chart.outliers": {"ar": "نقاط شاذة", "en": "Outliers"},
-    "chart.lower": {"ar": "حد أدنى 95%", "en": "Lower 95%"},
     "chart.performance_comparison": {"ar": "مقارنة الأداء", "en": "Performance comparison"},
-    "chart.quarter": {"ar": "المقطع", "en": "Segment"},
-    "chart.average": {"ar": "المتوسط", "en": "Average"},
-    "chart.quarterly_average": {"ar": "متوسط الكمية لكل مقطع", "en": "Average quantity per segment"},
-    "chart.q1": {"ar": "المقطع 1", "en": "Segment 1"},
-    "chart.q2": {"ar": "المقطع 2", "en": "Segment 2"},
-    "chart.q3": {"ar": "المقطع 3", "en": "Segment 3"},
-    "chart.q4": {"ar": "المقطع 4", "en": "Segment 4"},
-    "chart.histogram": {"ar": "مدرج تكراري", "en": "Histogram"},
-    "chart.frequency": {"ar": "التكرار", "en": "Frequency"},
-    "chart.boxplot": {"ar": "صندوق الحظائر (Boxplot)", "en": "Boxplot"},
-    "chart.density": {"ar": "منحنى الكثافة", "en": "Density curve"},
     "table.change": {"ar": "التغير عن السابق", "en": "Change vs previous"},
     "table.change_pct": {"ar": "نسبة التغير", "en": "Change %"},
     "table.cumulative": {"ar": "التغير التراكمي", "en": "Cumulative"},

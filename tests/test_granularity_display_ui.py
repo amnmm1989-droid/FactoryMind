@@ -39,14 +39,9 @@ def _render(page_module: str, gran: str) -> AppTest:
         import importlib
 
         import streamlit as st
-        # الصفحة القديمة (advanced_analytics) تقرأ مفاتيح جلسة يهيّئها
-        # app.py؛ نهيّئها هنا كي تُختبَر بمعزل عن app.py.
-        for key, default in [
-            ("show_seasonal", True), ("show_correlation", True),
-            ("show_distribution", True), ("show_trend", True),
-            ("selected_products", []),
-        ]:
-            st.session_state.setdefault(key, default)
+        # عرض المحلّل يقرأ مفتاح جلسة يهيّئه app.py؛ نهيّئه هنا كي تُختبَر
+        # الصفحة بمعزل عن app.py.
+        st.session_state.setdefault("selected_products", [])
         ds = st.session_state["_ds"]
         importlib.import_module(st.session_state["_page"]).render(
             ds.months, ds.products
@@ -125,8 +120,8 @@ def test_advanced_analytics_labels_follow_the_granularity(gran, unit_plural, uni
     )
 
     assert f"{unit_cap} (>0)" in everything          # مقياس "أشهر (>0)" سابقاً
-    assert f"{unit_cap} to forecast" in everything    # شريط التنبؤ
     assert f"Range ({unit_plural})" in everything      # نطاق المدى
+    assert f"{unit_plural})" in everything             # تذييل "(26 weeks)"
     # لا تسرّب "month/شهر" في أي تسمية لملف غير شهري — بعد إسقاط أسماء
     # أيقونات material (":material/calendar_month:" تحمل "month" كاسم رمز
     # لا كنص مرئي للمستخدم).

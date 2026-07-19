@@ -514,26 +514,38 @@ quarterly/yearly) and `tests/test_i18n.py::test_non_monthly_labels_are_not_colla
 
 **The legacy page too — ✅ done.** Advanced Analytics wraps the older
 dashboard (`ui/dashboard.py` + `ui/sidebar.py` + `ui/charts.py` +
-`ui/tables.py`), which said "Months (>0)", "Months to forecast", "per month"
-and a chart x-axis of "Month" regardless of the file. `granularity` now
-threads from `active_granularity()` through `render_sidebar`/`render_dashboard`
-into `analyze_product` → `prepare_forecast_months`, so:
-
-- Metric, slider, and footer labels name the file's unit
-  (`granularity.many.*` for "Weeks (>0)"/"Quarters to forecast",
-  `granularity.unit.*` for the counted "26 weeks"); the two genuinely
-  period-agnostic labels ("first period", "per period") read generically.
-- `prepare_forecast_months` steps by the real period (a weekly file's
-  forecast is `W13 2023…`, not `2026-04`); the monthly default is byte-for-
-  byte unchanged, preserving its test contract.
-- Chart axes and the details-table column use `granularity.one.*`.
-- The "seasonal (by quarter)" section is relabelled "4 equal segments" — its
-  computation always split the range into four equal chunks, never calendar
-  quarters, so the old wording was wrong at every granularity.
+`ui/tables.py`), which said "Months (>0)", "per month" and a chart x-axis of
+"Month" regardless of the file. `granularity` now threads from
+`active_granularity()` through `render_sidebar`/`render_dashboard`, so metric,
+slider, and footer labels name the file's unit (`granularity.many.*` for
+"Weeks (>0)", `granularity.unit.*` for the counted "26 weeks"), and chart axes
+and the details-table column use `granularity.one.*`.
 
 Verified live across weekly/quarterly/yearly with zero "month" leakage;
-covered by `tests/test_granularity_display_ui.py::test_advanced_analytics_labels_follow_the_granularity`
-and `tests/test_ingest.py::test_forecast_labels_step_by_the_files_granularity`.
+covered by `tests/test_granularity_display_ui.py::test_advanced_analytics_labels_follow_the_granularity`.
+
+## 1b. Trimming the analyst view ✅
+
+Then the page was **cut down**, ahead of selling the tool to real factories.
+Each removed section was removed for a measured reason, not for tidiness:
+
+| Removed | Why it was worse than nothing |
+|---|---|
+| "Seasonal analysis" | Split the range into four equal chunks and averaged them. That is not seasonality (it has no relation to position-in-cycle) — it said nothing at any granularity |
+| Product correlation matrix | On series that are 80–95% zeros (this catalogue), correlations are mostly spurious — and the danger is that a planner acts on one |
+| Distribution charts | The "distribution" of an intermittent series is a spike at zero; a density curve over it is meaningless |
+| Trend analysis (slope/R²/p) | Linear regression over lumpy zero-heavy data yields numbers that look scientific and are fragile — false precision |
+| ETS/SARIMA forecast | **Two forecasting paths meant two different numbers for the same product on two pages** — fatal in front of a factory betting on the number. And ETS ranks 8th of 9 here |
+
+What survives is what genuinely has no equivalent on the other four pages:
+multi-product comparison, outlier detection, summary statistics, and a raw
+exportable table. The page is now **descriptive only** — "what happened" —
+while "what will happen" belongs to the evidence-based Forecasting page.
+
+Dead code removed with it: `models/forecasting.py` (the second forecast
+path), `services/analytics.prepare_seasonal_data` /
+`prepare_forecast_months`, and 40 orphaned i18n keys. `models/statistics.py`
+stays — `trend_analysis` still feeds the risk engine.
 
 **Why now:** it was structural, and every feature built on the month
 assumption raised its cost. Without it, the claim "fits all manufacturing"

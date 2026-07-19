@@ -34,16 +34,11 @@ st.set_page_config(
     initial_sidebar_state=INITIAL_SIDEBAR_STATE,
 )
 
-# session_state للصفحة القديمة — ui/sidebar.py يقرأها كما كان
-for key, default in [
-    ("show_seasonal", True),
-    ("show_correlation", True),
-    ("show_distribution", True),
-    ("show_trend", True),
-    ("selected_products", []),
-]:
-    if key not in st.session_state:
-        st.session_state[key] = default
+# session_state لعرض المحلّل — ui/sidebar.py يقرأها.
+# مفاتيح show_seasonal/show_correlation/show_distribution/show_trend حُذفت
+# مع الأقسام التي كانت تتحكّم بها (راجع ui/dashboard.py).
+if "selected_products" not in st.session_state:
+    st.session_state["selected_products"] = []
 
 
 # المبدّل قبل كل شيء: زائر لا يقرأ العربية يجب أن يجد المخرج قبل أن

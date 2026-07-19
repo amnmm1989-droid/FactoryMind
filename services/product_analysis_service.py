@@ -1,23 +1,21 @@
 # services/product_analysis_service.py
 """
-Service Layer لتحليل منتج واحد.
+Service Layer لاستكشاف تاريخ منتج واحد — لا تنبؤ.
 
-هذا الملف يحل محل الاستدعاء المباشر لـ models.forecasting /
-models.statistics / services.analytics من داخل ui/dashboard.py.
+## لماذا لا تنبؤ هنا (قرار نطاق صريح)
 
-قبل Phase 1:
-    ui/dashboard.py يستدعي forecast_ets, forecast_sarima, trend_analysis,
-    detect_outliers_iqr, compute_basic_stats مباشرة ويتعامل مع قواميس خام.
+كانت هذه الطبقة تُشغّل ETS دائماً (+SARIMA اختيارياً) لتغذية صفحة
+Advanced Analytics. أُزيل ذلك عمداً لسببين قِيسا لا خُمِّنا:
 
-بعد Phase 1:
-    ui/dashboard.py يستدعي analyze_product() مرة واحدة ويحصل على
-    ProductAnalysis (كائن domain واحد يحمل كل شيء)، والأخطاء تُسجَّل
-    مركزياً عبر core.logging_config بدل st.warning المباشر داخل منطق
-    الحساب.
+1. **ETS ترتيبه الثامن من تسعة** على هذا الكتالوج المتقطّع. تشغيل نموذج
+   واحد ثابت بينما `services/forecast_engine` يختار من تسعة بالأدلة
+   (backtesting) كان أسوأ بلا مبرّر.
+2. **مساران للتنبؤ = رقمان مختلفان لنفس المنتج على صفحتين**. أمام مصنع
+   يبني قراره على الرقم، هذا يقتل الثقة. الآن مسار واحد فقط:
+   `services/forecast_engine` عبر صفحة التنبؤ.
 
-⚠️ لم يتم تعديل أي دالة داخل models/ أو services/analytics.py — هذه
-الطبقة تُغلّفها فقط (Wrapper)، حفاظاً على عقد الاختبارات الحالية
-(tests/test_models.py) كما هو دون أي تغيير.
+فصارت هذه الطبقة **وصفية بحتة**: ماذا حدث فعلاً في التاريخ المحدّد.
+والسؤال "ماذا سيحدث؟" له صفحته المبنية على الأدلة.
 """
 from __future__ import annotations
 
@@ -25,43 +23,31 @@ from dataclasses import dataclass
 
 from core.exceptions import InsufficientDataError
 from core.logging_config import get_logger
-from domain.entities import ForecastResult, OutlierReport, ProductStats, TrendAnalysis
-from models.forecasting import forecast_ets, forecast_sarima
-from models.statistics import detect_outliers_iqr, trend_analysis
-from services.analytics import compute_basic_stats, prepare_forecast_months
+from domain.entities import OutlierReport, ProductStats
+from models.statistics import detect_outliers_iqr
+from services.analytics import compute_basic_stats
 
 logger = get_logger(__name__)
 
 
 @dataclass
 class ProductAnalysis:
-    """نتيجة تحليل منتج واحد جاهزة للعرض مباشرة في أي واجهة (Streamlit
-    الحالية أو أي واجهة مستقبلية)."""
+    """وصف تاريخ منتج واحد ضمن نطاق زمني — جاهز للعرض مباشرة."""
     product_name: str
     selected_months: list
     series: list
     stats: ProductStats
-    forecast_months: list
-    ets: ForecastResult
-    sarima_values: list | None = None
-    trend: TrendAnalysis | None = None
     outliers: OutlierReport | None = None
 
 
 def analyze_product(
     product_name: str,
-    full_months: list,
     selected_months: list,
     series: list,
-    to_idx: int,
-    forecast_steps: int,
     *,
-    include_sarima: bool = False,
-    include_trend: bool = True,
     include_outliers: bool = True,
-    granularity: str = "monthly",
 ) -> ProductAnalysis:
-    """يُشغّل التحليل الكامل لمنتج واحد ضمن نطاق زمني محدد.
+    """يصف تاريخ منتج واحد ضمن نطاق زمني محدد.
 
     Raises:
         InsufficientDataError: إذا كانت السلسلة فارغة (لا بيانات في
@@ -70,50 +56,12 @@ def analyze_product(
     if not series:
         raise InsufficientDataError(
             "لا توجد بيانات لهذا المنتج ضمن النطاق الزمني المحدد",
-            context={"product": product_name, "to_idx": to_idx},
+            context={"product": product_name},
         )
 
-    # ----- إحصائيات أساسية -----
     raw_stats = compute_basic_stats(series)
     stats = ProductStats(product_name=product_name, **raw_stats)
 
-    # ----- التنبؤ ETS (دائماً) -----
-    forecast_vals, lower_vals, upper_vals, metrics, ets_error = forecast_ets(
-        series, steps=forecast_steps
-    )
-    if ets_error:
-        logger.warning("ETS forecast warning | product=%s | %s", product_name, ets_error)
-
-    ets_result = ForecastResult(
-        product_name=product_name,
-        model_name="ETS",
-        forecast_values=list(forecast_vals),
-        lower_bound=list(lower_vals),
-        upper_bound=list(upper_vals),
-        mae=metrics.get("MAE") if metrics else None,
-        rmse=metrics.get("RMSE") if metrics else None,
-        mape=metrics.get("MAPE") if metrics else None,
-    )
-
-    # ----- SARIMA (اختياري) -----
-    sarima_values = None
-    if include_sarima:
-        sarima_forecast, sarima_error = forecast_sarima(series, steps=forecast_steps)
-        if sarima_error:
-            logger.warning("SARIMA forecast warning | product=%s | %s", product_name, sarima_error)
-        sarima_values = list(sarima_forecast) if sarima_forecast is not None else None
-
-    forecast_months = prepare_forecast_months(
-        to_idx, full_months, forecast_steps, granularity
-    )
-
-    # ----- تحليل الاتجاه (اختياري) -----
-    trend = None
-    if include_trend:
-        raw_trend = trend_analysis(series)
-        trend = TrendAnalysis(product_name=product_name, **raw_trend)
-
-    # ----- القيم الشاذة (اختياري) -----
     outliers = None
     if include_outliers:
         idx_list, lower_bound, upper_bound = detect_outliers_iqr(series)
@@ -125,8 +73,7 @@ def analyze_product(
         )
 
     logger.info(
-        "Product analyzed | product=%s | points=%d | forecast_steps=%d | sarima=%s",
-        product_name, len(series), forecast_steps, include_sarima,
+        "Product described | product=%s | points=%d", product_name, len(series)
     )
 
     return ProductAnalysis(
@@ -134,9 +81,5 @@ def analyze_product(
         selected_months=selected_months,
         series=series,
         stats=stats,
-        forecast_months=forecast_months,
-        ets=ets_result,
-        sarima_values=sarima_values,
-        trend=trend,
         outliers=outliers,
     )
