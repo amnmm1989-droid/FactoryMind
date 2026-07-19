@@ -1026,8 +1026,14 @@ STRINGS: dict[str, dict[str, str]] = {
               "absent data, and seasonality computed over them is unreliable.",
     },
     "warn.non_numeric": {
-        "ar": "{count} خلية غير رقمية عوملت كصفر.",
-        "en": "{count} non-numeric cells were treated as zero.",
+        # المنتجات مسمّاة لا معدودة فقط: الاستبدال بصفر يغيّر التوصية،
+        # و"خليتان غير رقميتين" على كتالوج من 185 منتجاً لا تقول أين يُنظر.
+        "ar": "{count} خلية غير رقمية عوملت كصفر — في {product_count} منتج "
+              "({products}). راجعها: صفرٌ مكان بيعٍ حقيقي يجعل المنتج يبدو "
+              "متوقّفاً.",
+        "en": "{count} non-numeric cells were treated as zero — across "
+              "{product_count} product(s) ({products}). Check them: a zero "
+              "standing in for a real sale makes the product look discontinued.",
     },
     "warn.negatives": {
         "ar": "{count} قيمة سالبة (مرتجعات؟) — رُفعت إلى صفر. "

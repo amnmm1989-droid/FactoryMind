@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from datetime import date
 
+import io
+
+import pandas as pd
 import pytest
 
 from core.exceptions import DataValidationError
@@ -860,3 +863,84 @@ def test_stock_file_without_a_price_column_leaves_prices_empty():
     snapshot = parse_stock_upload(STOCK_CSV, "stock.csv")
 
     assert snapshot.prices == {}
+
+
+# ---------------------------------------------------------------------------
+# فواصل الآلاف — فقد صامت وجده اختبار ملفات غريبة، لا الاختبارات
+# ---------------------------------------------------------------------------
+def test_thousand_separators_are_read_not_zeroed():
+    """أخطر عطل وجده الفحص: "1,200" نصّاً كانت تصير صفراً بصمت.
+
+    والنمط أسوأ من العطل: الفاصلة لا تظهر إلا فوق الألف، فيُمحى بالضبط
+    ما فوق الألف ويبقى ما دونه — منتج يبيع 1,200 شهرياً يُقرأ ميتاً،
+    فتوصي الأداة بإنتاج صفر منه.
+    """
+    frame = pd.DataFrame({
+        "Product": ["A"],
+        "Jan 2024": ["1,200"], "Feb 2024": ["1,100"], "Mar 2024": ["950"],
+    })
+
+    dataset = parse_upload(_excel_bytes(frame), "t.xlsx")
+
+    assert dataset.products["A"] == [1200.0, 1100.0, 950.0]
+    assert not dataset.warnings, "قراءة سليمة يجب ألا تُنتج تحذيراً"
+
+
+def test_arabic_indic_digits_are_read():
+    """تصديرات ERP بواجهة عربية تكتب بها أحياناً."""
+    frame = pd.DataFrame({
+        "Product": ["A"],
+        "Jan 2024": ["٥٠٠"], "Feb 2024": ["٦٠٠"], "Mar 2024": [700],
+    })
+
+    dataset = parse_upload(_excel_bytes(frame), "t.xlsx")
+
+    assert dataset.products["A"] == [500.0, 600.0, 700.0]
+
+
+def test_an_ambiguous_separator_is_refused_not_guessed():
+    """"1,20" تعني 1.20 أوروبياً ولا شيء معرَّفاً عربياً. التخمين هنا أسوأ
+    من الرفض — فتبقى غير مقروءة ويُحذَّر منها باسم منتجها."""
+    frame = pd.DataFrame({
+        "Product": ["A"],
+        "Jan 2024": ["1,20"], "Feb 2024": [5], "Mar 2024": [6],
+    })
+
+    dataset = parse_upload(_excel_bytes(frame), "t.xlsx")
+
+    assert dataset.products["A"][0] == 0.0
+    assert any(w.code == "non_numeric" for w in dataset.warnings)
+
+
+def test_the_non_numeric_warning_names_the_affected_products():
+    """"خليتان غير رقميتين" على 185 منتجاً لا تقول لأحد أين ينظر."""
+    frame = pd.DataFrame({
+        "Product": ["Good", "Bad"],
+        "Jan 2024": [1, "oops"], "Feb 2024": [2, 5], "Mar 2024": [3, 6],
+    })
+
+    dataset = parse_upload(_excel_bytes(frame), "t.xlsx")
+
+    warning = next(w for w in dataset.warnings if w.code == "non_numeric")
+    assert "Bad" in warning.params["products"]
+    assert "Good" not in warning.params["products"]
+    assert warning.params["product_count"] == 1
+
+
+def test_both_upload_paths_share_one_number_parser():
+    """ملف المبيعات وملف المخزون مرّا بمسارين منفصلين لنفس التحويل، فكان
+    العطل نفسه في كليهما. حارس ضدّ عودة الازدواج."""
+    import inspect
+
+    from services import ingest
+
+    source = inspect.getsource(ingest)
+    assert 'pd.to_numeric(' not in source.replace(
+        "return pd.to_numeric(data.map(_clean_number), errors=\"coerce\")", ""
+    ), "كل تحويل رقمي يجب أن يمرّ بـ ingest.to_numeric"
+
+
+def _excel_bytes(frame) -> bytes:
+    buffer = io.BytesIO()
+    frame.to_excel(buffer, index=False)
+    return buffer.getvalue()

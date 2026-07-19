@@ -90,6 +90,61 @@ PRICE_HINTS = ("price", "unit price", "unit cost", "cost", "السعر", "سعر
 
 MIN_MONTHS = 3  # أقل من ذلك لا يُنتج تنبؤاً ذا معنى بأي نموذج
 
+# الأرقام العربية-الهندية: تصديرات ERP بواجهة عربية تكتب بها أحياناً.
+_ARABIC_INDIC = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+# تجميع آلاف لا لبس فيه: مجموعات ثلاثية بعد الفاصلة الأولى، وكسر اختياري.
+# "1,200" و"1,200.50" و"12,345,678" — نعم. "1,20" و"1,2345" — لا، فتُترك
+# لـ to_numeric ترفضها بدل تخمين المعنى.
+_THOUSANDS = re.compile(r"^-?\d{1,3}(,\d{3})+(\.\d+)?$")
+
+# فراغ يفصل الآلاف (شائع في تصديرات أوروبية): "1 200"، وبمسافة غير فاصلة.
+_SPACED_THOUSANDS = re.compile(r"^-?\d{1,3}([   ]\d{3})+(\.\d+)?$")
+
+
+def _clean_number(value):
+    """تطبيع نصّ رقمي قبل التحويل — ما لا يُطبَّع يُترك ليُرفَض.
+
+    ⚠️ يسدّ فقداً صامتاً للبيانات وجده اختبار ملفات غريبة، لا الاختبارات:
+    خلية "1,200" نصّاً كانت تصير **صفراً**، لأن `to_numeric(errors=
+    "coerce")` يُرجع NaN ثم `fillna(0.0)` يبتلعه. النتيجة أسوأ من الخطأ:
+
+      قرأت الأداة   A = [0.0, 0.0, 950.0]
+      وفي الملف     A = [1,200, 1,100, 950]
+
+    والنمط هو الأخطر: الأرقام التي تتجاوز الألف وحدها هي التي تحمل فاصلة،
+    فيُمحى **بالضبط** ما فوق الألف ويبقى ما دونه. منتج يبيع 1,200 شهرياً
+    يُقرأ ميتاً، فتوصي الأداة بإنتاج صفر منه. ولا شيء يصرخ: تحذير
+    non_numeric عامّ يقول "قيمتان" بلا اسم منتج ولا ذكرَ أنهما استُبدلتا
+    بصفر.
+
+    وفواصل الآلاف شائعة في تصديرات Excel من أنظمة ERP — أي أن هذا كان
+    ينتظر أول ملف مصنع حقيقي.
+
+    القاعدة محافِظة عمداً: تُزال الفاصلة فقط حين يكون التجميع ثلاثياً بلا
+    لبس. "1,20" تبقى كما هي فتُرفَض بصوت، لأن معناها يختلف بين لغة وأخرى
+    (1.20 أوروبياً، ولا شيء معرَّفاً عربياً) والتخمين هنا أسوأ من الرفض.
+    """
+    if not isinstance(value, str):
+        return value
+    text = value.strip().translate(_ARABIC_INDIC)
+    if not text:
+        return value
+    if _THOUSANDS.match(text):
+        return text.replace(",", "")
+    if _SPACED_THOUSANDS.match(text):
+        return re.sub(r"[   ]", "", text)
+    return text
+
+
+def to_numeric(data):
+    """`pd.to_numeric` مسبوقاً بالتطبيع — المدخل الوحيد للأرقام هنا.
+
+    مرَّ ملف المبيعات وملف المخزون بمسارين منفصلين لنفس التحويل، فكان
+    العطل نفسه في كليهما. بابٌ واحد يمنع أن يُصلَح أحدهما دون الآخر.
+    """
+    return pd.to_numeric(data.map(_clean_number), errors="coerce")
+
 # الحبيبة الزمنية: الفارق النمطي بالأيام -> الاسم. مُشتقّة من
 # config.GRANULARITY_DAYS بالعكس — مصدر واحد للحقيقة، لا نسخة مستقلة قد
 # تنحرف عنها.
@@ -510,10 +565,19 @@ def _finalize(
             "granularity": granularity,
         }))
 
-    numeric = pivoted.apply(pd.to_numeric, errors="coerce")
-    non_numeric = int(numeric.isna().sum().sum() - pivoted.isna().sum().sum())
+    numeric = pivoted.apply(to_numeric)
+    # ما تعذّر قراءته يصير صفراً — وهو استبدال يغيّر التوصية، فيجب أن
+    # يُسمّى المنتج المتأثّر لا أن يُعدّ فقط. تحذير "قيمتان غير رقميتين"
+    # على كتالوج فيه 185 منتجاً لا يقول لأحد أين ينظر.
+    unreadable = numeric.isna() & pivoted.notna()
+    non_numeric = int(unreadable.sum().sum())
     if non_numeric > 0:
-        warnings.append(Warning_("non_numeric", {"count": non_numeric}))
+        affected = [str(name) for name in pivoted.index[unreadable.any(axis=1)]]
+        warnings.append(Warning_("non_numeric", {
+            "count": non_numeric,
+            "products": "، ".join(affected[:4]),
+            "product_count": len(affected),
+        }))
     numeric = numeric.fillna(0.0)
 
     negatives = int((numeric < 0).sum().sum())
@@ -668,10 +732,17 @@ def _stock_from_columns(
         warnings.append(Warning_("stock_duplicate_rows", {"count": duplicates}))
 
     grouped = frame.groupby(product_column)[stock_column].sum()
-    numeric = pd.to_numeric(grouped, errors="coerce")
+    numeric = to_numeric(grouped)
     non_numeric = int(numeric.isna().sum())
     if non_numeric:
-        warnings.append(Warning_("non_numeric", {"count": non_numeric}))
+        # نفس عقد الوسائط الذي يستعمله مسار المبيعات: الرمز واحد فيجب أن
+        # يكون النصّ قابلاً للتنسيق من كليهما.
+        affected = [str(name) for name in numeric.index[numeric.isna()]]
+        warnings.append(Warning_("non_numeric", {
+            "count": non_numeric,
+            "products": "، ".join(affected[:4]),
+            "product_count": len(affected),
+        }))
     numeric = numeric.fillna(0.0)
 
     negatives = int((numeric < 0).sum())
@@ -692,8 +763,8 @@ def _stock_from_columns(
 
     prices: dict[str, float] = {}
     if price_column is not None:
-        first_price = pd.to_numeric(
-            frame.groupby(product_column)[price_column].first(), errors="coerce"
+        first_price = to_numeric(
+            frame.groupby(product_column)[price_column].first()
         )
         for name, value in first_price.items():
             label = str(name).strip()
