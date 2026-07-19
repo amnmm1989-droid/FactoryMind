@@ -13,6 +13,7 @@ from typing import Sequence
 
 import config
 
+from .aggregation import ADIDAForecaster
 from .base import Forecaster
 from .intermittent import CrostonForecaster, TSBForecaster
 from .naive import MovingAverageForecaster, NaiveForecaster
@@ -44,6 +45,7 @@ def default_models(granularity: str = "monthly") -> list[Forecaster]:
         MovingAverageForecaster(),
         CrostonForecaster(),
         TSBForecaster(),
+        ADIDAForecaster(),
         ETSForecaster(seasonal_periods=seasonal_periods, freq=freq),
         ProphetForecaster(
             freq=freq, seasonal_periods=seasonal_periods,

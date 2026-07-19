@@ -453,13 +453,16 @@ def test_applicable_models_shrink_as_data_thins():
 
     تحديث: كانت السلسلة الشحيحة تحصل على الأساس وحده. أضافت مرحلة الطلب
     المتقطّع نموذجَي Croston و TSB — وهما مبنيان لهذه الحالة تحديداً،
-    فوجودهما هنا هو الغرض لا استثناء منه.
+    فوجودهما هنا هو الغرض لا استثناء منه. وADIDA كذلك: التجميع الزمني
+    أداة السلاسل الشحيحة بالضبط.
     """
     rich = applicable_models(SEASONAL)
     poor = applicable_models(SPARSE)
 
     assert len(poor) < len(rich)
-    assert {m.name for m in poor} == {"Naive", "MovingAverage", "Croston", "TSB"}
+    assert {m.name for m in poor} == {
+        "Naive", "MovingAverage", "Croston", "TSB", "ADIDA",
+    }
     assert not {"ETS", "Prophet", "XGBoost", "RandomForest"} & {
         m.name for m in poor
     }

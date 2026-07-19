@@ -660,3 +660,44 @@ loss, exactly as "no single family is right often enough" predicts.
 Covered by `tests/test_forecast_engine.py::test_seasonal_models_skip_intermittent_demand`
 and `::test_an_intermittent_series_still_gets_a_forecast` (the speed-up must
 never become a failure — intermittent series keep their own models).
+
+## 1d. ADIDA — temporal aggregation ✅
+
+The daily export is **95% zeros**, the weekly 87%. At that density the question
+"how much on this particular day?" has no answer — not because the model is
+weak, but because the data does not carry it. ADIDA changes the question:
+aggregate into buckets of `k` periods (so the zeros are absorbed and the signal
+appears), forecast there, then disaggregate evenly back.
+
+`services/forecast_engine/aggregation.py` wraps a base forecaster (Croston by
+default). Bucket size is `round(ADI)` — a bucket the width of the average gap
+holds roughly one demand — clamped so the aggregated series never gets shorter
+than the base model needs. Aggregation is **end-aligned**: the incomplete
+remainder is trimmed from the *oldest* data, so the most recent periods always
+form complete buckets (trimming the other end would make the last bucket a
+short sum, dropping the forecast for a purely arithmetic reason).
+
+**Scope:** intermittent/lumpy only. On smooth demand aggregation blurs detail
+that is already visible, so `can_handle` declines it.
+
+### Measured cost — free, and structurally so
+
+| Model | ms per product |
+|---|---|
+| SARIMA (removed) | ~32,000 |
+| XGBoost / Prophet | ~200 |
+| ETS | ~110 |
+| Croston / TSB | ~0 |
+| **ADIDA** | **0.00** |
+
+Zero is not a rounding artefact: aggregation hands the base model a series
+`n/k` long, so it does *less* work than forecasting the original, and the
+bucket/unbucket steps are O(n) numpy. It is therefore in the **fast default
+set**, not behind the "all models" toggle.
+
+### Measured benefit — it earns its place exactly where predicted
+
+On the fast default set, ADIDA wins **3 of 20 products on the daily file** —
+the sparsest one, which is precisely the case it was added for. On weekly and
+monthly it wins nothing and costs nothing. That asymmetry is the honest result:
+temporal aggregation pays off where density collapses, and is inert elsewhere.

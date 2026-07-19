@@ -117,10 +117,14 @@ def test_batch_records_elapsed_time(catalogue, migrated_db):
 
 
 def test_fast_models_exclude_the_heavy_family():
-    """سبب وجود الوضع السريع: 9 نماذج × كتالوج كامل = دقائق لا ثوانٍ."""
+    """سبب وجود الوضع السريع: كل النماذج × كتالوج كامل = دقائق لا ثوانٍ.
+
+    ADIDA ضمن السريعة: قِيس بـ0.00 ms للتشغيل (يجمّع فيرى الأساسُ سلسلة
+    أقصر)، ومصمَّم لـ84% من هذا الكتالوج — راجع aggregation.py.
+    """
     names = {m.name for m in fast_models()}
 
-    assert names == {"Naive", "MovingAverage", "Croston", "TSB"}
+    assert names == {"Naive", "MovingAverage", "Croston", "TSB", "ADIDA"}
     assert not names & {"Prophet", "XGBoost", "RandomForest", "ETS"}
 
 

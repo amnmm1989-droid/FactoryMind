@@ -36,6 +36,7 @@ def fast_models() -> list[Forecaster]:
     تكفي 84% من هذا الكتالوج (المتقطّع) حيث تفوز أصلاً — راجع
     docs/ROADMAP.md. العائلة الكاملة تبقى خياراً صريحاً للمستخدم.
     """
+    from services.forecast_engine.aggregation import ADIDAForecaster
     from services.forecast_engine.intermittent import CrostonForecaster, TSBForecaster
     from services.forecast_engine.naive import MovingAverageForecaster, NaiveForecaster
 
@@ -44,6 +45,7 @@ def fast_models() -> list[Forecaster]:
         MovingAverageForecaster(),
         CrostonForecaster(),
         TSBForecaster(),
+        ADIDAForecaster(),
     ]
 
 
