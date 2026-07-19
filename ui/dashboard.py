@@ -34,6 +34,28 @@ from ui.tables import render_details_table
 logger = get_logger(__name__)
 
 
+# أقصى ما يُسرَد داخل سطر التحذير نفسه. الباقي في قائمة قابلة للطيّ.
+#
+# ⚠️ الحدّ ليس تجميلياً: على الملف اليومي في هذا الكتالوج تُكتشف **74**
+# نقطة شاذّة، وسردها كلّها في سطر واحد يُنتج جداراً نصّياً يدفع الرسم
+# البياني — وهو موضع الفائدة — خارج الشاشة. الرقم المهمّ ("كم شاذّة؟")
+# يبقى في التحذير دائماً؛ التواريخ تفصيلٌ يُطلَب عند الحاجة.
+MAX_OUTLIERS_INLINE = 8
+
+
+def _render_outlier_notice(indices, selected_months, many) -> None:
+    labels = format_months([selected_months[i] for i in indices])
+    st.warning(
+        t("old.outliers_found", count=len(labels), many=many,
+          months="، ".join(labels[:MAX_OUTLIERS_INLINE])
+                 + ("…" if len(labels) > MAX_OUTLIERS_INLINE else "")),
+        icon=":material/warning:",
+    )
+    if len(labels) > MAX_OUTLIERS_INLINE:
+        with st.expander(t("old.outliers_all", count=len(labels))):
+            st.write("، ".join(labels))
+
+
 def render_dashboard(months, products, options, granularity="monthly"):
     """
     عرض لوحة المحلّل الكاملة.
@@ -92,11 +114,7 @@ def render_dashboard(months, products, options, granularity="monthly"):
     if show_outliers and analysis.outliers:
         outlier_indices = analysis.outliers.outlier_indices
         if outlier_indices:
-            st.warning(t("old.outliers_found",
-                         count=len(outlier_indices), many=many,
-                         months="، ".join(format_months(
-                             [selected_months[i] for i in outlier_indices]))),
-                       icon=":material/warning:")
+            _render_outlier_notice(outlier_indices, selected_months, many)
         else:
             st.success(t("old.no_outliers"), icon=":material/check_circle:")
 

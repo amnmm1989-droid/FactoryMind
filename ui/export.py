@@ -8,15 +8,24 @@ from io import BytesIO, StringIO
 import pandas as pd
 import streamlit as st
 
-from ui.i18n import t
+from ui.i18n import format_months, t
 
 
 def render_export_buttons(main_product, selected_months, series):
-    """عرض أزرار تصدير البيانات"""
+    """عرض أزرار تصدير البيانات.
+
+    ⚠️ التسميات تمرّ بـ format_months كما تمرّ في الرسم والجدول. بدونها
+    كان الملف المُصدَّر يحمل تسمية غير التي عُرضت على الشاشة: بالعربية،
+    الشاشة "يناير 2023" والملف "January 2023" — واختلاف قِيس على الملف
+    الشهري وحده (بقية الحبيبات تمرّ كما هي، فلم يظهر الفرق إلا بالعربية).
+
+    من يُصدّر ليُرسل الملف يقارنه بما رآه؛ عمود فترة بلغة أخرى يبدو ملفاً
+    لمنتج آخر.
+    """
     st.subheader(t("old.export"))
 
     frame = pd.DataFrame({
-        t("common.period"): selected_months,
+        t("common.period"): format_months(list(selected_months)),
         t("common.quantity"): series,
     })
 

@@ -914,6 +914,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "old.download_excel": {"ar": "⬇ تحميل Excel", "en": "⬇ Download Excel"},
     "old.sheet_data": {"ar": "البيانات", "en": "Data"},
     "old.no_outliers": {"ar": "لم يتم اكتشاف نقاط شاذة", "en": "No outliers detected"},
+    "old.outliers_all": {
+        "ar": "عرض التواريخ الـ{count} كاملةً",
+        "en": "Show all {count} dates",
+    },
     "old.comparison_selected": {
         "ar": ":material/compare_arrows: مقارنة المنتجات المختارة",
         "en": ":material/compare_arrows: Selected product comparison",

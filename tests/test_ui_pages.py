@@ -233,3 +233,31 @@ def test_no_user_facing_label_calls_factor_completeness_confidence():
     label = STRINGS["common.risk_factors"]
     assert "confidence" not in label["en"].lower()
     assert "ثقة" not in label["ar"]
+
+
+# ---------------------------------------------------------------------------
+# اتّساق الشاشة مع الملف المُصدَّر
+# ---------------------------------------------------------------------------
+def test_export_labels_match_what_the_screen_showed():
+    """العطل الذي يسدّه: الرسم والجدول يمرّان بـ format_months، والتصدير
+    كان يمرّر التسمية الخام. بالعربية على ملف شهري كانت الشاشة تقول
+    "يناير 2023" والملف المُصدَّر "January 2023" — فيبدو ملفاً لمنتج آخر
+    لمن يقارن. قِيس على الملفات الخمسة: الشهري وحده يتباين، ولا يظهر
+    التباين إلا بالعربية.
+    """
+    import inspect
+
+    from ui import export
+
+    source = inspect.getsource(export.render_export_buttons)
+    assert "format_months(list(selected_months))" in source, (
+        "التصدير يجب أن يستخدم نفس تنسيق التسميات الذي تستخدمه الشاشة"
+    )
+
+
+def test_the_outlier_notice_does_not_list_every_date_inline():
+    """على الملف اليومي تُكتشف 74 شاذّة؛ سردها في سطر واحد يدفع الرسم
+    خارج الشاشة. العدد يبقى في التحذير، والتواريخ تُطوى."""
+    from ui.dashboard import MAX_OUTLIERS_INLINE
+
+    assert MAX_OUTLIERS_INLINE < 74, "الحدّ يجب أن يقصّ حالة الملف اليومي فعلاً"
