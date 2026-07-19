@@ -37,6 +37,12 @@ MIN_ACTIONABLE_UNITS = 0.5
 
 RESULT_KEY = "_purchase_plan_result"
 PARAMS_KEY = "_purchase_plan_params"
+# سجلّ التدقيق يُلتقط **لحظة الحساب** ويُخزَّن مع الخطة — لا يُبنى لحظة
+# التنزيل. الفرق هو العطل الذي سدّه هذا: بعد تبديل الملف تبقى الخطة في
+# الجلسة (بتحذير "قديمة")، وزرّ التنزيل يبقى فعّالاً — فكان يُبنى السجلّ
+# من بيانات الملف *الجديد* حول أسطرِ خطة الملف *القديم*: بصمة B فوق
+# أوامر A في وثيقةٍ غرضُها حسم "أي ملف بُني عليه هذا؟".
+PROVENANCE_KEY = "_purchase_plan_provenance"
 
 # ترتيب الجدول حسب الأولوية لا حسب ترتيب الملف الأصلي: "اطلب الآن" أولاً،
 # فـ"يمكن الانتظار"، فما لا حكم له (لا مهلة توريد أُدخلت أصلاً) — بلا مهلة
@@ -148,7 +154,7 @@ def _provenance(
     from services.batch import fast_models
     from services.forecast_engine.registry import default_models
     from services.provenance import RunProvenance
-    from ui.pages.executive import VALIDATION_KEY
+    from ui.pages.executive import stored_validation_report
 
     # يُمرَّران صراحةً لا يُلتقطان من الجلسة: دالةٌ تقرأ حالة عامّة لا
     # تُختبَر إلا بتشغيل التطبيق كاملاً — وقد أخفى ذلك بالفعل غياب اسم
@@ -156,7 +162,8 @@ def _provenance(
     if dataset is None:
         dataset = st.session_state.get("uploaded_dataset")
     if report is None:
-        report = st.session_state.get(VALIDATION_KEY)
+        # مربوط ببصمة *هذه* البيانات — دقّة ملف آخر لا تدخل هذا السجلّ.
+        report = stored_validation_report(products)
     models = default_models(granularity) if full_family else fast_models()
 
     return RunProvenance(
@@ -228,6 +235,11 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         progress.empty()
         st.session_state[RESULT_KEY] = plan
         st.session_state[PARAMS_KEY] = current_params
+        st.session_state[PROVENANCE_KEY] = _provenance(
+            products, months, granularity, plan, horizon, lead_time_days,
+            full_family, inventory,
+            dataset=st.session_state.get("uploaded_dataset"),
+        )
 
     plan = st.session_state.get(RESULT_KEY)
     if plan is None:
@@ -272,10 +284,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     else:
         st.info(t("pplan.nothing_to_order"))
 
-    provenance = _provenance(
-        products, months, granularity, plan, horizon, lead_time_days,
-        full_family, inventory, dataset=st.session_state.get("uploaded_dataset"),
-    )
+    provenance = st.session_state.get(PROVENANCE_KEY)
 
     st.download_button(
         t("pplan.download_excel"),

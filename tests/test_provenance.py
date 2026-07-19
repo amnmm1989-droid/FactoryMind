@@ -136,3 +136,68 @@ def test_a_file_exported_without_provenance_still_works():
     from ui.pages.purchase_plan import _excel_bytes
 
     assert _excel_bytes([], [], [])
+
+
+# ---------------------------------------------------------------------------
+# التصاق تقرير التحقّق — دقّة ملفٍ لا تُختم على سجلّ ملفٍ آخر
+# ---------------------------------------------------------------------------
+def _with_session(state):
+    from unittest.mock import patch
+
+    import ui.pages.executive as executive
+
+    return patch.object(executive.st, "session_state", state)
+
+
+def test_a_validation_report_does_not_survive_a_file_swap():
+    """⚠️ عطل أثبته التشغيل: تحقّقٌ على ملف شهري بقي في الجلسة بعد رفع
+    ملف ربعي، فخُتم سجلّ تدقيق الربعي ببصمته هو ودقّةِ الشهري — وثيقةُ
+    النزاعات نفسها تكذب."""
+    from ui.pages.executive import store_validation_report, stored_validation_report
+
+    file_a = {"A": [1.0, 2.0, 3.0]}
+    file_b = {"A": [9.0, 9.0, 9.0]}
+    state = {}
+    with _with_session(state):
+        store_validation_report("report-of-A", file_a)
+
+        assert stored_validation_report(file_a) == "report-of-A"
+        assert stored_validation_report(file_b) is None
+
+
+def test_the_purchase_plan_provenance_refuses_another_files_accuracy():
+    from unittest.mock import patch
+
+    import ui.pages.purchase_plan as pp
+    from ui.pages.executive import store_validation_report
+
+    file_a = {"A": [1.0, 2.0, 3.0]}
+    file_b = {"A": [9.0, 9.0, 9.0]}
+    state = {}
+    with _with_session(state), patch.object(pp.st, "session_state", state):
+        store_validation_report("report-of-A", file_a)
+        plan = type("P", (), {"lines": []})()
+        provenance = pp._provenance(
+            file_b, ["Jan 2024"], "monthly", plan, 6, 0, False, None,
+        )
+
+    assert dict(provenance.rows())["audit.median_wape"] == "—"
+
+
+def test_the_downloaded_file_describes_the_plan_not_the_screen():
+    """الباب الثاني لنفس العطل: الخطة تبقى بعد تبديل الملف (بتحذير)،
+    وزرّ التنزيل يبقى فعّالاً. السجلّ يُلتقط لحظة الحساب ويُخزَّن مع
+    الخطة — فما يُنزَّل يصف ما حُسب، لا ما على الشاشة الآن."""
+    import inspect
+
+    import ui.pages.purchase_plan as pp
+
+    source = inspect.getsource(pp.render)
+    assert "st.session_state.get(PROVENANCE_KEY)" in source, (
+        "التنزيل يجب أن يقرأ السجلّ المخزَّن، لا أن يبنيه من بيانات الشاشة"
+    )
+    compute_block = source[:source.index("st.download_button")]
+    assert "PROVENANCE_KEY] = _provenance(" in compute_block.replace("\n", "").replace(" ", "") \
+        or "st.session_state[PROVENANCE_KEY]" in compute_block, (
+        "السجلّ يجب أن يُلتقط في كتلة الحساب"
+    )

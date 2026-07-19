@@ -466,6 +466,37 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 VALIDATION_KEY = "_validation_report"
 
 
+def store_validation_report(report, products) -> None:
+    """التقرير مربوطاً ببصمة بياناته — لا عارياً في الجلسة.
+
+    ⚠️ يسدّ عطلاً أثبته سيناريو تبديل الملف: تحقّقٌ شُغّل على ملف شهري،
+    ثم رُفع ملف ربعي — فبقي التقرير في الجلسة، وعُرضت دقّة الشهري تحت
+    الربعي، **وخُتمت على سجلّ تدقيقه المُصدَّر**: بصمة B مع WAPE ملف A في
+    الورقة نفسها. وثيقةٌ بُنيت لحسم النزاعات تكذب — أسوأ من غيابها.
+    """
+    from services.provenance import fingerprint
+
+    st.session_state[VALIDATION_KEY] = {
+        "fingerprint": fingerprint(products), "report": report,
+    }
+
+
+def stored_validation_report(products):
+    """تقرير الجلسة إن كان يخصّ *هذه* البيانات — وإلا None.
+
+    None لا تحذير "تقرير قديم": دقّةُ ملفٍ آخر ليست معلومة قديمة عن هذا
+    الملف، بل معلومة عن ملف غيره. لا تصحيح لها سوى إعادة التشغيل.
+    """
+    from services.provenance import fingerprint
+
+    stored = st.session_state.get(VALIDATION_KEY)
+    if not isinstance(stored, dict):
+        return None
+    if stored.get("fingerprint") != fingerprint(products):
+        return None
+    return stored.get("report")
+
+
 def _validation_frame(report) -> pd.DataFrame:
     """صفّ لكل منتج قِيست دقّته. غير القابل للقياس لا يُحشر هنا برقم مخترَع."""
     return pd.DataFrame([
@@ -551,13 +582,13 @@ def _render_validation_section(products: dict[str, list[float]], granularity: st
             def on_progress(done: int, total: int, name: str) -> None:
                 progress.progress(done / total, text=f"{done}/{total} — {name[:40]}")
 
-            st.session_state[VALIDATION_KEY] = build_validation_report(
+            store_validation_report(build_validation_report(
                 products, granularity=granularity, models=fast_models(),
                 on_progress=on_progress,
-            )
+            ), products)
             progress.empty()
 
-        report = st.session_state.get(VALIDATION_KEY)
+        report = stored_validation_report(products)
         if report is None:
             st.info(t("val.empty"))
             return
