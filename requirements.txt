@@ -30,4 +30,5 @@ joblib>=1.3.0          # cache نتائج التنبؤ (services/forecast_engine
 statsforecast>=2.1.0
 prophet>=1.1.0         # يجرّ cmdstanpy + matplotlib — الاعتماد الأثقل هنا
 xgboost>=2.0.0         # يجرّ nvidia-nccl-cu12 (~200MB) حتى على أجهزة بلا GPU
-scikit-learn>=1.3.0    # RandomForest
+scikit-learn>=1.3.0    # RandomForest — ومرجع تطابق MAE/RMSE/MAPE (tests/test_metric_parity.py)
+utilsforecast>=0.2.0    # تبعية statsforecast أصلاً — تُستورد مباشرةً كمرجع MASE، فتُعلَن صراحةً
