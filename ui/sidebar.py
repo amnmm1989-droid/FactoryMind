@@ -15,6 +15,10 @@ def render_sidebar(months, product_names, granularity="monthly"):
 
     granularity: حبيبة الملف الفعلية — تُسمّى بها الوحدات ("أسابيع" لا
     "أشهر" ثابتة) في نطاق المدى.
+
+    ⚠️ `product_names` تصل **مرتّبةً بالحجم** لا أبجدياً، والترتيب مقصود:
+    الافتراضي أدناه هو `product_names[0]`، فترتيبٌ أبجدي يفتح الصفحة على
+    منتج بـ0.03% من الإنتاج (قِيس على الملفات الخمسة). لا تُعِد الفرز هنا.
     """
     many = t(f"granularity.many.{granularity}")
 

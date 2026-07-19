@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from ui.data_source import active_granularity
+from ui.data_source import active_granularity, products_by_volume
 from ui.dashboard import render_dashboard
 from ui.i18n import t
 from ui.sidebar import render_sidebar
@@ -27,5 +27,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     st.title(t("adv.title"))
     st.info(t("adv.notice"), icon=":material/info:")
     granularity = active_granularity()
-    options = render_sidebar(months, sorted(products), granularity)
+    # بالحجم لا أبجدياً: الشريط يختار `product_names[0]` افتراضاً، وكان
+    # ذلك يعني أن عرض المحلّل يفتح على منتج بـ0.03% من الإنتاج.
+    options = render_sidebar(months, products_by_volume(products), granularity)
     render_dashboard(months, products, options, granularity)

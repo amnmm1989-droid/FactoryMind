@@ -20,7 +20,7 @@ from core.exceptions import AppError
 from services.batch import fast_models
 from services.decision_engine import recommend_production
 from services.forecast_engine import forecast_product
-from ui.data_source import active_granularity
+from ui.data_source import active_granularity, products_by_volume
 from ui.i18n import error as translate_error
 from ui.i18n import format_months, format_reason, format_recommendation, t
 
@@ -87,7 +87,10 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     with st.sidebar:
         st.header(t("fc.settings"))
-        product = st.selectbox(t("common.product"), sorted(products))
+        # بالحجم لا أبجدياً: الافتراضي الأبجدي كان يفتح الصفحة على منتج
+        # بـ0.03% من الإنتاج — وعلى الملف السنوي على منتج ميت، فيستقبل
+        # المستخدم خطأً أحمر أول ما يفتح. راجع data_source.products_by_volume.
+        product = st.selectbox(t("common.product"), products_by_volume(products))
         steps = st.slider(t("fc.horizon", unit=unit), 1, MAX_FORECAST_STEPS,
                           DEFAULT_FORECAST_STEPS)
         full_family = st.checkbox(

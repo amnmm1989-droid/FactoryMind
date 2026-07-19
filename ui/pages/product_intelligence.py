@@ -21,7 +21,12 @@ from domain.entities import RiskLevel
 from repositories.forecast_repository import ForecastRepository
 from repositories.recommendation_repository import RecommendationRepository
 from services.batch import fast_models
-from ui.data_source import active_dataset, active_granularity, active_inventory
+from ui.data_source import (
+    active_dataset,
+    active_granularity,
+    active_inventory,
+    products_by_volume,
+)
 from ui.i18n import error as translate_error
 from ui.i18n import format_months, format_reason, format_recommendation, t
 from services.forecast_engine import classify_demand, forecast_product
@@ -56,7 +61,9 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
     with st.sidebar:
         st.header(t("pi.settings"))
-        product = st.selectbox(t("common.product"), sorted(products))
+        # بالحجم لا أبجدياً — الافتراضي الأبجدي كان منتجاً ميتاً على الملف
+        # السنوي، فتُصيَّر الصفحة تحذيراً و`return` بلا محتوى إطلاقاً.
+        product = st.selectbox(t("common.product"), products_by_volume(products))
 
     series = products[product]
     profile = classify_demand(series)
