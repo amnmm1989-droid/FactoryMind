@@ -184,3 +184,52 @@ def test_every_page_module_is_wired_into_navigation():
     for module_name in PAGE_MODULES:
         assert f'_page("{module_name}")' in source
 
+
+
+# ---------------------------------------------------------------------------
+# اكتمال عوامل الخطورة يُعرَض ككسر لا كنسبة — ولماذا
+# ---------------------------------------------------------------------------
+def test_risk_factor_completeness_is_shown_as_a_fraction_not_a_percentage():
+    """RiskScore.confidence تعدّ العوامل المحسوبة، لا تقيس ثقةً في التنبؤ.
+
+    عرضها «60%» بجانب عمود «دقّة WAPE» في نفس الصف كان يُقرأ حتماً
+    «التنبؤ موثوق 60%». الكسر «3/5» لا يحتمل تلك القراءة.
+    """
+    from ui.pages.executive import _format_factors
+
+    risk = RiskScore(
+        product_name="منتج", score=42.0,
+        demand_volatility=50.0,
+        stock_depletion_risk=None,          # مخزون مجهول
+        forecast_accuracy_penalty=20.0,
+        seasonality_factor=10.0,
+        growth_rate=None,                   # تاريخ أقصر من أن يُقاس نموّه
+    )
+
+    assert risk.factor_counts == (3, 5)
+    assert _format_factors(risk) == "3/5"
+    assert "%" not in _format_factors(risk)
+
+
+def test_the_factor_total_is_derived_not_hardcoded():
+    """إضافة عامل سادس يجب ألا تترك «/5» كذبةً في الشاشة."""
+    from ui.pages.executive import _format_factors
+
+    complete = RiskScore(
+        product_name="منتج", score=1.0, demand_volatility=1.0,
+        stock_depletion_risk=1.0, forecast_accuracy_penalty=1.0,
+        seasonality_factor=1.0, growth_rate=1.0,
+    )
+    known, total = complete.factor_counts
+
+    assert known == total
+    assert _format_factors(complete) == f"{total}/{total}"
+
+
+def test_no_user_facing_label_calls_factor_completeness_confidence():
+    """حارس التسمية: المفتاح القديم كان يقول «ثقة التقييم»."""
+    from ui.i18n import STRINGS
+
+    label = STRINGS["common.risk_factors"]
+    assert "confidence" not in label["en"].lower()
+    assert "ثقة" not in label["ar"]

@@ -5,7 +5,7 @@
 تجيب الأسئلة التي لا تجيبها لوحة الأرقام: لماذا رُفض SARIMA على هذا
 المنتج؟ لماذا خطورته 47؟ أي نموذج فاز آخر مرة ولماذا؟
 
-تعرض ما تعمّدنا عدم إخفائه: العوامل غير المحسوبة، وثقة التقييم، وتصنيف
+تعرض ما تعمّدنا عدم إخفائه: العوامل غير المحسوبة، وعددَ ما حُسب منها، وتصنيف
 الطلب الذي يحدد أي عائلة نماذج تنطبق أصلاً.
 """
 from __future__ import annotations
@@ -110,8 +110,9 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         st.metric(t("pi.score"), f"{risk.score:.0f}/100",
                   delta=f"{badge[risk.level]} {t('risk.' + risk.level.value)}",
                   delta_color="off")
-        st.metric(t("common.confidence"), f"{risk.confidence:.0%}",
-                  help=t("pi.confidence_help"))
+        known_factors, total_factors = risk.factor_counts
+        st.metric(t("common.risk_factors"), f"{known_factors}/{total_factors}",
+                  help=t("pi.risk_factors_help"))
     with columns[1]:
         st.plotly_chart(_risk_chart(risk), use_container_width=True)
 

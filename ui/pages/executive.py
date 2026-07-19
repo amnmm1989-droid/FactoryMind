@@ -79,11 +79,22 @@ def _format_quantity(value: float) -> str:
 
 
 def _format_wape(value: float | None) -> str:
-    """WAPE بجانب الثقة: الثقة تقول "على كم عاملاً بُنيت الدرجة؟"،
+    """WAPE بجانب عوامل الخطورة: تلك تقول "على كم عاملاً بُنيت الدرجة؟"،
     وWAPE يقول "وهل نثق بالرقم نفسه أصلاً؟". em-dash لا صفر حين لم يُحسَب —
     منتج بلا تقييم تاريخي (سلسلة قصيرة عن أن تُقسَّم تدريباً واختباراً)
     ليس دقيقاً 0%، بل غير مقيس."""
     return f"{value:.0f}%" if value is not None else "—"
+
+
+def _format_factors(risk) -> str:
+    """«4/5» لا «80%».
+
+    النسبة المئوية بجانب عمود دقّة WAPE تُقرأ حتماً «التنبؤ موثوق 80%»،
+    وهي في الحقيقة تعدّ عوامل الخطورة المحسوبة فقط. الكسر يقول ما يعنيه
+    ولا يحتمل قراءةً احتمالية.
+    """
+    known, total = risk.factor_counts
+    return f"{known}/{total}"
 
 
 def _to_frame(recommendations) -> pd.DataFrame:
@@ -98,7 +109,7 @@ def _to_frame(recommendations) -> pd.DataFrame:
             t("common.risk"): round(r.risk.score),
             t("common.level"): _level_badge(r.risk.level),
             t("common.demand_change"): round(r.expected_demand_change_pct, 1),
-            t("common.confidence"): f"{r.risk.confidence:.0%}",
+            t("common.risk_factors"): _format_factors(r.risk),
             t("common.wape"): _format_wape(r.forecast_wape),
             t("common.reason"): format_reason(r),
         }

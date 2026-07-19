@@ -276,7 +276,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.risk": {"ar": "الخطورة", "en": "Risk"},
     "common.level": {"ar": "المستوى", "en": "Level"},
     "common.model": {"ar": "النموذج", "en": "Model"},
-    "common.confidence": {"ar": "ثقة التقييم", "en": "Assessment confidence"},
+    "common.risk_factors": {"ar": "عوامل الخطورة", "en": "Risk factors"},
     "common.wape": {"ar": "دقّة WAPE", "en": "WAPE accuracy"},
     "common.reason": {"ar": "السبب", "en": "Reason"},
     "common.demand_change": {"ar": "تغيّر الطلب %", "en": "Demand change %"},
@@ -789,9 +789,11 @@ STRINGS: dict[str, dict[str, str]] = {
     "pi.analysis_failed": {"ar": "تعذّر التحليل: {detail}", "en": "Analysis failed: {detail}"},
     "pi.risk_breakdown": {"ar": "تفكيك الخطورة", "en": "Risk breakdown"},
     "pi.score": {"ar": "الدرجة", "en": "Score"},
-    "pi.confidence_help": {
-        "ar": "نسبة العوامل التي أمكن حسابها.",
-        "en": "Share of factors that could be computed.",
+    "pi.risk_factors_help": {
+        "ar": "كم عاملاً من عوامل الخطورة الخمسة أمكن حسابه لهذا المنتج. "
+              "ليست دقّة التنبؤ — تلك هي WAPE.",
+        "en": "How many of the five risk factors could be computed for this "
+              "product. Not forecast accuracy — that is WAPE.",
     },
     "pi.factor_chart": {"ar": "مساهمة كل عامل (0-100)", "en": "Each factor's contribution (0-100)"},
     "pi.missing_factors": {

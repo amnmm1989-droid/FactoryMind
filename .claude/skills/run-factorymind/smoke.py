@@ -128,7 +128,7 @@ def run_pipeline(product: str | None, fast: bool, steps: int) -> int:
     print(f"\n  محرك القرار")
     print(f"  {recommendation.as_message()}")
     print(f"  خطورة: {risk.score:.0f}/100 ({risk.level.value}) | "
-          f"ثقة: {risk.confidence:.0%} | مجهول: {len(risk.missing_factors)}")
+          f"عوامل الخطورة: {len(risk.known_factors)}/5 | مجهول: {len(risk.missing_factors)}")
 
     # فحوص سلامة — تفشل بصوت مسموع لا بصمت
     assert result.best.forecast_values, "تنبؤ فارغ"
