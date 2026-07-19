@@ -755,3 +755,51 @@ marketing.
 Surfaced in Executive Overview behind a button (it is real work, not something
 to run on every page load), with an Excel export carrying a second sheet for
 everything that could **not** be measured, named and reasoned.
+
+## 2c. Reference parity for the in-house models ✅
+
+Croston, TSB and ADIDA are written in this repository — they exist in neither
+statsmodels nor scikit-learn. That invites the question any factory's engineer
+should ask: *who says your implementation of the paper is right?*
+
+The metrics were already checkable (they match scikit-learn exactly). For these
+models the practical reference is **Nixtla's `statsforecast`**, an open library
+implementing the same papers. `tests/test_reference_parity.py` compares against
+it. The dependency is **optional and test-only** — it is not in
+`requirements.txt` (installing it downgrades pandas to 2.x against our 3.x
+lock), and the tests skip cleanly when it is absent.
+
+### What the comparison established
+
+| Part | Result |
+|---|---|
+| Demand-size smoothing | **Matches exactly** — difference `0.0000000000` |
+| Interval estimate | Differs, by convention not arithmetic |
+
+Substituting the reference's interval convention into our demand estimate
+reproduces `statsforecast` to `1e-6` on every test series — proving the
+divergence is entirely two convention choices:
+
+1. The reference counts a leading interval from the series start to the first
+   demand; we count only observed gaps between demands.
+2. The reference seeds smoothing with the first interval; we seed with the mean
+   of the observed gaps.
+
+### Why we did **not** simply adopt the reference
+
+The initial instinct was to align and claim exact parity. Measuring stopped
+that. `np.diff(idx + 1, prepend=0)` means a series that **starts with a demand
+at index 0** yields a first interval of `1` — though no gap was observed before
+it at all. With α=0.1 the seed stays heavy, so the interval estimate falls and
+the forecast rises: measured **~35% divergence on a series starting with a
+demand, against ~3% on one starting with a gap.**
+
+So neither convention dominates: ours seeds from a whole-sample mean, theirs
+invents an interval at the edge. The tests pin the trade-off — including the
+phantom-interval artefact — so that neither is "corrected" into the other
+without a deliberate decision.
+
+**What can honestly be said to a customer:** the demand-smoothing half is
+identical to the reference implementation, and the remaining difference is a
+documented, tested convention in the interval estimate — not an unverified
+guess.
