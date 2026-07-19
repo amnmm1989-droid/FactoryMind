@@ -86,3 +86,49 @@ def test_uncategorized_products_are_absent_not_null(repo, source):
     categories = repo.get_categories()
     for product in uncategorized:
         assert product not in categories
+
+
+# ---------------------------------------------------------------------------
+# البيت المشترك للاتصال — حارس ضدّ عودة النسخ
+# ---------------------------------------------------------------------------
+def test_every_repository_connects_through_the_shared_helper():
+    """كانت أسطر الاتصال منسوخة في ثلاثة مستودعات. الخطر ليس التكرار بل
+    انحراف نسخة واحدة: `PRAGMA foreign_keys = ON` قيد نزاهة، وسقوطه من
+    نسخة يعني صفوفاً يتيمة بلا اعتراض — ولا اختبار يلتقطه لأن كل مستودع
+    يُختبر وحده.
+    """
+    import inspect
+
+    from repositories import (
+        forecast_repository,
+        recommendation_repository,
+        sqlite_repository,
+    )
+
+    for module in (forecast_repository, recommendation_repository, sqlite_repository):
+        source = inspect.getsource(module)
+        assert "sqlite3.connect(" not in source, (
+            f"{module.__name__} يفتح اتصالاً بنفسه بدل repositories.base.connect"
+        )
+
+
+def test_the_shared_connection_enforces_foreign_keys():
+    """القيد نفسه، لا وجوده في النصّ فقط."""
+    import sqlite3
+    import tempfile
+    from pathlib import Path
+
+    from repositories.base import connect
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(Path(tmp) / "t.db")
+        with sqlite3.connect(path) as setup:
+            setup.execute("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
+            setup.execute(
+                "CREATE TABLE child (parent_id INTEGER REFERENCES parent(id))"
+            )
+
+        conn = connect(path)
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("INSERT INTO child (parent_id) VALUES (999)")
+        conn.close()

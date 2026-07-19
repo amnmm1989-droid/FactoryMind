@@ -17,7 +17,7 @@ from typing import Any
 from core.exceptions import DataAccessError
 from core.logging_config import get_logger
 from domain.entities import ProductionRecommendation, RiskScore
-from repositories.base import resolve_db_path
+from repositories.base import connect, product_id, resolve_db_path
 
 logger = get_logger(__name__)
 
@@ -29,21 +29,10 @@ class RecommendationRepository:
         self.db_path = resolve_db_path(db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return connect(self.db_path)
 
     def _product_id(self, conn: sqlite3.Connection, product_name: str) -> int:
-        row = conn.execute(
-            "SELECT id FROM products WHERE name = ?", (product_name,)
-        ).fetchone()
-        if row is None:
-            raise DataAccessError(
-                f"منتج غير موجود في قاعدة البيانات: {product_name}",
-                context={"product": product_name},
-            )
-        return row["id"]
+        return product_id(conn, product_name)
 
     def save(
         self,

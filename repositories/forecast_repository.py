@@ -5,6 +5,26 @@
 الفصل عن المحرك مقصود: المحرك يحسب ولا يعرف قاعدة بيانات؛ هذا الملف
 يخزّن ولا يعرف نموذجاً. من أراد المحرك بلا تخزين (اختبار، سكربت) لا
 يدفع ثمن قاعدة بيانات، ومن أراد التخزين لا يمسّ منطق التنبؤ.
+
+## استيراد `EngineResult` من `services` — استثناء مقصود، لا سهو
+
+فحصٌ آليّ لاتجاه الطبقات يُعلّم السطر أدناه مخالفةً: `repositories`
+تستورد من `services`، وهي طبقة أعلى. الحكم صحيح بالقاعدة وخاطئ بالمعنى،
+فيُوثَّق هنا كي لا "يُصلَح" لاحقاً إلى ما هو أسوأ:
+
+**لماذا لا يُنقَل `EngineResult` إلى `domain`؟** لأنه يجرّ معه ثلاثة
+أنواع من طبقة الخدمة: `ForecastOutput` (عقد `Forecaster` نفسه)،
+و`ModelMetrics`، و`DemandProfile`. نقلها جميعاً إلى `domain` يجعل الطبقة
+الأعمق تعرف تفاصيل المحرك — وهي المخالفة نفسها مقلوبةً ومضخَّمة.
+
+**ولماذا لا يُخفى خلف `TYPE_CHECKING`؟** لأن ذلك يُسكت الفاحص ولا يغيّر
+شيئاً: الاعتماد المفاهيمي باقٍ، وكلفته قِيست ~50ms فوق pandas التي
+تُحمَّل هنا أصلاً — لا مكتبة ثقيلة تُجَرّ (قِيس: لا statsforecast ولا
+sklearn ولا xgboost).
+
+**الأصحّ أن القاعدة قاصرة هنا.** وظيفة هذا الملف المعلَنة هي حفظ حصيلة
+المحرك؛ معرفةُ شكلِ ما يحفظه ليست تسرّباً بل تعريفه. البديل — أن يعرف
+المحرك المستودع — هو الاقتران الحقيقي الذي يتجنّبه هذا الفصل أصلاً.
 """
 from __future__ import annotations
 
@@ -14,7 +34,7 @@ from typing import Any
 
 from core.exceptions import DataAccessError
 from core.logging_config import get_logger
-from repositories.base import resolve_db_path
+from repositories.base import connect, product_id, resolve_db_path
 from services.forecast_engine.engine import EngineResult
 
 logger = get_logger(__name__)
@@ -27,21 +47,10 @@ class ForecastRepository:
         self.db_path = resolve_db_path(db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.row_factory = sqlite3.Row
-        return conn
+        return connect(self.db_path)
 
     def _product_id(self, conn: sqlite3.Connection, product_name: str) -> int:
-        row = conn.execute(
-            "SELECT id FROM products WHERE name = ?", (product_name,)
-        ).fetchone()
-        if row is None:
-            raise DataAccessError(
-                f"منتج غير موجود في قاعدة البيانات: {product_name}",
-                context={"product": product_name},
-            )
-        return row["id"]
+        return product_id(conn, product_name)
 
     def save_result(self, result: EngineResult) -> int:
         """حفظ حصيلة المحرك: تنبؤ الفائز + تقييم كل نموذج جُرِّب.

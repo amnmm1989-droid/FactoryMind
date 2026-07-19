@@ -3,7 +3,7 @@ import sqlite3
 import json
 from typing import Tuple, List, Dict, Any
 import config
-from repositories.base import DataRepository, resolve_db_path
+from repositories.base import DataRepository, connect, resolve_db_path
 from core.exceptions import MigrationError
 from migrate import missing_tables
 
@@ -18,12 +18,8 @@ class SQLiteRepository(DataRepository):
             # إذا كانت فارغة، نقوم بالترحيل من JSON تلقائياً (لأول مرة)
             self.migrate_from_json()
 
-    def _get_connection(self):
-        """إنشاء اتصال بقاعدة البيانات مع تفعيل Foreign Keys"""
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.row_factory = sqlite3.Row  # للوصول بالأسماء
-        return conn
+    def _get_connection(self) -> sqlite3.Connection:
+        return connect(self.db_path)
 
     def _verify_schema(self):
         """التأكد من أن الـ migrations طُبِّقت — دون إنشاء أي شيء.

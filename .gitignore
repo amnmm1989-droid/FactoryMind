@@ -43,3 +43,8 @@ Thumbs.db
 # أدوات الوكيل (.claude/skills/run-factorymind/)
 node_modules/
 .claude/skills/*/screenshots/
+
+# ناتج قياس التغطية — ثنائي ومحلّي، لا يخصّ أحداً غير من شغّله
+.coverage
+.coverage.*
+htmlcov/

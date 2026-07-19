@@ -1,8 +1,10 @@
 # repositories/base.py
+import sqlite3
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Any, Optional
 
 import config
+from core.exceptions import DataAccessError
 
 
 def resolve_db_path(db_path: Optional[str] = None) -> str:
@@ -25,6 +27,40 @@ def resolve_db_path(db_path: Optional[str] = None) -> str:
     None تعني "الافتراضي الحالي"، لا "لا مسار".
     """
     return db_path if db_path is not None else config.DATABASE_PATH
+
+
+def connect(db_path: str) -> sqlite3.Connection:
+    """اتصال بإعدادات هذا المشروع الثابتة.
+
+    كانت هذه الأسطر الأربعة منسوخة حرفياً في ثلاثة مستودعات. الخطر ليس
+    التكرار بذاته بل **الانحراف الصامت**: `PRAGMA foreign_keys = ON` قيد
+    نزاهةٍ لا تفضيل أسلوبي — سطر واحد يسقط من نسخة واحدة يعني مستودعاً
+    يكتب صفوفاً يتيمة بلا اعتراض، ولا اختبار يلتقط ذلك لأن كل مستودع
+    يُختبر وحده. بيتٌ واحد يجعل السقوط مستحيلاً لا مستبعَداً.
+
+    row_factory للوصول بالأسماء: كل استعلام هنا يقرأ row["id"] لا row[0].
+    """
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def product_id(conn: sqlite3.Connection, product_name: str) -> int:
+    """معرّف المنتج، أو خطأ صريح.
+
+    الغياب يرفع ولا يُرجع None: من يستدعيها يكتب صفّاً يشير إلى هذا
+    المعرّف، وNone هناك تصبح صفّاً يتيماً أو انهياراً بعيداً عن السبب.
+    """
+    row = conn.execute(
+        "SELECT id FROM products WHERE name = ?", (product_name,)
+    ).fetchone()
+    if row is None:
+        raise DataAccessError(
+            f"منتج غير موجود في قاعدة البيانات: {product_name}",
+            context={"product": product_name},
+        )
+    return row["id"]
 
 
 class DataRepository(ABC):
