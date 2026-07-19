@@ -51,3 +51,28 @@ def render_export_buttons(main_product, selected_months, series):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
+
+
+def audit_frame(provenance) -> pd.DataFrame:
+    """سجلّ التدقيق كإطار جاهز لورقة Excel.
+
+    القيم التي تبدأ بـ"audit." مفاتيح ترجمة لا نصوص — الخدمة تُرجع رمزاً
+    والواجهة تترجمه، كما في Warning_. فيقرأ المصنع الإنجليزي ورقةً
+    إنجليزية لا عربية.
+    """
+    return pd.DataFrame(
+        [
+            {
+                t("audit.field"): t(key),
+                t("audit.value"): t(value) if value.startswith("audit.") else value,
+            }
+            for key, value in provenance.rows()
+        ]
+    )
+
+
+def write_audit_sheet(writer, provenance) -> None:
+    """ورقة السجلّ في أي ملف مُصدَّر — نقطة واحدة كي لا يفترق ملفٌ عن آخر."""
+    audit_frame(provenance).to_excel(
+        writer, sheet_name=t("audit.sheet")[:31], index=False
+    )

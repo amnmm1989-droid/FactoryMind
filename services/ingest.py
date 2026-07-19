@@ -268,6 +268,9 @@ class Dataset:
     # ومتوقَّع. منتج غائب من هذا القاموس يُستبعد من التوفيق الهرمي لا
     # يُحتسب في فئة مخترعة (services/reconciliation.py).
     categories: dict[str, str] = field(default_factory=dict)
+    # اسم الملف كما رفعه المستخدم — لسجلّ التدقيق وحده، لا للتحليل.
+    # None يعني بيانات العرض (لا ملف مرفوع)، لا فشلاً في القراءة.
+    source_name: str | None = None
 
     @property
     def product_count(self) -> int:
@@ -601,7 +604,8 @@ def _expected_period_count(dates: list[date], granularity: str) -> int:
 
 
 def _finalize(
-    pivoted: pd.DataFrame, warnings: list[Warning_], categories: dict[str, str] | None = None
+    pivoted: pd.DataFrame, warnings: list[Warning_],
+    categories: dict[str, str] | None = None, source_name: str | None = None,
 ) -> Dataset:
     """من إطار مُحوَّر (فهرس = منتجات، أعمدة = تسميات أشهر) إلى Dataset جاهز.
 
@@ -750,6 +754,7 @@ def _finalize(
         granularity=granularity,
         warnings=warnings,
         categories=kept_categories,
+        source_name=source_name,
     )
 
 
@@ -784,7 +789,7 @@ def parse_upload(content: bytes, filename: str) -> Dataset:
         pivoted, warnings = _from_wide(frame)
         categories = {}  # لا عمود فئة ممكن هيكلياً في الشكل العريض
 
-    return _finalize(pivoted, warnings, categories)
+    return _finalize(pivoted, warnings, categories, source_name=filename)
 
 
 def parse_upload_with_mapping(
@@ -834,7 +839,7 @@ def parse_upload_with_mapping(
     pivoted, warnings, categories = _from_long(
         frame, product_column, month_column, quantity_column
     )
-    return _finalize(pivoted, warnings, categories)
+    return _finalize(pivoted, warnings, categories, source_name=filename)
 
 
 def to_csv_template() -> bytes:

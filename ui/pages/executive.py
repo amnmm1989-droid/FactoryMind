@@ -487,11 +487,15 @@ def _validation_frame(report) -> pd.DataFrame:
     ])
 
 
-def _validation_excel(report) -> bytes:
+def _validation_excel(report, provenance=None) -> bytes:
     from io import BytesIO
+
+    from ui.export import write_audit_sheet
 
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        if provenance is not None:
+            write_audit_sheet(writer, provenance)
         _validation_frame(report).to_excel(
             writer, sheet_name=t("val.sheet_measured")[:31], index=False
         )
@@ -505,6 +509,29 @@ def _validation_excel(report) -> bytes:
                 columns=[t("common.product"), t("pplan.col_reason")],
             ).to_excel(writer, sheet_name=t("val.sheet_unmeasured")[:31], index=False)
     return buffer.getvalue()
+
+
+
+def _validation_provenance(products, granularity, report):
+    """سجلّ جولة التحقّق — الدقّة هنا مقيسة دائماً، فتُذكر بلا "—"."""
+    from services.batch import fast_models
+    from services.provenance import RunProvenance
+
+    dataset = st.session_state.get("uploaded_dataset")
+    return RunProvenance(
+        products=products,
+        granularity=granularity,
+        period_count=len(getattr(dataset, "months", []) or []),
+        source_name=getattr(dataset, "source_name", None),
+        model_scope="fast",
+        model_names=[m.name for m in fast_models()],
+        warning_codes=[w.code for w in getattr(dataset, "warnings", [])],
+        measured_share=(
+            report.measured_count / report.total_count if report.total_count else None
+        ),
+        median_wape=report.median_wape,
+        beat_naive_share=report.beat_naive_share,
+    )
 
 
 def _render_validation_section(products: dict[str, list[float]], granularity: str) -> None:
@@ -567,7 +594,10 @@ def _render_validation_section(products: dict[str, list[float]], granularity: st
         if not frame.empty:
             st.dataframe(frame.head(50), use_container_width=True, hide_index=True)
             st.download_button(
-                t("val.download"), data=_validation_excel(report),
+                t("val.download"),
+                data=_validation_excel(report, _validation_provenance(
+                    products, granularity, report
+                )),
                 file_name="factorymind-validation.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )

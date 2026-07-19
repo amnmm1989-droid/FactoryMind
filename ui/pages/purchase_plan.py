@@ -20,7 +20,13 @@ import streamlit as st
 
 from config import MAX_FORECAST_STEPS
 from services.decision_engine import PurchaseOrderLine, build_purchase_plan
-from ui.data_source import active_granularity, active_inventory, active_prices
+from ui.data_source import (
+    active_dataset,
+    active_granularity,
+    active_inventory,
+    active_prices,
+)
+from ui.export import write_audit_sheet
 from ui.i18n import t
 
 DEFAULT_HORIZON_MONTHS = 6
@@ -103,9 +109,17 @@ def _excel_bytes(
     active_lines: list[PurchaseOrderLine],
     excluded_lines: list[PurchaseOrderLine],
     skipped: list[tuple[str, str]],
+    provenance=None,
 ) -> bytes:
+    """الملف الذي يُرسَل بالبريد ويُبنى عليه أمر شراء.
+
+    ورقة سجلّ التدقيق **أولاً** لا أخيراً: من يفتح الملف في نزاع يبحث عن
+    "متى؟" و"أي ملف؟" قبل أي شيء، وExcel يفتح على الورقة الأولى.
+    """
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        if provenance is not None:
+            write_audit_sheet(writer, provenance)
         _to_frame(active_lines).to_excel(
             writer, sheet_name=t("pplan.sheet_orders")[:31], index=False
         )
@@ -119,6 +133,51 @@ def _excel_bytes(
                 for name, reason in skipped
             ]).to_excel(writer, sheet_name=t("pplan.sheet_skipped")[:31], index=False)
     return buffer.getvalue()
+
+
+def _provenance(
+    products, months, granularity, plan, horizon, lead_time_days,
+    full_family, inventory, dataset=None, report=None,
+):
+    """سجلّ الجولة كما وقعت فعلاً — لا كما يفترضها الملف.
+
+    تقرير التحقّق يُقرأ من الجلسة إن كان المستخدم قد شغّله: نسبة ما قِيست
+    دقّته وWAPE الوسيط جزء من "على أي أساس بُني هذا". غيابه يُسجَّل "—" لا
+    صفراً — الفرق بين "لم يُقَس" و"دقّته صفر" هو كل شيء في نزاع.
+    """
+    from services.batch import fast_models
+    from services.forecast_engine.registry import default_models
+    from services.provenance import RunProvenance
+    from ui.pages.executive import VALIDATION_KEY
+
+    # يُمرَّران صراحةً لا يُلتقطان من الجلسة: دالةٌ تقرأ حالة عامّة لا
+    # تُختبَر إلا بتشغيل التطبيق كاملاً — وقد أخفى ذلك بالفعل غياب اسم
+    # الملف عن أول ورقة وُلِّدت.
+    if dataset is None:
+        dataset = st.session_state.get("uploaded_dataset")
+    if report is None:
+        report = st.session_state.get(VALIDATION_KEY)
+    models = default_models(granularity) if full_family else fast_models()
+
+    return RunProvenance(
+        products=products,
+        granularity=granularity,
+        period_count=len(months),
+        period_range=(str(months[0]), str(months[-1])) if months else None,
+        source_name=getattr(dataset, "source_name", None),
+        model_scope="full" if full_family else "fast",
+        model_names=[m.name for m in models],
+        horizon=int(horizon),
+        lead_time_days=int(lead_time_days) or None,
+        warning_codes=[w.code for w in getattr(dataset, "warnings", [])],
+        measured_share=(
+            report.measured_count / report.total_count
+            if report is not None and report.total_count else None
+        ),
+        median_wape=getattr(report, "median_wape", None),
+        beat_naive_share=getattr(report, "beat_naive_share", None),
+        inventory_used=bool(inventory),
+    )
 
 
 def render(months: list[str], products: dict[str, list[float]]) -> None:
@@ -213,9 +272,14 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     else:
         st.info(t("pplan.nothing_to_order"))
 
+    provenance = _provenance(
+        products, months, granularity, plan, horizon, lead_time_days,
+        full_family, inventory, dataset=st.session_state.get("uploaded_dataset"),
+    )
+
     st.download_button(
         t("pplan.download_excel"),
-        data=_excel_bytes(active_lines, excluded_lines, plan.skipped),
+        data=_excel_bytes(active_lines, excluded_lines, plan.skipped, provenance),
         file_name=f"purchase_plan_{plan.horizon_months}m.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,

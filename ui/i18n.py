@@ -1041,6 +1041,43 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{count} negative values (returns?) — clipped to zero. "
               "The engines model demand, not net movement.",
     },
+    # ── سجلّ التدقيق ──────────────────────────────────────────────
+    "audit.sheet": {"ar": "سجل التدقيق", "en": "Audit trail"},
+    "audit.field": {"ar": "البند", "en": "Field"},
+    "audit.value": {"ar": "القيمة", "en": "Value"},
+    "audit.generated_at": {"ar": "تاريخ التوليد", "en": "Generated at"},
+    "audit.source": {"ar": "ملف المصدر", "en": "Source file"},
+    "audit.fingerprint": {"ar": "بصمة البيانات", "en": "Data fingerprint"},
+    "audit.granularity": {"ar": "الحبيبة الزمنية", "en": "Time granularity"},
+    "audit.periods": {"ar": "عدد الفترات", "en": "Periods"},
+    "audit.range": {"ar": "المدى", "en": "Range"},
+    "audit.products": {"ar": "عدد المنتجات", "en": "Products"},
+    "audit.model_scope": {"ar": "نطاق النماذج", "en": "Model scope"},
+    "audit.models": {"ar": "النماذج المتاحة", "en": "Models available"},
+    "audit.horizon": {"ar": "الأفق", "en": "Horizon"},
+    "audit.lead_time": {"ar": "مهلة التوريد (أيام)", "en": "Lead time (days)"},
+    "audit.inventory": {"ar": "خُصم المخزون", "en": "Stock deducted"},
+    "audit.measured_share": {"ar": "نسبة ما قِيست دقّته", "en": "Share with measured accuracy"},
+    "audit.median_wape": {"ar": "WAPE الوسيط", "en": "Median WAPE"},
+    "audit.beat_naive": {"ar": "تفوّق على التكرار الساذج", "en": "Beat naive baseline"},
+    "audit.warnings": {"ar": "تحذيرات القراءة", "en": "Ingest warnings"},
+    "audit.scope.fast": {"ar": "المجموعة السريعة", "en": "Fast set"},
+    "audit.scope.full": {"ar": "كل النماذج", "en": "All models"},
+    "audit.scope.custom": {"ar": "اختيار المستخدم", "en": "User selection"},
+    "audit.yes": {"ar": "نعم", "en": "Yes"},
+    "audit.no": {"ar": "لا", "en": "No"},
+    # ⚠️ ليست "None": الكلمة ضمن قيم pandas الفارغة الافتراضية، فتُقرأ
+    # NaN عند تحميل الورقة — أي أن "لا تحذيرات" تصل فارغةً لمن يحلّلها،
+    # وهو عكس ما تقوله بالضبط.
+    "audit.none": {"ar": "لا تحذيرات", "en": "No warnings"},
+    "audit.note": {"ar": "ملاحظة", "en": "Note"},
+    "audit.note_body": {
+        "ar": "تصف هذه الورقة كيف بُني هذا الملف. لا تُثبت صحّة التنبؤ — "
+              "تُثبت على أي بيانات وإعدادات ودقّة مقيسة بُني، ومتى.",
+        "en": "This sheet records how the file was produced. It does not prove "
+              "the forecast is right — it proves which data, settings and "
+              "measured accuracy it was built on, and when.",
+    },
     "warn.total_rows": {
         "ar": "{count} صف إجماليات استُبعد ({names}) — مجموعُ منتجات لا منتج. "
               "بقاؤه كان سيضخّم عدد المنتجات ويتصدّر كل شاشة مرتّبة بالحجم.",
