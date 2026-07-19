@@ -701,3 +701,57 @@ On the fast default set, ADIDA wins **3 of 20 products on the daily file** —
 the sparsest one, which is precisely the case it was added for. On weekly and
 monthly it wins nothing and costs nothing. That asymmetry is the honest result:
 temporal aggregation pays off where density collapses, and is inert elsewhere.
+
+## 2b. Validation report ✅
+
+**"My tool is accurate" neither sells nor proves.** What does both is a number
+on the customer's own data: *on your history, this is how accurate its advice
+would have been.* `services/validation.py` produces that number.
+
+### Rolling-origin, not a single holdout
+
+`evaluation.backtest` scores **one model** on **one window** so the engine can
+pick a winner. This scores **the whole tool** at **several points in time**:
+for each origin, train on what came before it only, let the engine choose its
+own model, then compare against what actually happened. It simulates what the
+tool would have said had it been run that day — including its model choice.
+One window can be luck; several reveal consistency.
+
+No leakage: each origin sees `series[:origin]` and nothing after.
+`tests/test_validation.py::test_training_never_sees_the_window_it_is_judged_on`
+spies on the engine and asserts the exact training slice.
+
+### Two traps found by measuring, not by reasoning
+
+**1. Zero-demand windows read as perfect accuracy.** On 87%-zero weekly data,
+**19 of 40 products** had an entirely zero test window. The model predicts
+zero, actual is zero, so MASE came out `0.00` — and the catalogue median
+reported "perfect". WAPE was already guarded (its denominator is Σ|actual|);
+MASE now carries the same guard, and such products are reported as
+**`no_demand`** — run, but nothing to measure. Median MASE went from a
+flattering `0.00` to an honest `1.66–1.82`.
+
+**2. `beat_naive` was judged on a mismatched benchmark.** MASE's denominator is
+the naive *one-step, in-sample* error; scoring a 3-step-ahead forecast against
+it charges the tool for the difficulty of the horizon rather than its quality.
+`beat_naive` now compares against a naive forecast on the **same window and
+same horizon**. The measured share moved from 17–21% (unfair) to **46–63%**
+(fair).
+
+### Measured on the five real files (fast models, horizon 3, 3 origins)
+
+| File | Measured | No demand | Median WAPE | Beat naive | Runtime |
+|---|---|---|---|---|---|
+| Monthly | 87/185 (47%) | 83 | 50% | 46% | 0.2s |
+| Weekly | 89/185 (48%) | 96 | 76% | 63% | 0.3s |
+| Daily | 64/185 (35%) | 121 | 129% | 62% | 1.1s |
+
+**Coverage is part of the result, not a footnote.** Its denominator includes
+both the skipped and the no-demand products; dropping them would flatter the
+median. That a third to a half of an intermittent catalogue has no measurable
+accuracy *is* the finding — and saying so is what separates this report from
+marketing.
+
+Surfaced in Executive Overview behind a button (it is real work, not something
+to run on every page load), with an Excel export carrying a second sheet for
+everything that could **not** be measured, named and reasoned.

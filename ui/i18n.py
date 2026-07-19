@@ -288,6 +288,68 @@ STRINGS: dict[str, dict[str, str]] = {
         "ar": "أدقّ، لكن دقائق على كتالوج كامل بدل ثانية واحدة.",
         "en": "More accurate, but minutes for a full catalogue instead of one second.",
     },
+    # ---- تقرير التحقّق (services/validation.py) ----
+    "val.title": {
+        "ar": ":material/fact_check: تقرير التحقّق — كيف كانت الأداة ستؤدّي على تاريخك؟",
+        "en": ":material/fact_check: Validation report — how would this have performed on your history?",
+    },
+    "val.explainer": {
+        "ar": "تُشغَّل الأداة على عدة نقاط في ماضيك: تتدرّب على ما قبل النقطة فقط، "
+              "وتُقارَن توصيتها بما حدث فعلاً بعدها. لا شيء من نافذة الاختبار "
+              "يدخل التدريب.",
+        "en": "The tool is run at several points in your past: trained only on what "
+              "came before each point, then compared against what actually happened "
+              "after it. Nothing from the test window enters training.",
+    },
+    "val.compute": {"ar": "احسب تقرير التحقّق", "en": "Compute validation report"},
+    "val.empty": {
+        "ar": "اضغط الزر أعلاه لتشغيل الأداة على تاريخك.",
+        "en": "Click above to run the tool against your own history.",
+    },
+    "val.kpi_measured": {"ar": "قِيست دقّتها", "en": "Accuracy measured"},
+    "val.kpi_measured_help": {
+        "ar": "منتج لم يقع فيه طلب في نافذة الاختبار لا دقّة تُقاس له — "
+              "لا يُحتسب هنا ولا يُحذف من المقام.",
+        "en": "A product with no demand in the test window has no measurable "
+              "accuracy — it is neither counted here nor dropped from the total.",
+    },
+    "val.kpi_wape": {"ar": "وسيط WAPE", "en": "Median WAPE"},
+    "val.kpi_wape_help": {
+        "ar": "نسبة الخطأ إلى إجمالي الطلب الفعلي. أقل = أفضل.",
+        "en": "Error as a share of total actual demand. Lower is better.",
+    },
+    "val.kpi_beat_naive": {"ar": "تفوّقت على الساذج", "en": "Beat naive"},
+    "val.kpi_beat_naive_help": {
+        "ar": "نسبة المنتجات التي تفوّقت فيها الأداة على تكرار آخر قيمة — "
+              "على نفس النافذة ونفس الأفق.",
+        "en": "Share of products where the tool beat simply repeating the last "
+              "value — same window, same horizon.",
+    },
+    "val.kpi_mase": {"ar": "وسيط MASE", "en": "Median MASE"},
+    "val.kpi_mase_help": {
+        "ar": "الخطأ منسوباً إلى خطأ الساذج بخطوة واحدة داخل التدريب. مرجع "
+              "قابل للمقارنة بين منتجات مختلفة الأحجام.",
+        "en": "Error scaled by the naive one-step error inside training. "
+              "Comparable across products of different sizes.",
+    },
+    "val.unmeasured_note": {
+        "ar": "خارج القياس: {no_demand} منتجاً بلا طلب في نافذة الاختبار، "
+              "و{skipped} تعذّر تشغيلها. كلاهما ضمن المقام أعلاه.",
+        "en": "Outside measurement: {no_demand} products had no demand in the test "
+              "window, and {skipped} could not be run. Both are in the total above.",
+    },
+    "val.col_origins": {"ar": "نقاط الاختبار", "en": "Test points"},
+    "val.col_mase": {"ar": "MASE", "en": "MASE"},
+    "val.col_vs_naive": {"ar": "مقابل الساذج", "en": "vs naive"},
+    "val.better": {"ar": "أفضل", "en": "better"},
+    "val.worse": {"ar": "أسوأ", "en": "worse"},
+    "val.download": {"ar": "⬇ تحميل التقرير (Excel)", "en": "⬇ Download report (Excel)"},
+    "val.sheet_measured": {"ar": "المقيسة", "en": "Measured"},
+    "val.sheet_unmeasured": {"ar": "خارج القياس", "en": "Not measured"},
+    "val.reason_no_demand": {
+        "ar": "لا طلب فعلي في نافذة الاختبار",
+        "en": "No actual demand in the test window",
+    },
     "risk.low": {"ar": "🟢 منخفضة", "en": "🟢 Low"},
     "risk.medium": {"ar": "🟡 متوسطة", "en": "🟡 Medium"},
     "risk.high": {"ar": "🔴 عالية", "en": "🔴 High"},

@@ -385,3 +385,115 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         )
 
     st.caption(t("exec.inventory_active") if inventory else t("exec.inventory_caveat"))
+
+    _render_validation_section(products, granularity)
+
+
+VALIDATION_KEY = "_validation_report"
+
+
+def _validation_frame(report) -> pd.DataFrame:
+    """صفّ لكل منتج قِيست دقّته. غير القابل للقياس لا يُحشر هنا برقم مخترَع."""
+    return pd.DataFrame([
+        {
+            t("common.product"): item.product_name,
+            t("pplan.col_class"): t(f"class.{item.demand_class}"),
+            t("val.col_origins"): item.origins_tested,
+            t("common.wape"): f"{item.wape:.0f}%",
+            t("val.col_mase"): f"{item.mase:.2f}" if item.mase is not None else "—",
+            t("val.col_vs_naive"): t(
+                "val.better" if item.beat_naive else "val.worse"
+            ),
+            t("common.model"): max(
+                item.winning_models, key=item.winning_models.get
+            ),
+        }
+        for item in report.products
+        if item.wape is not None
+    ])
+
+
+def _validation_excel(report) -> bytes:
+    from io import BytesIO
+
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        _validation_frame(report).to_excel(
+            writer, sheet_name=t("val.sheet_measured")[:31], index=False
+        )
+        unmeasured = [
+            (p.product_name, t("val.reason_no_demand")) for p in report.products
+            if p.wape is None
+        ] + list(report.skipped)
+        if unmeasured:
+            pd.DataFrame(
+                unmeasured,
+                columns=[t("common.product"), t("pplan.col_reason")],
+            ).to_excel(writer, sheet_name=t("val.sheet_unmeasured")[:31], index=False)
+    return buffer.getvalue()
+
+
+def _render_validation_section(products: dict[str, list[float]], granularity: str) -> None:
+    """«لو استخدمتَ هذه الأداة على تاريخك، ماذا كانت ستقول؟»
+
+    خلف زرّ لا تلقائياً: يُشغّل الأداة عدة مرات على ماضي كل منتج، وهو عمل
+    حقيقي لا يجب أن يقع على كل تحميل للصفحة.
+    """
+    from services.batch import fast_models
+    from services.validation import build_validation_report
+
+    with st.expander(t("val.title")):
+        st.caption(t("val.explainer"))
+        if st.button(t("val.compute"), icon=":material/fact_check:"):
+            progress = st.progress(0.0, text=t("exec.computing"))
+
+            def on_progress(done: int, total: int, name: str) -> None:
+                progress.progress(done / total, text=f"{done}/{total} — {name[:40]}")
+
+            st.session_state[VALIDATION_KEY] = build_validation_report(
+                products, granularity=granularity, models=fast_models(),
+                on_progress=on_progress,
+            )
+            progress.empty()
+
+        report = st.session_state.get(VALIDATION_KEY)
+        if report is None:
+            st.info(t("val.empty"))
+            return
+
+        columns = st.columns(4)
+        columns[0].metric(
+            t("val.kpi_measured"), f"{report.measured_count}/{report.total_count}",
+            help=t("val.kpi_measured_help"),
+        )
+        columns[1].metric(
+            t("val.kpi_wape"),
+            f"{report.median_wape:.0f}%" if report.median_wape is not None else "—",
+            help=t("val.kpi_wape_help"),
+        )
+        columns[2].metric(
+            t("val.kpi_beat_naive"),
+            f"{report.beat_naive_share:.0%}" if report.beat_naive_share is not None else "—",
+            help=t("val.kpi_beat_naive_help"),
+        )
+        columns[3].metric(
+            t("val.kpi_mase"),
+            f"{report.median_mase:.2f}" if report.median_mase is not None else "—",
+            help=t("val.kpi_mase_help"),
+        )
+
+        # الصدق أولاً: ما لم يُقَس يُذكَر بحجمه، لا يُطوى
+        if report.no_demand_count or report.skipped:
+            st.caption(t(
+                "val.unmeasured_note",
+                no_demand=report.no_demand_count, skipped=len(report.skipped),
+            ))
+
+        frame = _validation_frame(report)
+        if not frame.empty:
+            st.dataframe(frame.head(50), use_container_width=True, hide_index=True)
+            st.download_button(
+                t("val.download"), data=_validation_excel(report),
+                file_name="factorymind-validation.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
