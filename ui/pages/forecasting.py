@@ -24,7 +24,7 @@ from ui.data_source import active_granularity
 from ui.i18n import error as translate_error
 from ui.i18n import format_months, format_reason, format_recommendation, t
 
-# منتج واحد بالنماذج التسعة ~1s — مقبول للحساب الحيّ. الكتالوج كله لا
+# منتج واحد بكل النماذج ~1s — مقبول للحساب الحيّ. الكتالوج كله لا
 # (3.3 دقيقة) — تلك مهمة services/batch.py.
 
 
@@ -91,7 +91,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
         steps = st.slider(t("fc.horizon", unit=unit), 1, MAX_FORECAST_STEPS,
                           DEFAULT_FORECAST_STEPS)
         full_family = st.checkbox(
-            t("common.all_nine_models"), value=False,
+            t("common.all_models"), value=False,
             help=t("fc.full_family_help"),
         )
 

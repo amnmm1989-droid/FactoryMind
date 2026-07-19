@@ -145,7 +145,7 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
             help=t("pplan.lead_time_help"),
         )
         full_family = st.checkbox(
-            t("common.all_nine_models"), value=False, help=t("common.all_nine_help"),
+            t("common.all_models"), value=False, help=t("common.all_models_help"),
         )
         compute = st.button(
             t("pplan.compute"), icon=":material/refresh:", use_container_width=True

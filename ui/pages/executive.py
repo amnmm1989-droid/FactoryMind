@@ -3,7 +3,7 @@
 الصفحة التنفيذية — "ما الذي يحتاج انتباهي؟"
 
 تقرأ من جدولَي recommendations و forecasts، ولا تحسب شيئاً. السبب قياس:
-النماذج التسعة على كتالوج كامل = دقائق. صفحة تحسب عند كل تحميل ميتة.
+كل النماذج على كتالوج كامل = دقائق. صفحة تحسب عند كل تحميل ميتة.
 الدفعة (services/batch.py) تملأ الجداول في 0.7s بالنماذج الخفيفة.
 
 ⚠️ قرار تصميمي كشفته البيانات: ترتيب المنتجات بالخطورة وحدها يُنتج شاشة
@@ -302,8 +302,8 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
     with st.sidebar:
         st.header(t("common.compute"))
         full_family = st.checkbox(
-            t("common.all_nine_models"), value=False,
-            help=t("common.all_nine_help"),
+            t("common.all_models"), value=False,
+            help=t("common.all_models_help"),
         )
         compute = st.button(
             t("exec.recompute"), icon=":material/refresh:", use_container_width=True

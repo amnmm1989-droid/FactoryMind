@@ -1,17 +1,25 @@
 # services/forecast_engine/statistical.py
 """
-النماذج الإحصائية: ETS و SARIMA.
+النموذج الإحصائي الموسمي: ETS.
 
-هذه إعادة تنفيذ لا تغليف لـ models/forecasting.py، والسبب جوهري:
-`forecast_ets` القائمة تُرجع خطاً مسطّحاً عند نقص البيانات وتسمّيه "ETS"،
-وتُرجع متوسطاً عند الفشل وتسمّيه "ETS" أيضاً. المستخدم يقرأ "نموذج: ETS"
-ويظن أن نموذجاً موسمياً حلّل بياناته، بينما ما رآه هو آخر قيمة مكرّرة.
+النموذج يعلن حدوده صراحةً ويفشل بصوت مسموع، ليقرر المحرك (لا النموذج) ما
+البديل — ويُسمّى البديل باسمه الحقيقي، بدل خط مسطّح يُسمّى "ETS".
 
-المحرك يحتاج العكس: نموذج يعلن حدوده صراحةً ويفشل بصوت مسموع، ليقرر
-المحرك (لا النموذج) ما البديل — ويُسمّى البديل باسمه الحقيقي.
+## SARIMA — أُزيل بقياس، لا برأي
 
-models/forecasting.py يبقى كما هو: ui/dashboard.py و tests/test_models.py
-يعتمدان عليه، وتغييره خارج نطاق هذه المرحلة.
+كان هنا SARIMA(1,1,1)(1,1,1,s). أُزيل لأن كلفته لا تُبرَّر بعائده على أي
+ملف من ملفات هذا المشروع:
+
+| القياس | SARIMA | بقية النماذج |
+|---|---|---|
+| زمن المنتج الواحد (أسبوعي، s=52) | **~32 ثانية** | ~0.2 ثانية |
+| حصته من المعالج (ملف أسبوعي) | **97.7%** | 2.3% مجتمعة |
+| فوزه (25 منتجاً أسبوعياً) | 1 | 24 |
+
+السبب البنيوي: الرتب الموسمية (1,1,1,52) على بيانات أسبوعية تُنتج نموذجاً
+ضخماً، وكتالوج هذا المشروع متقطّع في 84% منه — حيث لا دورة موسمية أصلاً.
+185 منتجاً × 32 ثانية ≈ **44 دقيقة** لتشغيل واحد؛ رقم يقتل الأداة عند
+مصنع حقيقي. ETS يبقى: نفس العائلة الموسمية بكلفة ~0.1 ثانية للمنتج.
 """
 from __future__ import annotations
 
@@ -83,6 +91,7 @@ class ETSForecaster(Forecaster):
     """
 
     name = "ETS"
+    handles_intermittent = False  # نموذج موسمي — راجع base.Forecaster
 
     def __init__(
         self, seasonal_periods: int = SEASONAL_PERIODS, freq: str = "MS"
@@ -125,69 +134,3 @@ class ETSForecaster(Forecaster):
         lower, upper = _bounds_from_residuals(forecast, residuals, series)
         return ForecastOutput(values=forecast.tolist(), lower=lower, upper=upper)
 
-
-class SARIMAForecaster(Forecaster):
-    """SARIMA(1,1,1)(1,1,1,12).
-
-    الرتب ثابتة كما في الكود القائم — البحث عن الرتب المثلى (auto-arima)
-    خارج نطاق هذه المرحلة، وسيكون تحسيناً واضحاً لاحقاً.
-
-    حدود الثقة هنا من النموذج نفسه (get_forecast) لا من الرواسب — أدق،
-    لأنها تتسع مع أفق التنبؤ بدل أن تبقى ثابتة.
-    """
-
-    name = "SARIMA"
-
-    def __init__(
-        self, seasonal_periods: int = SEASONAL_PERIODS, freq: str = "MS"
-    ) -> None:
-        self.seasonal_periods = seasonal_periods
-        self.freq = freq
-        self.min_points = 2 * seasonal_periods
-        self.min_non_zero = seasonal_periods
-
-    def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
-        from statsmodels.tsa.arima.model import ARIMA
-
-        timeseries = _as_timeseries(series, self.freq)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                fitted = ARIMA(
-                    timeseries,
-                    order=(1, 1, 1),
-                    seasonal_order=(1, 1, 1, self.seasonal_periods),
-                ).fit()
-                prediction = fitted.get_forecast(steps)
-                forecast = np.asarray(prediction.predicted_mean, dtype=float)
-                intervals = np.asarray(
-                    prediction.conf_int(alpha=0.05), dtype=float
-                )
-        except Exception as exc:
-            raise ModelTrainingError(
-                f"فشل تدريب SARIMA: {exc}",
-                cause=exc,
-                context={"model": self.name, "points": len(series)},
-            ) from exc
-
-        if not np.all(np.isfinite(forecast)):
-            raise ModelTrainingError(
-                "SARIMA أنتج قيماً غير منتهية (NaN/inf)",
-                context={"model": self.name, "points": len(series)},
-            )
-
-        forecast = np.maximum(forecast, 0.0)
-        lower = np.maximum(intervals[:, 0], 0.0)
-        upper = intervals[:, 1]
-
-        # حدود غير منتهية تحدث حين لا يستقر النموذج — تراجَع إلى الرواسب
-        if not (np.all(np.isfinite(lower)) and np.all(np.isfinite(upper))):
-            residuals = np.asarray(fitted.resid, dtype=float)
-            lower_list, upper_list = _bounds_from_residuals(forecast, residuals, series)
-            return ForecastOutput(
-                values=forecast.tolist(), lower=lower_list, upper=upper_list
-            )
-
-        return ForecastOutput(
-            values=forecast.tolist(), lower=lower.tolist(), upper=upper.tolist()
-        )

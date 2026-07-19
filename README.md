@@ -43,7 +43,7 @@ gated behind an owner decision (accounts).
 Most forecasting tools promise "95% accuracy". This one tells you when
 forecasting will **not** help you.
 
-We run nine models (ETS, SARIMA, Prophet, XGBoost, RandomForest, Croston,
+We run eight models (ETS, Prophet, XGBoost, RandomForest, Croston,
 TSB, and two naive baselines) on the bundled demo catalogue and measure the
 outcome — reproducible any time with
 [`scripts/measure_model_accuracy.py`](scripts/measure_model_accuracy.py),
@@ -61,7 +61,7 @@ not a number frozen in prose:
 plurality, but Prophet and XGBoost win nearly as often, and ETS has the
 *best* average rank overall. The honest finding isn't "simple always wins";
 it's that **the winner genuinely depends on the product**, which is the
-whole reason this engine tries all nine and measures instead of assuming
+whole reason this engine tries all eight and measures instead of assuming
 one family is always right. On products it does win, the winning model beat
 the naive baseline 85% of the time (Forecast Value Added).
 
@@ -174,11 +174,11 @@ migrations/            NNN_*.sql — sole owner of the database schema
 repositories/          Data access (products/sales, forecasts, recommendations, plans)
 services/
   ingest.py            Reads and validates the user's file (CSV/Excel)
-  forecast_engine/     9 models + demand classification + evidence-based selection
+  forecast_engine/     8 models + demand classification + evidence-based selection
   risk_service/        0–100 risk from five factors (unknown = None, never 0)
   decision_engine/     Forecast → production recommendation
   batch.py             Whole-catalogue computation
-models/                Original statistical models (ETS, SARIMA, trend)
+models/                Statistics helpers (trend, outliers)
 ui/
   pages/               The six pages
   data_source.py       Session data: user upload or bundled demo

@@ -35,6 +35,7 @@ class ProphetForecaster(Forecaster):
     """
 
     name = "Prophet"
+    handles_intermittent = False  # نموذج موسمي — راجع base.Forecaster
 
     def __init__(
         self, freq: str = "MS", seasonal_periods: int = 12, *, daily: bool = False,

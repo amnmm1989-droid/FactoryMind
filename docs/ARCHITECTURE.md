@@ -28,7 +28,7 @@ app.py                       Composition root: boots the DB, routes 5 pages,
  │   ├─ ingest.py            Reads user files (CSV/Excel), wide & long
  │   │                       layouts, granularity gate (monthly only).
  │   │                       The single entry point for user data.
- │   ├─ forecast_engine/     9 models + evidence-based selection:
+ │   ├─ forecast_engine/     8 models + evidence-based selection:
  │   │                       Naive/MovingAverage/Croston/TSB/ETS/SARIMA/
  │   │                       Prophet/XGBoost/RF. The engine knows no model
  │   │                       by name — registry.py only.

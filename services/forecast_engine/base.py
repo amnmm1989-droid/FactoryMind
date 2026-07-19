@@ -43,8 +43,20 @@ class Forecaster(ABC):
     min_points: int = 1       # الحد الأدنى لطول السلسلة
     min_non_zero: int = 1     # الحد الأدنى للنقاط غير الصفرية
 
+    # هل يصلح هذا النموذج لسلسلة متقطّعة/متكتّلة؟
+    #
+    # النماذج الموسمية (ETS/SARIMA/Prophet) تُجيب: لا. وهذا ليس تفضيلاً
+    # بل تعريفها — تبحث عن دورة موسمية، والسلسلة المتقطّعة فجواتها ليست
+    # دورة. DemandClass.SMOOTH يوثّقها منذ البداية بأنها "مجال ETS/SARIMA/
+    # Prophet".
+    #
+    # الأثر عملي لا نظري: هذه الثلاثة تلتهم ~71% من زمن المعالج (SARIMA
+    # وحده 44%)، بينما 84% من هذا الكتالوج متقطّع — أي أن معظم ذلك الزمن
+    # يُنفَق حيث لا تفوز أصلاً. القياس في docs/ROADMAP.md.
+    handles_intermittent: bool = True
+
     def can_handle(self, series: Sequence[float]) -> bool:
-        """هل تكفي هذه السلسلة لتدريب هذا النموذج؟
+        """هل تكفي هذه السلسلة — وتناسب — هذا النموذج؟
 
         المحرك يستدعيها قبل التدريب ويتخطّى ما لا ينطبق — التخطّي الصريح
         أفضل من نموذج يُدرَّب على بيانات لا تكفيه ثم يُرجع ضجيجاً.
@@ -52,7 +64,15 @@ class Forecaster(ABC):
         if len(series) < self.min_points:
             return False
         non_zero = sum(1 for value in series if value != 0)
-        return non_zero >= self.min_non_zero
+        if non_zero < self.min_non_zero:
+            return False
+        if not self.handles_intermittent:
+            # استيراد مؤجَّل: intermittent.py يستورد Forecaster من هنا.
+            from .intermittent import classify_demand
+
+            if classify_demand(series).is_intermittent:
+                return False
+        return True
 
     @abstractmethod
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:

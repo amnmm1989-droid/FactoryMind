@@ -24,7 +24,7 @@ from services.forecast_engine.evaluation import (
 )
 from services.forecast_engine.naive import MovingAverageForecaster, NaiveForecaster
 from services.forecast_engine.registry import applicable_models, default_models
-from services.forecast_engine.statistical import ETSForecaster, SARIMAForecaster
+from services.forecast_engine.statistical import ETSForecaster
 from services.forecast_engine.tree import RandomForestForecaster, XGBoostForecaster
 
 
@@ -49,7 +49,7 @@ def test_seasonal_models_reject_sparse_series():
     نموذج موسمي يقبل 4 قيم بين 40 صفراً سيُرجع رقماً — ورقم بلا أساس
     أخطر من رفض صريح، لأنه يبدو إجابة.
     """
-    for model in (ETSForecaster(), SARIMAForecaster(), XGBoostForecaster()):
+    for model in (ETSForecaster(), XGBoostForecaster()):
         assert not model.can_handle(SPARSE), f"{model.name} قبل سلسلة شحيحة"
 
 
@@ -68,12 +68,65 @@ def test_length_alone_does_not_qualify_a_series():
 
 
 # ---------------------------------------------------------------------------
+# بوابة الطلب المتقطّع: النماذج الموسمية لا تُشغَّل حيث لا موسمية
+# ---------------------------------------------------------------------------
+# سلسلة متقطّعة *طويلة وغنية* عمداً: تجتاز min_points/min_non_zero بسهولة،
+# فالرفض إن حدث سببه التقطّع وحده لا شحّ البيانات. بدونها كان الاختبار
+# سيمرّ للسبب الخطأ.
+INTERMITTENT_RICH = ([0.0, 0.0, 90.0, 0.0] * 30)
+
+
+def test_the_intermittent_series_used_here_is_not_merely_sparse():
+    """حارس الاختبار نفسه: لو صارت هذه السلسلة شحيحة، لمرّت الاختبارات
+    أدناه لسبب خاطئ تماماً."""
+    from services.forecast_engine.intermittent import classify_demand
+
+    assert classify_demand(INTERMITTENT_RICH).is_intermittent
+    assert len(INTERMITTENT_RICH) >= ETSForecaster(seasonal_periods=12).min_points
+    non_zero = sum(1 for v in INTERMITTENT_RICH if v)
+    assert non_zero >= ETSForecaster(seasonal_periods=12).min_non_zero
+
+
+@pytest.mark.parametrize("model", [
+    ETSForecaster(seasonal_periods=12),
+])
+def test_seasonal_models_skip_intermittent_demand(model):
+    """SARIMA وحده كان يلتهم 97.7% من زمن المعالج على الملف الأسبوعي
+    (~32 ثانية للمنتج الواحد) — ويفوز في منتج من 25. فجواتُ السلسلة
+    المتقطّعة ليست دورة موسمية، فلا شيء لهذه النماذج تجده هنا."""
+    assert not model.can_handle(INTERMITTENT_RICH)
+
+
+def test_baselines_and_intermittent_models_still_take_intermittent_demand():
+    """البوابة تُسقط الموسمية وحدها — لا تترك السلسلة بلا نموذج."""
+    from services.forecast_engine.intermittent import CrostonForecaster, TSBForecaster
+
+    for model in (NaiveForecaster(), MovingAverageForecaster(),
+                  CrostonForecaster(), TSBForecaster()):
+        assert model.can_handle(INTERMITTENT_RICH), f"{model.name} رفض المتقطّع"
+
+
+def test_seasonal_models_still_take_smooth_demand():
+    """البوابة مشروطة بالتقطّع لا مطلقة: الطلب المنتظم مجالها الأصلي."""
+    smooth = [100.0 + i * 2 for i in range(40)]
+
+    assert ETSForecaster(seasonal_periods=12).can_handle(smooth)
+
+
+def test_an_intermittent_series_still_gets_a_forecast():
+    """التسريع يجب ألا يتحوّل إلى فشل: يبقى للمتقطّع نماذجه."""
+    result = forecast_product("متقطّع", INTERMITTENT_RICH, steps=3, use_cache=False)
+
+    assert len(result.best.forecast_values) == 3
+
+
+# ---------------------------------------------------------------------------
 # النماذج تُنتج مخرجات صالحة
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize(
     "model",
     [NaiveForecaster(), MovingAverageForecaster(), ETSForecaster(),
-     SARIMAForecaster(), XGBoostForecaster(), RandomForestForecaster()],
+     XGBoostForecaster(), RandomForestForecaster()],
     ids=lambda m: m.name,
 )
 def test_model_returns_requested_horizon(model):
@@ -87,7 +140,7 @@ def test_model_returns_requested_horizon(model):
 @pytest.mark.parametrize(
     "model",
     [NaiveForecaster(), MovingAverageForecaster(), ETSForecaster(),
-     SARIMAForecaster(), XGBoostForecaster(), RandomForestForecaster()],
+     XGBoostForecaster(), RandomForestForecaster()],
     ids=lambda m: m.name,
 )
 def test_model_output_is_finite_and_non_negative(model):
@@ -101,7 +154,7 @@ def test_model_output_is_finite_and_non_negative(model):
 
 @pytest.mark.parametrize(
     "model",
-    [NaiveForecaster(), MovingAverageForecaster(), ETSForecaster(), SARIMAForecaster()],
+    [NaiveForecaster(), MovingAverageForecaster(), ETSForecaster()],
     ids=lambda m: m.name,
 )
 def test_bounds_bracket_the_forecast(model):
@@ -347,7 +400,7 @@ def test_registry_is_ordered_simplest_first():
 def test_registry_covers_every_model_the_roadmap_asks_for():
     names = {m.name for m in default_models()}
 
-    assert {"ETS", "SARIMA", "Prophet", "XGBoost", "RandomForest"} <= names
+    assert {"ETS", "Prophet", "XGBoost", "RandomForest"} <= names
 
 
 # ---------------------------------------------------------------------------
@@ -363,11 +416,11 @@ def test_registry_covers_every_model_the_roadmap_asks_for():
 def test_default_models_derive_seasonal_periods_and_freq_from_granularity(
     granularity, expected_periods, expected_freq
 ):
-    """ETS/SARIMA/Prophet وحدها بها مفهوم موسمي — يجب أن تحمل قيم حبيبتها
+    """ETS/Prophet وحدهما بها مفهوم موسمي — يجب أن تحمل قيم حبيبتها
     الفعلية، لا الثابت الشهري (12/"MS") دائماً."""
     models = {m.name: m for m in default_models(granularity)}
 
-    for name in ("ETS", "SARIMA"):
+    for name in ("ETS",):
         assert models[name].seasonal_periods == expected_periods
         assert models[name].freq == expected_freq
         # min_points/min_non_zero صفتا نسخة مُشتقّة، لا 24/12 ثابتتين دوماً
@@ -407,7 +460,7 @@ def test_applicable_models_shrink_as_data_thins():
 
     assert len(poor) < len(rich)
     assert {m.name for m in poor} == {"Naive", "MovingAverage", "Croston", "TSB"}
-    assert not {"ETS", "SARIMA", "Prophet", "XGBoost", "RandomForest"} & {
+    assert not {"ETS", "Prophet", "XGBoost", "RandomForest"} & {
         m.name for m in poor
     }
 
@@ -539,8 +592,8 @@ def test_fva_is_zero_when_naive_wins():
 
 
 def test_fva_is_positive_when_a_model_beats_naive():
-    """قياس فعلي: SARIMA يهزم Naive بوضوح على سلسلة موسمية غنية (rmse
-    6.6e-12 مقابل 33.3) — الفارق يجب أن يظهر موجباً بمقدار الفرق بالضبط."""
+    """على سلسلة موسمية غنية يهزم نموذجٌ ما Naive بوضوح — والفارق يجب
+    أن يظهر موجباً بمقدار الفرق بالضبط، أياً كان الفائز."""
     result = forecast_product("منتج", SEASONAL, steps=6, use_cache=False)
 
     naive_eval = next(e for e in result.evaluations if e.model_name == "Naive")

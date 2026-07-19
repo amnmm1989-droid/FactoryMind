@@ -121,7 +121,7 @@ def test_fast_models_exclude_the_heavy_family():
     names = {m.name for m in fast_models()}
 
     assert names == {"Naive", "MovingAverage", "Croston", "TSB"}
-    assert not names & {"Prophet", "XGBoost", "RandomForest", "ETS", "SARIMA"}
+    assert not names & {"Prophet", "XGBoost", "RandomForest", "ETS"}
 
 
 def test_batch_is_rerunnable(catalogue, migrated_db):

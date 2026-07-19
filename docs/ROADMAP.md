@@ -623,3 +623,40 @@ Since 2026-07-17 the suite runs automatically on every push to `main` and
 every PR (`.github/workflows/ci.yml`, against `requirements.lock.txt`, not
 the loose file). Before that it ran only by hand: a suite without a runner
 equals zero tests.
+
+## 1c. Cutting CPU cost ✅
+
+Profiled on the real files (per-model `duration_ms`, full family, 25 products):
+
+| | Monthly | Weekly |
+|---|---|---|
+| Before | 12.52s | **357.94s** |
+| After | 7.05s | **5.20s** |
+| | 44% faster | **98.5% faster (69×)** |
+
+Extrapolated to the full 185-product catalogue, the weekly file went from
+**~44 minutes to ~38 seconds** per run.
+
+Two measured changes:
+
+**1. SARIMA removed.** It was pathological, not merely slow: `SARIMA(1,1,1)(1,1,1,52)`
+on weekly data cost **~32 seconds per product** — 97.7% of all CPU on that
+file — against ~0.2s for every other model. It won 1 product of 25 weekly and
+2 of 25 monthly. Nothing else in the engine is remotely comparable, so it was
+deleted rather than gated.
+
+**2. Seasonal models skip intermittent demand.** `Forecaster.handles_intermittent`
+(False for ETS/Prophet) makes `can_handle` reject intermittent/lumpy series.
+This is not a preference but their definition — they look for a seasonal cycle,
+and the gaps in an intermittent series are not a cycle. `DemandClass.SMOOTH`
+already documented itself as "the ETS/SARIMA/Prophet domain". 84% of this
+catalogue is intermittent, so most of that work was being spent where those
+models cannot win.
+
+**Accuracy cost: 3 products out of 50 changed winner** — SARIMA's wins moved to
+Naive, ETS, and TSB. The engine's own evidence-based selection absorbed the
+loss, exactly as "no single family is right often enough" predicts.
+
+Covered by `tests/test_forecast_engine.py::test_seasonal_models_skip_intermittent_demand`
+and `::test_an_intermittent_series_still_gets_a_forecast` (the speed-up must
+never become a failure — intermittent series keep their own models).

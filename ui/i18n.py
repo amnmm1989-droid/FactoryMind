@@ -283,8 +283,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.recommended_qty": {"ar": "الكمية الموصى بها", "en": "Recommended qty"},
     "common.duration_ms": {"ar": "زمن (ms)", "en": "Time (ms)"},
     "common.compute": {"ar": "الحساب", "en": "Compute"},
-    "common.all_nine_models": {"ar": "كل النماذج التسعة", "en": "All nine models"},
-    "common.all_nine_help": {
+    "common.all_models": {"ar": "كل النماذج", "en": "All models"},
+    "common.all_models_help": {
         "ar": "أدقّ، لكن دقائق على كتالوج كامل بدل ثانية واحدة.",
         "en": "More accurate, but minutes for a full catalogue instead of one second.",
     },

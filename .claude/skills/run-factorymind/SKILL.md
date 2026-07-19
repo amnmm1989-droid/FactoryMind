@@ -45,7 +45,7 @@ cd .claude/skills/run-factorymind && npm install && cd -
 Prophet و XGBoost يُدرَّبان فعلاً.
 
 ```bash
-# كل النماذج التسعة على منتج بعينه
+# كل النماذج على منتج بعينه
 ./.venv/bin/python .claude/skills/run-factorymind/smoke.py --product "Gearbox" --steps 3
 ```
 

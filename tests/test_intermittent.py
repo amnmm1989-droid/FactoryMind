@@ -290,7 +290,7 @@ def test_intermittent_models_rank_before_the_seasonal_family():
     names = [m.name for m in default_models()]
 
     assert names.index("Croston") < names.index("ETS")
-    assert names.index("TSB") < names.index("SARIMA")
+    assert names.index("TSB") < names.index("Prophet")
 
 
 def test_intermittent_models_apply_to_sparse_series():
