@@ -78,12 +78,28 @@ def _format_quantity(value: float) -> str:
     return f"{value:,.0f}"
 
 
+# فوق هذا الحدّ لم يعد الرقم "دقّة سيئة" بل رقماً بلا معنى: خطأ يفوق
+# الطلب نفسه بضعفين. عُرضت قيم 21,149% و76,800% كما هي على الملفين
+# الأسبوعي والسنوي — ورقم كهذا في عمود اسمه "الدقّة" يُفقد العمود كلّه
+# مصداقيته عند من يقرأه.
+WAPE_ABSURD_ABOVE = 200.0
+
+
 def _format_wape(value: float | None) -> str:
     """WAPE بجانب عوامل الخطورة: تلك تقول "على كم عاملاً بُنيت الدرجة؟"،
     وWAPE يقول "وهل نثق بالرقم نفسه أصلاً؟". em-dash لا صفر حين لم يُحسَب —
     منتج بلا تقييم تاريخي (سلسلة قصيرة عن أن تُقسَّم تدريباً واختباراً)
-    ليس دقيقاً 0%، بل غير مقيس."""
-    return f"{value:.0f}%" if value is not None else "—"
+    ليس دقيقاً 0%، بل غير مقيس.
+
+    فوق WAPE_ABSURD_ABOVE يُعرض الحدّ لا القيمة: الفرق بين 500% و76,800%
+    لا يحمل معلومة لمن يقرر — كلاهما "لا تثق بهذا الرقم" — بينما عرض
+    الرقم الخام يوحي بدقّة قياس ليست موجودة.
+    """
+    if value is None:
+        return "—"
+    if value > WAPE_ABSURD_ABOVE:
+        return f">{WAPE_ABSURD_ABOVE:.0f}%"
+    return f"{value:.0f}%"
 
 
 def _format_factors(risk) -> str:
@@ -97,6 +113,48 @@ def _format_factors(risk) -> str:
     return f"{known}/{total}"
 
 
+# عدد صفوف "يحتاج قراراً" المعروضة. ثابت مُسمّى لأن اختبار الأولوية
+# يقيس تغطيته للحجم، فلا يجوز أن يفترق الرقمان.
+ROWS_SHOWN = 50
+
+SORT_IMPACT = "impact"
+SORT_RISK = "risk"
+SORT_KEY = "_exec_sort"
+
+
+def _prioritised(recommendations: list) -> list:
+    """ترتيب جدول القرار — بالأثر افتراضاً لا بالخطورة.
+
+    القياس الذي فرض هذا (الملفات الخمسة، 185 منتجاً لكل ملف): بالخطورة
+    وحدها كانت الصفوف الخمسون المعروضة تغطّي 20% من الحجم أسبوعياً،
+    9% شهرياً، 11% ربعياً، **6% سنوياً** — وأكبر منتج في المصنع خارج
+    الشاشة في أربعة ملفات من خمسة. بالأثر تنقلب النسبة، لأن أكبر عشرة
+    منتجات تحمل 74-79% من الحجم في الملفات الخمسة جميعاً (باريتو حادّ).
+
+    الترتيب بالخطورة يبقى خياراً صريحاً لا يُحذف: سؤال "ما أكثر ما
+    يتذبذب؟" مشروع — لكنه ليس السؤال الذي تُفتَح به شاشةٌ عنوانها
+    "يحتاج قراراً".
+    """
+    if st.session_state.get(SORT_KEY, SORT_IMPACT) == SORT_RISK:
+        return sorted(recommendations, key=lambda r: r.risk.score if r.risk else 0,
+                      reverse=True)
+    return sorted(recommendations, key=lambda r: r.units_at_risk, reverse=True)
+
+
+def _render_sort_control() -> None:
+    # مفاتيح صريحة لا مبنيّة بـ f-string: الترجمة المبنيّة ديناميكياً
+    # تفلت من حارس المفاتيح اليتيمة في test_i18n، فيتعفّن نصٌّ حيّ بصمت.
+    labels = {SORT_IMPACT: t("exec.sort_impact"), SORT_RISK: t("exec.sort_risk")}
+    st.segmented_control(
+        t("exec.sort_by"),
+        options=[SORT_IMPACT, SORT_RISK],
+        format_func=labels.__getitem__,
+        default=SORT_IMPACT,
+        key=SORT_KEY,
+        help=t("exec.sort_help"),
+    )
+
+
 def _to_frame(recommendations) -> pd.DataFrame:
     return pd.DataFrame([
         {
@@ -106,6 +164,9 @@ def _to_frame(recommendations) -> pd.DataFrame:
                 f"🔗 {r.product_name}" if r.borrowed_from else r.product_name
             ),
             t("common.recommended_qty"): _format_quantity(r.recommended_quantity),
+            # مفتاح الترتيب الافتراضي — معروضاً لا مخفياً: ترتيبٌ بعمود
+            # غير ظاهر يبدو للقارئ عشوائياً.
+            t("common.units_at_risk"): _format_quantity(r.units_at_risk),
             t("common.risk"): round(r.risk.score),
             t("common.level"): _level_badge(r.risk.level),
             t("common.demand_change"): round(r.expected_demand_change_pct, 1),
@@ -374,9 +435,11 @@ def render(months: list[str], products: dict[str, list[float]]) -> None:
 
         st.subheader(t("exec.needs_decision"))
         st.caption(t("exec.needs_decision_help"))
+        _render_sort_control()
         if actionable:
             st.dataframe(
-                _to_frame(actionable[:50]), use_container_width=True, hide_index=True
+                _to_frame(_prioritised(actionable)[:ROWS_SHOWN]),
+                use_container_width=True, hide_index=True,
             )
         else:
             st.info(t("exec.nothing_actionable"))

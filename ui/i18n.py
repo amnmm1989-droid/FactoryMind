@@ -274,6 +274,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.quantity": {"ar": "الكمية", "en": "Quantity"},
     "common.period": {"ar": "الفترة", "en": "Period"},
     "common.risk": {"ar": "الخطورة", "en": "Risk"},
+    "common.units_at_risk": {"ar": "وحدات معرَّضة", "en": "Units at risk"},
     "common.level": {"ar": "المستوى", "en": "Level"},
     "common.model": {"ar": "النموذج", "en": "Model"},
     "common.risk_factors": {"ar": "عوامل الخطورة", "en": "Risk factors"},
@@ -589,14 +590,26 @@ STRINGS: dict[str, dict[str, str]] = {
     "exec.kpi_high_risk": {"ar": "منها عالية الخطورة", "en": "Of those, high risk"},
     "exec.kpi_total_qty": {"ar": "إجمالي الكمية الموصى بها", "en": "Total recommended qty"},
     "exec.needs_decision": {
-        "ar": "يحتاج قراراً — مرتّب بالخطورة",
-        "en": "Needs a decision — ordered by risk",
+        "ar": "يحتاج قراراً",
+        "en": "Needs a decision",
     },
     "exec.needs_decision_help": {
-        "ar": "المنتجات التي يوصى بإنتاج كمية منها. الخطورة تحدد الأولوية، "
+        "ar": "المنتجات التي يوصى بإنتاج كمية منها. الترتيب يحدد الأولوية، "
               "لا الحاجة نفسها.",
-        "en": "Products with a recommended quantity. Risk sets the priority, "
-              "not the need itself.",
+        "en": "Products with a recommended quantity. The ordering sets the "
+              "priority, not the need itself.",
+    },
+    "exec.sort_by": {"ar": "الأولوية حسب", "en": "Prioritise by"},
+    "exec.sort_impact": {"ar": "الأثر", "en": "Impact"},
+    "exec.sort_risk": {"ar": "الخطورة", "en": "Risk"},
+    "exec.sort_help": {
+        "ar": "«الأثر» = الكمية × الخطورة، بوحدات الإنتاج — فيتصدّر المنتج "
+              "الذي تخطئ فيه بأكثر وحدات. «الخطورة» ترتّب بالتذبذب وحده، "
+              "فتُصعّد منتجات صغيرة متقلّبة وتُغرق أكبر منتجاتك.",
+        "en": "\"Impact\" = quantity × risk, in production units — so the "
+              "product where you would be wrong by the most units comes first. "
+              "\"Risk\" orders by volatility alone, which promotes small erratic "
+              "items and buries your largest ones.",
     },
     "exec.nothing_actionable": {
         "ar": "لا منتج يحتاج إنتاجاً حسب التوصيات الحالية.",

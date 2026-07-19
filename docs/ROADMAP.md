@@ -361,11 +361,24 @@ an explicit user choice.
 First run: the top-5 riskiest products **all recommended "produce 0"** —
 dead products with volatile history. High risk, zero required action.
 
-So the primary screen is **what needs production** (quantity > 0) ordered
-by risk, and risky-but-dormant products sit in a separate collapsed
-section. The number that proves the decision: **zero** of the 83 products
-needing production were high-risk — mixing them would have buried what
-needs a decision.
+So the primary screen is **what needs production** (quantity > 0), and
+risky-but-dormant products sit in a separate collapsed section. The number
+that proves the decision: **zero** of the 83 products needing production
+were high-risk — mixing them would have buried what needs a decision.
+
+**A second correction, same screen.** That primary table was then ordered
+by risk — and measurement on the five ERP exports (185 products each)
+showed the ordering itself was the defect. Risk is a unitless ratio, so
+volatile 60g sample bags outranked the factory's largest lines. The 50
+rows shown covered 20% of volume weekly, 9% monthly, 11% quarterly and
+**6% yearly**, with the single biggest product (86,967 units) sitting at
+rank 91 — off screen on four files out of five.
+
+The default is now **impact** = `quantity × risk`, in production units:
+"how many units are exposed?" Coverage went to 99-100% on all five files
+and the biggest product ranks #1 on every one. Ordering by risk stays as
+an explicit choice — the question is legitimate, just not the one a screen
+titled "needs a decision" should open with.
 
 ### Three bugs found by running, not by tests
 
