@@ -1041,6 +1041,20 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "{count} negative values (returns?) — clipped to zero. "
               "The engines model demand, not net movement.",
     },
+    "warn.total_rows": {
+        "ar": "{count} صف إجماليات استُبعد ({names}) — مجموعُ منتجات لا منتج. "
+              "بقاؤه كان سيضخّم عدد المنتجات ويتصدّر كل شاشة مرتّبة بالحجم.",
+        "en": "{count} totals row(s) excluded ({names}) — a sum of products, "
+              "not a product. Keeping them would inflate the product count and "
+              "top every volume-ordered screen.",
+    },
+    "warn.merged_rows": {
+        "ar": "{count} صف تكرّر اسم منتجه فجُمعت قيمه مع الأول — مستودعان أو "
+              "خطّا إنتاج غالباً. راجعها إن كان التكرار خطأ إدخال.",
+        "en": "{count} row(s) repeated a product name and were summed into the "
+              "first — usually two warehouses or lines. Check them if the "
+              "repetition was a data-entry error.",
+    },
     "warn.dead_products": {
         "ar": "{count} منتجاً بلا أي مبيعات — لا ينطبق عليها نموذج، "
               "وستُرفض صراحةً.",

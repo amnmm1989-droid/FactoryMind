@@ -102,6 +102,74 @@ _THOUSANDS = re.compile(r"^-?\d{1,3}(,\d{3})+(\.\d+)?$")
 _SPACED_THOUSANDS = re.compile(r"^-?\d{1,3}([   ]\d{3})+(\.\d+)?$")
 
 
+# سالب محاسبي: (500) = -500 في كل تصديرة مالية.
+_ACCOUNTING_NEGATIVE = re.compile(r"^\(.+\)$")
+
+# نواة رقمية داخل ضجيج غير رقمي: "$1,200"، "1200 ر.س"، "1,200 kg".
+_NUMERIC_CORE = re.compile(r"-?\d[\d,.\u00a0\u202f ]*\d|-?\d")
+
+
+def _strip_units(text: str) -> str:
+    """إزالة رمز العملة أو لاحقة الوحدة حول رقم واحد — لا أكثر.
+
+    ⚠️ ثلاث حالات كانت تجعل المنتج يُقرأ **ميتاً بالكامل** (كل قيمه
+    صفراً): "$1,200" و"1200 ر.س" و"1,200 kg". فتوصي الأداة بإنتاج صفر من
+    منتج قائم — وهي التوصية التي يُبنى عليها أمر شراء.
+
+    ## لماذا لا قائمة وحدات
+
+    الوحدات لا تنتهي (kg، pcs، ton، ر.س، درهم، ج.م، cartons…)، وقائمةٌ
+    ناقصة تفشل بصمت على أول وحدة لم نتوقّعها — وهو بالضبط سلوك العطل
+    الذي نُصلحه.
+
+    ## القاعدة بدلاً منها: نواة رقمية **واحدة**
+
+    يُقبل الطرح فقط حين يحتوي النصّ على مجموعة أرقام واحدة متّصلة:
+
+        "1,200 kg"  → مجموعة واحدة  → 1200 ✅
+        "$1,200"    → مجموعة واحدة  → 1200 ✅
+        "2 x 500"   → مجموعتان      → تُترك فتُرفَض بصوت ✅
+
+    الحالة الأخيرة هي السبب: "2 × 500" تعني 1000، وطرحُ ما ليس رقماً منها
+    يُنتج "2500" — رقمٌ مخترَع يبدو سليماً. الرفض الصريح أأمن.
+    """
+    if not any(ch.isdigit() for ch in text):
+        return text
+    matches = _NUMERIC_CORE.findall(text)
+    if len(matches) != 1:
+        return text  # صفر مجموعة أو أكثر من واحدة: لا تخمين
+    return matches[0].strip()
+
+
+# صفوف الإجماليات في تصديرات Excel — تُقرأ منتجاً وهي مجموع المنتجات.
+# أثرها مضاعَف: تضخّم عدد المنتجات، وتُدخل صفّاً حجمه = مجموع الكتالوج
+# فيتصدّر كل شاشة مرتّبة بالحجم (وهي كل الشاشات بعد إصلاح الترتيب).
+_TOTAL_ROW_NAMES = frozenset({
+    "total", "totals", "grand total", "subtotal", "sub total", "sum",
+    "المجموع", "الإجمالي", "الاجمالي", "المجموع الكلي", "الإجمالي العام",
+})
+
+# علامات اتجاه وصفر-عرض: تنجو من تصديرات الواجهات العربية، غير مرئية،
+# وتجعل "‏منتج أ" و"منتج أ" اسمين مختلفين — فينفصل المنتج عن مخزونه.
+_INVISIBLE_MARKS = dict.fromkeys(
+    map(ord, "\u200e\u200f\u200b\u202a\u202b\u202c\u202d\u202e\ufeff"), None
+)
+
+
+def clean_product_name(name) -> str:
+    """اسم المنتج كما يجب أن يُطابَق ويُعرَض.
+
+    الفراغات والعلامات غير المرئية تُزال لأن أثرها ليس تجميلياً: ملف
+    المبيعات وملف المخزون يُربطان **بالاسم**، فمسافة زائدة في أحدهما
+    تعني منتجاً بلا مخزون ومخزوناً بلا منتج — وكلاهما يظهر سليماً.
+    """
+    return str(name).translate(_INVISIBLE_MARKS).strip()
+
+
+def _is_total_row(label: str) -> bool:
+    return label.strip().lower().rstrip(":").strip() in _TOTAL_ROW_NAMES
+
+
 def _clean_number(value):
     """تطبيع نصّ رقمي قبل التحويل — ما لا يُطبَّع يُترك ليُرفَض.
 
@@ -130,11 +198,25 @@ def _clean_number(value):
     text = value.strip().translate(_ARABIC_INDIC)
     if not text:
         return value
+
+    # فاصلة عليا تسبق الرقم: Excel يضعها ليُجبر الخلية على أن تُخزَّن نصّاً،
+    # وتنجو أحياناً إلى التصدير.
+    text = text.lstrip("'\u2019")
+
+    # سالب محاسبي: (500) تعني -500 في كل تصديرة مالية. بدونه كانت تُقرأ
+    # "غير رقمية" فتصير صفراً — أي أن مرتجعاً يُمحى بدل أن يُحذَّر منه.
+    negative = bool(_ACCOUNTING_NEGATIVE.match(text))
+    if negative:
+        text = text[1:-1].strip()
+
+    text = _strip_units(text)
+
     if _THOUSANDS.match(text):
-        return text.replace(",", "")
-    if _SPACED_THOUSANDS.match(text):
-        return re.sub(r"[   ]", "", text)
-    return text
+        text = text.replace(",", "")
+    elif _SPACED_THOUSANDS.match(text):
+        text = re.sub(r"[\u00a0\u202f ]", "", text)
+
+    return f"-{text}" if negative and not text.startswith("-") else text
 
 
 def to_numeric(data):
@@ -221,6 +303,18 @@ WEEK_LABEL = re.compile(r"^[Ww]\s?(\d{1,2})\s+(1[89]\d{2}|20\d{2})$")
 QUARTER_LABEL = re.compile(r"^[Qq]\s?([1-4])\s+(1[89]\d{2}|20\d{2})$")
 
 
+# "Jan-24" / "Feb 24" — اسم شهر ثم سنة من رقمين.
+_SHORT_YEAR_MONTH = re.compile(r"^([A-Za-z]{3,9})[\s\-/](\d{2})$")
+
+# "202401" — YYYYMM ملتصقة، مخرج SAP وغيره.
+_COMPACT_YEAR_MONTH = re.compile(r"^(1[89]\d{2}|20\d{2})(0[1-9]|1[0-2])$")
+
+_ENGLISH_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
 def parse_full_date(label: str) -> date | None:
     """تحويل تسمية إلى تاريخ **باليوم** — لا يُقصّ.
 
@@ -259,6 +353,28 @@ def parse_full_date(label: str) -> date | None:
     if quarter_match:
         quarter, year = int(quarter_match.group(1)), int(quarter_match.group(2))
         return date(year, (quarter - 1) * 3 + 1, 1)
+
+    # "Jan-24" / "Jan 24": سنة من رقمين مع اسم شهر — شكل Excel شائع جداً،
+    # وpandas ترفضه. الحدّ 68/69 هو اصطلاح POSIX نفسه (00-68 → 20xx،
+    # 69-99 → 19xx)، ولا يُنتج لبساً هنا: بيانات طلب من 1969 لا وجود لها.
+    #
+    # ⚠️ يُجرَّب قبل pandas لا بعدها: pandas تقرأ "Jan-24" أحياناً على أنها
+    # اليوم 24 من يناير في السنة الحالية — رقم يبدو سليماً وهو خطأ سنة
+    # كاملة، وهو أسوأ من الرفض.
+    short_year = _SHORT_YEAR_MONTH.match(text)
+    if short_year:
+        month_name, two_digits = short_year.group(1), int(short_year.group(2))
+        month = _ENGLISH_MONTHS.get(month_name[:3].lower())
+        if month:
+            return date(2000 + two_digits if two_digits <= 68
+                        else 1900 + two_digits, month, 1)
+
+    # "202401": YYYYMM ملتصقة — مخرج SAP وغيره. pandas تقرأها عدداً لا تاريخاً.
+    compact = _COMPACT_YEAR_MONTH.match(text)
+    if compact:
+        year, month = int(compact.group(1)), int(compact.group(2))
+        if 1 <= month <= 12:
+            return date(year, month, 1)
 
     # الباقي: pandas أقدر على أشكال التاريخ الإنجليزية والرقمية
     try:
@@ -586,10 +702,31 @@ def _finalize(
         numeric = numeric.clip(lower=0)
 
     products: dict[str, list[float]] = {}
+    merged = 0
+    totals_dropped: list[str] = []
     for name, row in numeric.iterrows():
-        label = str(name).strip()
-        if label and label.lower() != "nan":
-            products[label] = [float(v) for v in row.tolist()]
+        label = clean_product_name(name)
+        if not label or label.lower() == "nan":
+            continue
+        if _is_total_row(label):
+            totals_dropped.append(label)
+            continue
+        values = [float(v) for v in row.tolist()]
+        if label in products:
+            # صفّان لنفس المنتج: مستودعان أو خطّا إنتاج، لا خطأ إدخال —
+            # نفس قرار ملف المخزون (_stock_from_columns). كان الصفّ الثاني
+            # يمحو الأول بصمت لأن الإسناد إلى dict لا يجمع.
+            products[label] = [a + b for a, b in zip(products[label], values)]
+            merged += 1
+        else:
+            products[label] = values
+
+    if totals_dropped:
+        warnings.append(Warning_("total_rows", {
+            "count": len(totals_dropped), "names": "، ".join(totals_dropped[:3]),
+        }))
+    if merged:
+        warnings.append(Warning_("merged_rows", {"count": merged}))
 
     if not products:
         raise DataValidationError(
@@ -752,7 +889,7 @@ def _stock_from_columns(
 
     levels: dict[str, float] = {}
     for name, value in numeric.items():
-        label = str(name).strip()
+        label = clean_product_name(name)
         if label and label.lower() != "nan":
             levels[label] = float(value)
 
@@ -767,7 +904,7 @@ def _stock_from_columns(
             frame.groupby(product_column)[price_column].first()
         )
         for name, value in first_price.items():
-            label = str(name).strip()
+            label = clean_product_name(name)
             if label and label in levels and pd.notna(value) and value >= 0:
                 prices[label] = float(value)
 
