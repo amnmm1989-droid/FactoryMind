@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 # الموسمية والنمو أنماط قابلة للتوقع نسبياً — تُضيف خطورة لكنها أقل حدّة.
 #
 # هذه معايرة أولية بلا بيانات تحقّق. تُضبط حين تتراكم نتائج فعلية
-# (production_plans.actual_quantity مقابل planned_quantity يعطي إشارة).
+# (يحتاج بيانات تحقّق تتراكم من الاستخدام الفعلي — راجع services/validation.py).
 FACTOR_WEIGHTS: dict[str, float] = {
     "demand_volatility": 0.30,
     "stock_depletion_risk": 0.25,

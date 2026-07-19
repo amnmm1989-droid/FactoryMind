@@ -285,8 +285,10 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.compute": {"ar": "الحساب", "en": "Compute"},
     "common.all_models": {"ar": "كل النماذج", "en": "All models"},
     "common.all_models_help": {
-        "ar": "أدقّ، لكن دقائق على كتالوج كامل بدل ثانية واحدة.",
-        "en": "More accurate, but minutes for a full catalogue instead of one second.",
+        "ar": "يجرّب نماذج أكثر فقد يجد أفضل — نحو نصف دقيقة على كتالوج كامل "
+              "بدل جزء من الثانية.",
+        "en": "Tries more models so it may find a better one — about half a minute "
+              "for a full catalogue instead of a fraction of a second.",
     },
     # ---- تقرير التحقّق (services/validation.py) ----
     "val.title": {
@@ -698,8 +700,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "fc.settings": {"ar": "إعدادات التنبؤ", "en": "Forecast settings"},
     "fc.horizon": {"ar": "أفق التنبؤ ({unit})", "en": "Forecast horizon ({unit})"},
     "fc.full_family_help": {
-        "ar": "يضيف ETS/SARIMA/Prophet/XGBoost/RandomForest — أبطأ (~1s).",
-        "en": "Adds ETS/SARIMA/Prophet/XGBoost/RandomForest — slower (~1s).",
+        "ar": "يضيف ETS/Prophet/XGBoost/RandomForest — أبطأ قليلاً على المنتج الواحد.",
+        "en": "Adds ETS/Prophet/XGBoost/RandomForest — slightly slower for one product.",
     },
     "fc.training": {"ar": "تدريب النماذج وتقييمها...", "en": "Training and scoring models..."},
     "fc.failed": {"ar": "تعذّر التنبؤ: {detail}", "en": "Forecast failed: {detail}"},
@@ -811,11 +813,11 @@ STRINGS: dict[str, dict[str, str]] = {
     "common.yes": {"ar": "نعم", "en": "Yes"},
     "common.no": {"ar": "لا", "en": "No"},
     "pi.weights_caveat": {
-        "ar": "معايرة أولية بلا بيانات تحقّق — تُضبط حين يتراكم "
-              "`production_plans.actual_quantity` مقابل `planned_quantity`.",
-        "en": "An initial calibration with no validation data behind it — to be "
-              "tuned once `production_plans.actual_quantity` accumulates against "
-              "`planned_quantity`.",
+        "ar": "هذه الأوزان معايرة أولية لا نتيجة قياس — لم تُضبَط على بيانات "
+              "تحقّق. اقرأ الدرجة كترتيب أولوية بين المنتجات، لا كرقم مطلق.",
+        "en": "These weights are an initial calibration, not a measured result — "
+              "they have not been tuned against validation data. Read the score as "
+              "a priority ordering between products, not as an absolute number.",
     },
     "pi.stored_history": {"ar": "سجل النماذج المحفوظ", "en": "Stored model history"},
     "pi.history_local_only": {
@@ -864,11 +866,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Please select at least one product",
     },
     "old.month_range": {"ar": "النطاق ({many})", "en": "Range ({many})"},
-    # قيم لا تسميات — الكود يقارن بالرمز، والتسمية تُشتقّ منه.
-    # قبل هذا كان dashboard.py يقارن بالنص الحرفي "SARIMA (إذا توفر)"،
-    # فترجمة التسمية كانت ستكسر المقارنة بصمت: SARIMA لا يعمل، بلا خطأ.
     "old.outliers": {"ar": "كشف النقاط الشاذة", "en": "Outlier detection"},
-    "old.run": {"ar": "تشغيل التحليل المتقدم", "en": "Run advanced analysis"},
 
     # ---- لوحة التحليل المتقدّم ----
     "old.product_analysis": {
@@ -908,8 +906,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": ":material/compare_arrows: Selected product comparison",
     },
     "old.footer": {
-        "ar": "نظام تحليل وتنبؤ متقدم – يعمل بنماذج ETS، SARIMA، والانحدار الخطي",
-        "en": "Advanced analysis and forecasting — powered by ETS, SARIMA and linear regression",
+        "ar": "استكشاف تاريخي وصفي — للتنبؤ واختيار النموذج بالأدلة، انظر صفحة التنبؤ",
+        "en": "Descriptive history exploration — for forecasting and evidence-based "
+              "model selection, see the Forecasting page",
     },
     "old.analysed_range": {
         "ar": ":material/calendar_month: تم تحليل البيانات من {start} إلى {end} ({count} {unit})",

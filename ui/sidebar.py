@@ -48,11 +48,9 @@ def render_sidebar(months, product_names, granularity="monthly"):
         show_outliers = st.toggle(t("old.outliers"), value=True)
         st.session_state.show_outliers = show_outliers
 
-        st.markdown("---")
-        st.button(
-            t("old.run"), icon=":material/play_arrow:", use_container_width=True
-        )
-
+        # لا زرّ "تشغيل" هنا عمداً: الصفحة وصفية وتُصيَّر عند كل تغيير في
+        # الضوابط تلقائياً. كان الزرّ موجوداً ونتيجته تُهمَل — يضغطه
+        # المستخدم وينتظر أثراً لا يأتي، وهو أسوأ من غيابه.
         return {
             'selected_products': selected_products,
             'from_idx': from_idx,
