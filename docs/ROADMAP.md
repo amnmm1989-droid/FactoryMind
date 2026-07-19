@@ -803,3 +803,63 @@ without a deliberate decision.
 identical to the reference implementation, and the remaining difference is a
 documented, tested convention in the interval estimate — not an unverified
 guess.
+
+## 3b. Importing instead of implementing ✅
+
+**Policy, set by the project owner: do not hand-build anything a trusted
+open-source library already provides — import it and use it properly.**
+
+Applied to the forecast engine, this deleted every hand-written model:
+
+| Was hand-written here | Now |
+|---|---|
+| `NaiveForecaster` | `statsforecast.Naive` |
+| `MovingAverageForecaster` | `statsforecast.WindowAverage` |
+| `CrostonForecaster` | `CrostonSBA` / `CrostonClassic` / **`CrostonOptimized`** |
+| `TSBForecaster` | `statsforecast.TSB` |
+| `ADIDAForecaster` (bucketing, disaggregation) | `statsforecast.ADIDA` |
+| `ETSForecaster` (statsmodels, fixed add/add) | **`AutoETS`** — picks the form by information criterion |
+
+Two capabilities arrived with the import rather than despite it:
+`CrostonOptimized` fits the smoothing parameter instead of pinning it at 0.1,
+and `AutoETS` selects the model form per product instead of forcing
+additive trend and seasonality on every one.
+
+### What stayed ours, and why it is not a reimplementation
+
+`services/forecast_engine/reference.py` is the single bridge. It holds only
+what the library does not provide:
+
+- the `Forecaster` contract the engine speaks (`can_handle` / `fit_predict`),
+  without which the engine would have to know model names — precisely what
+  `registry.py` avoids;
+- translation of library exceptions into `ModelTrainingError`, since the
+  engine distinguishes *training failed* from *scored badly*;
+- a non-finite guard — NaN passing silently among sound numbers is worse in a
+  production recommendation than a loud failure;
+- confidence bounds: the library's `ConformalIntervals` **requires ≥7 samples**
+  (measured), and 39% of this catalogue is shorter, so the residual-derived
+  bounds remain. That is a presentation choice, not an algorithm.
+
+Also still in-house because no library exposes them: **ADI/CV² demand
+classification** (Syntetos-Boylan-Croston 2005 — absent from both
+`statsforecast` and `utilsforecast`), **WAPE**, and `cumulative_error`.
+
+### The cost, stated plainly
+
+`statsforecast` requires **`pandas<3`**; the project was locked at 3.0.3 and is
+now on 2.3.3. The full suite passes on both, and pandas 3.0 is new enough that
+most of the analysis ecosystem still targets 2.x — but it is a real constraint
+now recorded in `requirements.txt`.
+
+The parity suite inverted with the change. It used to ask "do we match the
+reference?"; that question is now meaningless because we *call* it. It now
+asks the sharper one — **does the number arrive unchanged?** — comparing our
+output against the library's directly, with no tolerance, guarding the type
+conversion, the negative clip, and the NaN check in between.
+
+### Measured effect on results
+
+Small, from Croston's differing interval convention: weekly beat-naive
+63% → 67%, daily 62% → 66%, monthly 46% → 41%, quarterly 28% → 29%. Roughly
+neutral overall — the point was provenance, not accuracy.

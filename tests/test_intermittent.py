@@ -116,9 +116,16 @@ def test_croston_needs_at_least_two_orders():
         CrostonForecaster().fit_predict([0.0, 0.0, 40.0, 0.0], steps=3)
 
 
-def test_croston_rejects_an_invalid_alpha():
-    with pytest.raises(ValueError):
-        CrostonForecaster(alpha=1.5)
+def test_croston_exposes_the_variants_the_reference_offers():
+    """لا معامل alpha بعد الآن: المكتبة تثبّته عند 0.1 للكلاسيكي وSBA،
+    وقبولُ معاملٍ لا أثر له كذبٌ في الواجهة. البديل صيغة optimized التي
+    تلائمه — وهي قدرة لم تكن في تنفيذنا اليدوي."""
+    classic = CrostonForecaster(use_sba=False).fit_predict(INTERMITTENT, 1).values[0]
+    sba = CrostonForecaster(use_sba=True).fit_predict(INTERMITTENT, 1).values[0]
+    optimized = CrostonForecaster(optimized=True).fit_predict(INTERMITTENT, 1).values[0]
+
+    assert sba < classic          # التصحيح يخفض التحيّز صعوداً
+    assert optimized > 0
 
 
 def test_longer_gaps_mean_a_lower_rate():
@@ -152,9 +159,13 @@ def test_tsb_rate_stays_positive_for_a_live_product():
     assert output.values[0] > 0
 
 
-def test_tsb_rejects_an_invalid_beta():
+def test_tsb_rejects_an_invalid_smoothing_parameter():
+    """أسماء المعاملات تتبع المكتبة (alpha_d/alpha_p)، والتحقق يبقى عندنا:
+    المكتبة تقبل قيماً خارج المجال بلا اعتراض."""
     with pytest.raises(ValueError):
-        TSBForecaster(beta=0.0)
+        TSBForecaster(alpha_p=0.0)
+    with pytest.raises(ValueError):
+        TSBForecaster(alpha_d=1.5)
 
 
 # ---------------------------------------------------------------------------

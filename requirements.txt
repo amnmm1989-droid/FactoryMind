@@ -12,16 +12,22 @@
 # ===================================================
 
 streamlit>=1.28.0
-pandas>=2.0.0
+pandas>=2.0.0,<3        # قيد statsforecast — راجع ملاحظة النماذج أدناه
 numpy>=1.24.0
 plotly>=5.14.0
 scipy>=1.10.0
-statsmodels>=0.14.0
 openpyxl>=3.1.0
 pytest>=7.4.0
 joblib>=1.3.0          # cache نتائج التنبؤ (services/forecast_engine/cache.py)
 
-# ========== نماذج التنبؤ (Phase 3) ==========
+# ========== نماذج التنبؤ ==========
+# المبدأ: لا نُعيد بناء خوارزمية متاحة في مكتبة موثوقة. Naive/
+# MovingAverage/Croston/TSB/ADIDA/ETS كلها مستوردة من statsforecast عبر
+# services/forecast_engine/reference.py — كان بعضها منفَّذاً يدوياً وحُذف.
+#
+# ⚠️ statsforecast يشترط pandas<3، ولهذا القيد أعلاه. (statsmodels يصل
+# ضمناً معه؛ لم نعد نستورده مباشرةً.)
+statsforecast>=2.1.0
 prophet>=1.1.0         # يجرّ cmdstanpy + matplotlib — الاعتماد الأثقل هنا
 xgboost>=2.0.0         # يجرّ nvidia-nccl-cu12 (~200MB) حتى على أجهزة بلا GPU
 scikit-learn>=1.3.0    # RandomForest

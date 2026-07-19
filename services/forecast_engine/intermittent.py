@@ -28,6 +28,7 @@ from config import CONFIDENCE_LEVEL
 from core.exceptions import ModelTrainingError
 
 from .base import Forecaster, ForecastOutput
+from .reference import point_forecast
 
 # عتبات تصنيف Syntetos-Boylan-Croston (2005) — مستقرّة في الأدبيات
 ADI_CUTOFF = 1.32   # متوسط الفترة بين الطلبات
@@ -105,127 +106,100 @@ def _rate_interval(rate: float, non_zero: np.ndarray) -> tuple[list[float], list
     return [max(rate - margin, 0.0)], [rate + margin]
 
 
+
+
 class CrostonForecaster(Forecaster):
-    """Croston (1972) مع تصحيح Syntetos-Boylan اختيارياً.
+    """Croston (1972) — مفوَّضاً إلى `statsforecast`.
 
-    التقدير الأصلي متحيّز إلى الأعلى — أثبت Syntetos و Boylan (2001) أن
-    z/p يبالغ في المعدّل بعامل ~(1 - α/2). SBA يصحّحه، وهو الافتراضي هنا:
-    مبالغة منهجية في تقدير الطلب تعني مخزوناً راكداً منهجياً.
+    كان منفَّذاً يدوياً هنا. أُزيل التنفيذ لأن المكتبة المرجعية تقدّمه:
+    لا نُعيد بناء ما هو متاح وموثوق.
 
-    التحديث يحدث *فقط* عند وقوع طلب — هذا جوهر Croston. الأشهر الصفرية
-    لا تُحدّث التقدير، بل تُطيل عدّاد الفترة فحسب.
+    ثلاث صيغ تختارها المكتبة عنّا:
+      - `CrostonSBA` (الافتراضي): بتصحيح Syntetos-Boylan للتحيّز. التقدير
+        الأصلي يبالغ في المعدّل، ومبالغة منهجية تعني مخزوناً راكداً منهجياً.
+      - `CrostonClassic`: الصيغة الأصلية بلا تصحيح.
+      - `CrostonOptimized`: تُلائم معامل التنعيم بدل تثبيته عند 0.1 — قدرة
+        لم تكن في تنفيذنا اليدوي أصلاً.
+
+    ⚠️ لا معامل `alpha` بعد الآن: الصيغتان الكلاسيكية وSBA تثبّتانه عند 0.1
+    في المكتبة، وقبولُ معاملٍ لا أثر له كذبٌ في الواجهة. استخدم
+    `optimized=True` إن أردت ملاءمته.
     """
 
     name = "Croston"
     min_points = 4
     min_non_zero = 2  # طلبان على الأقل — الفترة تحتاج فارقاً لتُقاس
 
-    def __init__(self, alpha: float = 0.1, use_sba: bool = True) -> None:
-        if not 0 < alpha <= 1:
-            raise ValueError(f"alpha خارج المجال (0, 1]: {alpha}")
-        self.alpha = alpha
+    def __init__(self, *, use_sba: bool = True, optimized: bool = False) -> None:
         self.use_sba = use_sba
+        self.optimized = optimized
+
+    def _model(self):
+        from statsforecast.models import (
+            CrostonClassic, CrostonOptimized, CrostonSBA,
+        )
+
+        if self.optimized:
+            return CrostonOptimized()
+        return CrostonSBA() if self.use_sba else CrostonClassic()
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
         values = np.asarray(series, dtype=float)
-        non_zero_idx = np.flatnonzero(values > 0)
-
-        if len(non_zero_idx) < self.min_non_zero:
+        non_zero = values[values > 0]
+        # الحارس يبقى عندنا: المكتبة تُرجع صفراً صامتاً على سلسلة بلا طلبات
+        # كافية، والمحرك يحتاج تمييز "لا ينطبق" عن "توقّع صفراً".
+        if len(non_zero) < self.min_non_zero:
             raise ModelTrainingError(
-                f"طلبات غير كافية لـ Croston: {len(non_zero_idx)}",
+                f"طلبات غير كافية لـ Croston: {len(non_zero)}",
                 context={"model": self.name},
             )
 
-        # التهيئة من أول طلب، والفترة من متوسط الفواصل الفعلية
-        size_estimate = float(values[non_zero_idx[0]])
-        intervals = np.diff(non_zero_idx)
-        interval_estimate = float(np.mean(intervals)) if len(intervals) > 0 else 1.0
-
-        periods_since_demand = 1
-        for index in range(non_zero_idx[0] + 1, len(values)):
-            if values[index] > 0:
-                size_estimate = self.alpha * values[index] + (1 - self.alpha) * size_estimate
-                interval_estimate = (
-                    self.alpha * periods_since_demand + (1 - self.alpha) * interval_estimate
-                )
-                periods_since_demand = 1
-            else:
-                periods_since_demand += 1
-
-        if interval_estimate <= 0:
-            raise ModelTrainingError(
-                "تقدير فترة غير صالح", context={"model": self.name}
-            )
-
-        rate = size_estimate / interval_estimate
-        if self.use_sba:
-            # تصحيح Syntetos-Boylan للتحيّز
-            rate *= 1 - self.alpha / 2
-
-        rate = max(rate, 0.0)
-        if not np.isfinite(rate):
-            raise ModelTrainingError(
-                "Croston أنتج معدّلاً غير منتهٍ", context={"model": self.name}
-            )
-
-        lower, upper = _rate_interval(rate, values[non_zero_idx])
+        forecast = point_forecast(self._model(), series, steps, name=self.name)
+        lower, upper = _rate_interval(float(forecast[0]), non_zero)
         return ForecastOutput(
-            values=[rate] * steps, lower=lower * steps, upper=upper * steps
+            values=forecast.tolist(), lower=lower * steps, upper=upper * steps
         )
 
 
 class TSBForecaster(Forecaster):
-    """Teunter-Syntetos-Babai (2011).
+    """Teunter-Syntetos-Babai (2011) — مفوَّضاً إلى `statsforecast`.
 
     الفرق الحاسم عن Croston: يحدّث *احتمال* وقوع الطلب في **كل** فترة، لا
-    عند وقوع الطلب فقط.
+    عند وقوعه فقط. ولهذا يلاحظ منتجاً يموت: سلسلة تنتهي بعشرة أصفار تُبقي
+    تقدير Croston عند آخر معدّل عرفه، بينما يُنزل TSB الاحتمال تدريجياً.
+    وبيانات هذا المشروع مليئة بمنتجات تنتهي بأصفار (التقادم).
 
-    لماذا يهم هنا: Croston لا يلاحظ منتجاً يموت. سلسلة تنتهي بعشرة أصفار
-    متتالية تُبقي تقدير Croston عند آخر معدّل عرفه — لأن الأصفار لا تُحدّث
-    شيئاً. TSB يرى الأصفار ويُنزل الاحتمال تدريجياً. وبيانات هذا المشروع
-    مليئة بمنتجات تنتهي بأصفار (مسألة التقادم/obsolescence).
+    أسماء المعاملات تتبع المكتبة: `alpha_d` لأحجام الطلب، و`alpha_p`
+    لاحتمال وقوعه — وهو أبطأ عمداً كي لا يقفز الاحتمال بفترة واحدة.
     """
 
     name = "TSB"
     min_points = 4
     min_non_zero = 2
 
-    def __init__(self, alpha: float = 0.1, beta: float = 0.05) -> None:
-        if not 0 < alpha <= 1:
-            raise ValueError(f"alpha خارج المجال (0, 1]: {alpha}")
-        if not 0 < beta <= 1:
-            raise ValueError(f"beta خارج المجال (0, 1]: {beta}")
-        self.alpha = alpha
-        self.beta = beta  # أبطأ من alpha عمداً: الاحتمال يجب ألا يقفز لشهر واحد
+    def __init__(self, alpha_d: float = 0.1, alpha_p: float = 0.05) -> None:
+        for label, value in (("alpha_d", alpha_d), ("alpha_p", alpha_p)):
+            if not 0 < value <= 1:
+                raise ValueError(f"{label} خارج المجال (0, 1]: {value}")
+        self.alpha_d = alpha_d
+        self.alpha_p = alpha_p
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
-        values = np.asarray(series, dtype=float)
-        non_zero_idx = np.flatnonzero(values > 0)
+        from statsforecast.models import TSB
 
-        if len(non_zero_idx) < self.min_non_zero:
+        values = np.asarray(series, dtype=float)
+        non_zero = values[values > 0]
+        if len(non_zero) < self.min_non_zero:
             raise ModelTrainingError(
-                f"طلبات غير كافية لـ TSB: {len(non_zero_idx)}",
+                f"طلبات غير كافية لـ TSB: {len(non_zero)}",
                 context={"model": self.name},
             )
 
-        size_estimate = float(values[non_zero_idx[0]])
-        probability = len(non_zero_idx) / len(values)
-
-        for index in range(non_zero_idx[0] + 1, len(values)):
-            if values[index] > 0:
-                size_estimate = self.alpha * values[index] + (1 - self.alpha) * size_estimate
-                probability = self.beta * 1.0 + (1 - self.beta) * probability
-            else:
-                # الأصفار تُحدّث الاحتمال — هذا ما لا يفعله Croston
-                probability = self.beta * 0.0 + (1 - self.beta) * probability
-
-        rate = max(probability * size_estimate, 0.0)
-        if not np.isfinite(rate):
-            raise ModelTrainingError(
-                "TSB أنتج معدّلاً غير منتهٍ", context={"model": self.name}
-            )
-
-        lower, upper = _rate_interval(rate, values[non_zero_idx])
+        forecast = point_forecast(
+            TSB(alpha_d=self.alpha_d, alpha_p=self.alpha_p),
+            series, steps, name=self.name,
+        )
+        lower, upper = _rate_interval(float(forecast[0]), non_zero)
         return ForecastOutput(
-            values=[rate] * steps, lower=lower * steps, upper=upper * steps
+            values=forecast.tolist(), lower=lower * steps, upper=upper * steps
         )

@@ -22,6 +22,7 @@ from config import CONFIDENCE_LEVEL
 from core.exceptions import ModelTrainingError
 
 from .base import Forecaster, ForecastOutput
+from .reference import point_forecast
 
 
 def _interval(center: np.ndarray, spread: float) -> tuple[list[float], list[float]]:
@@ -36,40 +37,35 @@ def _interval(center: np.ndarray, spread: float) -> tuple[list[float], list[floa
 
 
 class NaiveForecaster(Forecaster):
-    """آخر قيمة، مكرّرة. الأساس المرجعي في أدبيات التنبؤ (naive/random walk)."""
+    """آخر قيمة مكرّرة — `statsforecast.Naive`.
+
+    الأساس المرجعي في أدبيات التنبؤ (random walk). بسيط بما يكفي لكتابته
+    في سطرين، لكن القاعدة واحدة: ما توفّره المكتبة المرجعية يُستورَد، فلا
+    يتفرّق مصدر الحقيقة بين نموذج ونموذج.
+    """
 
     name = "Naive"
     min_points = 1
     min_non_zero = 1
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
-        if not series:
-            raise ModelTrainingError(
-                "سلسلة فارغة", context={"model": self.name}
-            )
+        from statsforecast.models import Naive
 
-        values = np.asarray(series, dtype=float)
-        forecast = np.full(steps, values[-1], dtype=float)
+        if not len(series):
+            raise ModelTrainingError("سلسلة فارغة", context={"model": self.name})
 
-        # عدم اليقين = تقلب الفروق بين الأشهر المتتالية. سلسلة ثابتة -> حدود ضيقة،
-        # سلسلة متذبذبة -> حدود واسعة. وهو ما نريده بالضبط.
-        diffs = np.diff(values)
-        spread = float(np.std(diffs)) if len(diffs) > 0 else abs(float(values[-1])) * 0.2
-
+        forecast = point_forecast(Naive(), series, steps, name=self.name)
+        spread = float(np.std(np.asarray(series, dtype=float)))
         lower, upper = _interval(forecast, spread)
         return ForecastOutput(values=forecast.tolist(), lower=lower, upper=upper)
 
 
 class MovingAverageForecaster(Forecaster):
-    """متوسط آخر k شهراً، مكرّر.
-
-    أمتن من Naive حين تكون البيانات متذبذبة: قيمة أخيرة شاذة تُضلّل Naive
-    تماماً، بينما يخفّف المتوسط أثرها.
-    """
+    """متوسط آخر k فترة، مكرّراً — `statsforecast.WindowAverage`."""
 
     name = "MovingAverage"
-    min_points = 3
-    min_non_zero = 2
+    min_points = 2
+    min_non_zero = 1
 
     def __init__(self, window: int = 3) -> None:
         if window < 1:
@@ -77,20 +73,19 @@ class MovingAverageForecaster(Forecaster):
         self.window = window
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
+        from statsforecast.models import WindowAverage
+
         values = np.asarray(series, dtype=float)
-        if len(values) < self.window:
+        if len(values) < self.min_points:
             raise ModelTrainingError(
-                f"السلسلة ({len(values)}) أقصر من النافذة ({self.window})",
-                context={"model": self.name},
+                f"نقاط غير كافية: {len(values)}", context={"model": self.name},
             )
+        # نافذة أطول من السلسلة تُفشل المكتبة؛ القصّ هنا يبقيها منطبقة على
+        # السلاسل القصيرة — وهي 39% من هذا الكتالوج.
+        window = min(self.window, len(values))
 
-        window_values = values[-self.window:]
-        forecast = np.full(steps, float(np.mean(window_values)), dtype=float)
-
-        spread = float(np.std(window_values)) if len(window_values) > 1 else 0.0
-        if spread == 0.0:
-            # نافذة ثابتة تماماً: لا تدّعِ يقيناً مطلقاً — اشتقّ العرض من السلسلة كلها
-            spread = float(np.std(values)) if len(values) > 1 else abs(float(values[-1])) * 0.2
-
-        lower, upper = _interval(forecast, spread)
+        forecast = point_forecast(
+            WindowAverage(window_size=window), series, steps, name=self.name,
+        )
+        lower, upper = _interval(forecast, float(np.std(values)))
         return ForecastOutput(values=forecast.tolist(), lower=lower, upper=upper)

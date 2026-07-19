@@ -33,6 +33,7 @@ from config import CONFIDENCE_LEVEL, SEASONAL_PERIODS
 from core.exceptions import ModelTrainingError
 
 from .base import Forecaster, ForecastOutput
+from .reference import point_forecast
 
 # محور زمني اصطناعي: النماذج تحتاج فهرساً منتظم الخطوة (freq يطابق حبيبة
 # الملف الفعلية)، لا تاريخاً حقيقياً.
@@ -77,17 +78,18 @@ def _bounds_from_residuals(
 
 
 class ETSForecaster(Forecaster):
-    """Exponential Smoothing بمركّبتَي اتجاه وموسمية جمعيّتين.
+    """التنعيم الأسي — `statsforecast.AutoETS`.
+
+    كان يُثبِّت `trend="add", seasonal="add"` عبر statsmodels. `AutoETS`
+    **يختار الشكل بالأدلة** (جمعي/ضربي/بلا اتجاه…) بمعيار معلوماتي، بدل
+    فرض شكل واحد على كل منتج — ترقية جاءت مع الاستيراد لا رغماً عنه.
 
     min_points = 2×seasonal_periods: النموذج الموسمي يحتاج دورتين كاملتين
-    ليفصل النمط الموسمي عن الاتجاه. أقل من ذلك — statsmodels قد يُدرّب
-    ويُرجع رقماً، لكنه رقم مُلائم للضجيج لا للموسمية.
+    ليفصل النمط الموسمي عن الاتجاه. أقل من ذلك يُنتَج رقمٌ مُلائم للضجيج
+    لا للموسمية — والمكتبة لن تمنعه، فالحدّ يبقى مسؤوليتنا.
 
-    seasonal_periods/freq يُشتقّان من حبيبة الملف الفعلية (config.
-    SEASONAL_PERIODS_BY_GRANULARITY/PANDAS_FREQ_BY_GRANULARITY عبر
-    registry.default_models) — لا 12/"MS" مفروضتين على بيانات أسبوعية
-    مثلاً. min_points/min_non_zero صفتا نسخة لا صنف: تُحسبان من
-    seasonal_periods الممرَّر فعلاً، لا من الثابت الشهري دائماً.
+    seasonal_periods يُشتقّ من حبيبة الملف الفعلية عبر
+    `registry.default_models` — لا 12 مفروضة على بيانات أسبوعية.
     """
 
     name = "ETS"
@@ -97,40 +99,17 @@ class ETSForecaster(Forecaster):
         self, seasonal_periods: int = SEASONAL_PERIODS, freq: str = "MS"
     ) -> None:
         self.seasonal_periods = seasonal_periods
-        self.freq = freq
+        self.freq = freq  # يبقى في التوقيع: registry يمرّره لكل الموسمية
         self.min_points = 2 * seasonal_periods
         self.min_non_zero = seasonal_periods
 
     def fit_predict(self, series: Sequence[float], steps: int) -> ForecastOutput:
-        from statsmodels.tsa.holtwinters import ExponentialSmoothing
+        from statsforecast.models import AutoETS
 
-        timeseries = _as_timeseries(series, self.freq)
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                fitted = ExponentialSmoothing(
-                    timeseries,
-                    trend="add",
-                    seasonal="add",
-                    seasonal_periods=self.seasonal_periods,
-                    initialization_method="estimated",
-                ).fit()
-                forecast = np.asarray(fitted.forecast(steps), dtype=float)
-        except Exception as exc:
-            raise ModelTrainingError(
-                f"فشل تدريب ETS: {exc}",
-                cause=exc,
-                context={"model": self.name, "points": len(series)},
-            ) from exc
-
-        if not np.all(np.isfinite(forecast)):
-            raise ModelTrainingError(
-                "ETS أنتج قيماً غير منتهية (NaN/inf)",
-                context={"model": self.name, "points": len(series)},
-            )
-
-        forecast = np.maximum(forecast, 0.0)
-        residuals = np.asarray(fitted.resid, dtype=float)
+        forecast = point_forecast(
+            AutoETS(season_length=self.seasonal_periods),
+            series, steps, name=self.name,
+        )
+        residuals = np.asarray(series, dtype=float)[1:] - np.asarray(series, dtype=float)[:-1]
         lower, upper = _bounds_from_residuals(forecast, residuals, series)
         return ForecastOutput(values=forecast.tolist(), lower=lower, upper=upper)
-
